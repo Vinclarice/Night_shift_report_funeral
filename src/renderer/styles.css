@@ -20,8 +20,13 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 .print-only { display: none; }
 
-.loading-screen, .start-screen { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #f8faf7 0, #e2eae4 65%, #d8e1da 100%); }
-.loading-card, .start-card { background: rgb(255 255 255 / 88%); border: 1px solid #cad5cd; box-shadow: var(--shadow); border-radius: 24px; padding: 42px; }
+.loading-screen, .start-screen, .crash-screen { min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at top, #f8faf7 0, #e2eae4 65%, #d8e1da 100%); }
+.loading-card, .start-card, .crash-card { background: rgb(255 255 255 / 88%); border: 1px solid #cad5cd; box-shadow: var(--shadow); border-radius: 24px; padding: 42px; }
+.crash-card { width: 480px; text-align: center; }
+.crash-card h1 { font: 700 28px/1.2 Georgia, serif; margin: 0 0 14px; color: #7b291e; }
+.crash-card p { color: var(--muted); line-height: 1.6; }
+.crash-detail { font-family: monospace; font-size: 12px; background: #f3f0ea; border-radius: 8px; padding: 10px; word-break: break-word; }
+.crash-card button { margin-top: 18px; }
 .loading-card { display: flex; gap: 14px; align-items: center; font-weight: 650; }
 .spinner { width: 20px; height: 20px; border: 2px solid #afbeb4; border-top-color: var(--forest); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

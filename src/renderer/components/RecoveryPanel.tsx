@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { BackupSummary } from "@/shared/contracts";
 
 function formatBytes(size: number) {
@@ -7,27 +9,45 @@ function formatBytes(size: number) {
 interface Props {
   backups: BackupSummary[];
   revisions: Array<{ id: string; revisionNumber: number; finalizedAt: string }>;
-  onLoadRevisions: () => void;
-  onRestoreRevision: (id: string) => void;
+  onLoadRevisions: () => Promise<void>;
+  onRestoreRevision: (id: string) => Promise<void>;
 }
 
 export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRevision }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (err) {
+      setError((err as Error).message || "That didn't work. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="panel-section settings-panel">
       <p className="eyebrow">Recovery</p>
       <h2>Revisions and backups</h2>
-      <button className="secondary full" onClick={onLoadRevisions}>Load report revisions</button>
+      <button className="secondary full" disabled={busy} onClick={() => void run(onLoadRevisions)}>
+        {busy ? "Loading…" : "Load report revisions"}
+      </button>
+      {error && <p className="muted" role="alert">{error}</p>}
       {revisions.map((revision) => (
         <div className="recovery-row" key={revision.id}>
           <span>Revision {revision.revisionNumber}<small>{new Date(revision.finalizedAt).toLocaleString()}</small></span>
-          <button onClick={() => onRestoreRevision(revision.id)}>Restore</button>
+          <button disabled={busy} onClick={() => void run(() => onRestoreRevision(revision.id))}>Restore</button>
         </div>
       ))}
       <h3>Database backups</h3>
       {backups.map((backup) => (
         <div className="recovery-row" key={backup.name}>
           <span>{new Date(backup.createdAt).toLocaleString()}<small>{formatBytes(backup.size)}</small></span>
-          <button onClick={() => { if (confirm("Restore this backup and restart the app?")) void window.nightShift.restoreBackup(backup.name); }}>Restore</button>
+          <button disabled={busy} onClick={() => { if (confirm("Restore this backup and restart the app?")) void window.nightShift.restoreBackup(backup.name); }}>Restore</button>
         </div>
       ))}
     </section>

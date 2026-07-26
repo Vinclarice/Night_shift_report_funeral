@@ -4,7 +4,7 @@ import type { ReportEntry } from "@/domain/types";
 
 export type EntryKind = ReportEntry["type"];
 export type EditingTarget = { entryId: string; personId?: string } | null;
-type TextField = "funeralHome" | "deceasedName" | "locationCode" | "specialRequest" | "text" | "rightText";
+export type TextField = "funeralHome" | "deceasedName" | "locationCode" | "specialRequest" | "text" | "rightText";
 
 export interface EntryFormState {
   entryKind: EntryKind;

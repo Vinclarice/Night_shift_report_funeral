@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
-import { addEntry, formatEntryLine, moveEntry, normalizeFuneralHome, parsePastedLines, titleCaseName } from "@/domain/entries";
+import { addEntry, moveEntry, normalizeFuneralHome, parsePastedLines, titleCaseName } from "@/domain/entries";
 import { REPORT_SECTIONS } from "@/domain/report";
 import type {
   LayoutSettings,
@@ -15,22 +15,14 @@ import { ReportPage } from "./components/ReportPage";
 import { PrintSettings } from "./components/PrintSettings";
 import { FuneralHomeManager } from "./components/FuneralHomeManager";
 import { RecoveryPanel } from "./components/RecoveryPanel";
+import { PasteReviewModal } from "./components/PasteReviewModal";
+import { EntryForm } from "./components/EntryForm";
 import { useOverflowCompaction } from "./hooks/useOverflowCompaction";
 import { useEntryForm } from "./hooks/useEntryForm";
-import type { EntryKind } from "./hooks/useEntryForm";
+import { entrySummary } from "./entrySummary";
 
 function baseEntry() {
   return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
-}
-
-function entrySummary(entry: ReportEntry): string {
-  // Deliberately terser than formatEntryLine's print-ready text for the funeral case only: the
-  // sidebar already lists each deceased person's location code and special request directly
-  // beneath this line (see the person-actions rows below), so repeating that detail here would
-  // just be noise. Every other entry type has nothing extra to omit, so it delegates to the
-  // single canonical formatter instead of re-implementing the same formatting a second time.
-  if (entry.type === "funeral") return `${entry.funeralHome} – ${entry.deceased.map((person) => person.name).join(" + ")}`;
-  return formatEntryLine(entry);
 }
 
 export function App() {
@@ -222,6 +214,10 @@ export function App() {
     setPasteReview(parsePastedLines(pasteText).map((line) => ({ ...line, include: true })));
   }
 
+  function togglePasteLine(index: number, include: boolean) {
+    setPasteReview((current) => current!.map((candidate, itemIndex) => (itemIndex === index ? { ...candidate, include } : candidate)));
+  }
+
   function commitPaste() {
     const next = structuredClone(reportRef.current!);
     const section = next.sections.find((item) => item.key === selectedSection)!;
@@ -308,12 +304,12 @@ export function App() {
       <header className="app-header no-print">
         <div><p className="eyebrow">Night operations</p><h1>Night Shift Report</h1></div>
         <div className="header-actions">
-          <span className={`save-state ${status}`}>{status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}</span>
+          <span className={`save-state ${status}`} role="status" aria-live="polite">{status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}</span>
           {report.status === "draft" && <button className="quiet" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}>Undo</button>}
-          <button className="quiet" onClick={() => setShowDirectory(!showDirectory)}>Funeral homes</button>
-          <button className="quiet" onClick={() => setShowRecovery(!showRecovery)}>Recovery</button>
-          <button className="quiet" onClick={() => setShowAdvanced(!showAdvanced)}>Print setup</button>
-          {report.status === "draft" ? <button className="primary" onClick={() => void finalize()}>Finalize</button> : <button className="secondary" onClick={() => void reopen()}>Reopen</button>}
+          <button className="quiet" aria-expanded={showDirectory} onClick={() => setShowDirectory(!showDirectory)}>Funeral homes</button>
+          <button className="quiet" aria-expanded={showRecovery} onClick={() => setShowRecovery(!showRecovery)}>Recovery</button>
+          <button className="quiet" aria-expanded={showAdvanced} onClick={() => setShowAdvanced(!showAdvanced)}>Print setup</button>
+          {report.status === "draft" ? <button className="primary" disabled={status === "saving"} onClick={() => void finalize()}>Finalize</button> : <button className="secondary" disabled={status === "saving"} onClick={() => void reopen()}>Reopen</button>}
           <button className="print-button" disabled={overflow} title={overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}>{report.status === "draft" ? "Print draft" : "Print report"}</button>
         </div>
       </header>
@@ -330,27 +326,19 @@ export function App() {
             }}>{REPORT_SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.category === "human" ? "Human" : "Cremated"} — {section.title}</option>)}</select></label>
           </section>
 
-          <form className="entry-form panel-section" onSubmit={submitEntry}>
-            <div className="section-heading"><div><p className="eyebrow">{form.editing ? "Editing" : "Add entry"}</p><h2>{activeSection.title}</h2></div>{form.editing && <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>}</div>
-            <label>Format<select value={form.entryKind} onChange={(event) => setEntryKind(event.target.value as EntryKind)}>
-              <option value="funeral">Funeral home + deceased</option>
-              <option value="funeralHomeOnly">Funeral home only</option>
-              <option value="count">Simple count</option>
-              <option value="combined">Combined line</option>
-              <option value="plain">Plain text</option>
-            </select></label>
-            {(form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly") && <>
-              <label>Funeral home<input list="funeral-home-options" value={form.funeralHome} onChange={(event) => setField("funeralHome", event.target.value)} placeholder="Start typing…" /></label>
-              <datalist id="funeral-home-options">{bootstrap.funeralHomes.map((home) => <option key={home.id} value={home.name} />)}</datalist>
-            </>}
-            {form.entryKind === "funeral" && <div className="two-field"><label>Deceased<input value={form.deceasedName} onChange={(event) => setField("deceasedName", event.target.value)} /></label><label>Location / code<input value={form.locationCode} onChange={(event) => setField("locationCode", event.target.value)} placeholder="13A" /></label></div>}
-            {form.entryKind === "funeral" && <label>Special request<input value={form.specialRequest} onChange={(event) => setField("specialRequest", event.target.value)} placeholder="Optional — prints bold" /></label>}
-            {(form.entryKind === "plain" || form.entryKind === "count" || form.entryKind === "combined") && <label>{form.entryKind === "combined" ? "Left name" : "Text"}<input value={form.text} onChange={(event) => setField("text", event.target.value)} /></label>}
-            {form.entryKind === "combined" && <label>Right name<input value={form.rightText} onChange={(event) => setField("rightText", event.target.value)} /></label>}
-            {(form.entryKind === "count" || form.entryKind === "combined") && <label>Count<input type="number" min="1" value={form.count} onChange={(event) => setCount(Number(event.target.value))} /></label>}
-            {(form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly") && <div className="check-row">{isDeliver && <label><input type="checkbox" checked={form.rush} onChange={(event) => setRush(event.target.checked)} /> Rush — list first</label>}<label><input type="checkbox" checked={form.keepSeparate} onChange={(event) => setKeepSeparate(event.target.checked)} /> Keep as separate line</label></div>}
-            <button className="primary full" type="submit">{form.editing ? "Save changes" : "Add to report"}</button>
-          </form>
+          <EntryForm
+            form={form}
+            activeSectionTitle={activeSection.title}
+            isDeliver={isDeliver}
+            funeralHomes={bootstrap.funeralHomes}
+            setField={setField}
+            setCount={setCount}
+            setRush={setRush}
+            setKeepSeparate={setKeepSeparate}
+            setEntryKind={setEntryKind}
+            reset={reset}
+            onSubmit={submitEntry}
+          />
 
           <section className="panel-section current-entries">
             <div className="section-heading"><div><p className="eyebrow">Current entries</p><h2>{activeSection.entries.length || "None"}</h2></div></div>
@@ -379,7 +367,9 @@ export function App() {
 
       <div className="print-only"><ReportPage report={report} layout={layout} compactLevel={compactLevel} calibration={calibration} /></div>
 
-      {pasteReview && <div className="modal-backdrop no-print"><section className="modal"><div className="modal-header"><div><p className="eyebrow">Paste review</p><h2>Confirm parsed entries</h2></div><button onClick={() => setPasteReview(null)}>×</button></div><div className="review-list">{pasteReview.map((line, index) => <label className="review-row" key={`${line.source}-${index}`}><input type="checkbox" checked={line.include} onChange={(event) => setPasteReview((current) => current!.map((candidate, itemIndex) => itemIndex === index ? { ...candidate, include: event.target.checked } : candidate))} /><span><strong>{line.entry.type}</strong>{entrySummary(line.entry)}{line.warning && <em>{line.warning}</em>}</span></label>)}</div><div className="modal-actions"><button className="secondary" onClick={() => setPasteReview(null)}>Cancel</button><button className="primary" onClick={commitPaste}>Add selected lines</button></div></section></div>}
+      {pasteReview && (
+        <PasteReviewModal lines={pasteReview} onToggle={togglePasteLine} onCancel={() => setPasteReview(null)} onConfirm={commitPaste} />
+      )}
     </main>
   );
 }
