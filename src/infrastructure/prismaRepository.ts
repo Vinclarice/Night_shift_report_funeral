@@ -247,38 +247,71 @@ export class PrismaReportRepository implements ReportRepository {
   }
 
   private async writeEntries(tx: Prisma.TransactionClient, report: NightReport) {
-    for (const section of report.sections) {
-      for (const [position, entry] of section.entries.entries()) {
-        let funeralHomeId: string | undefined;
-        let funeralHomeNameSnapshot: string | undefined;
-        if (entry.type === "funeral" || entry.type === "funeralHomeOnly") {
-          funeralHomeNameSnapshot = entry.funeralHome.trim().replace(/\s+/g, " ");
-          const home = await tx.funeralHome.upsert({
-            where: { normalizedName: normalizeFuneralHome(funeralHomeNameSnapshot) },
-            update: {},
-            create: { name: funeralHomeNameSnapshot, normalizedName: normalizeFuneralHome(funeralHomeNameSnapshot) },
-          });
-          funeralHomeId = home.id;
-        }
-        await tx.entry.create({ data: {
-          id: entry.id,
-          reportId: report.id,
-          sectionKey: section.key,
-          type: entry.type,
-          rush: entry.rush,
-          keepSeparate: entry.keepSeparate,
-          position,
-          funeralHomeId,
-          funeralHomeNameSnapshot,
-          text: entry.type === "plain" || entry.type === "count" ? entry.text : undefined,
-          leftText: entry.type === "combined" ? entry.leftText : undefined,
-          rightText: entry.type === "combined" ? entry.rightText : undefined,
-          count: entry.type === "count" || entry.type === "combined" ? entry.count : undefined,
-          createdAt: new Date(entry.createdAt),
-          deceased: entry.type === "funeral" ? { create: entry.deceased.map((person, personPosition) => ({ id: person.id, name: person.name, locationCode: person.locationCode || null, specialRequest: person.specialRequest || null, position: personPosition })) } : undefined,
-        } });
+    // Each entry carries its section-relative position (matching the read-side ordering by
+    // sectionKey/position), so this flattens once up front rather than re-deriving it per query.
+    const allEntries = report.sections.flatMap((section) =>
+      section.entries.map((entry, position) => ({ section, entry, position })),
+    );
+
+    // Previously this upserted the funeral home once per *entry*, re-upserting the same name
+    // repeatedly whenever it appeared more than once in the report. Upsert each distinct name
+    // exactly once, in parallel, and look the id up by name while building the entry rows below.
+    const namesByNormalized = new Map<string, string>();
+    for (const { entry } of allEntries) {
+      if (entry.type === "funeral" || entry.type === "funeralHomeOnly") {
+        const clean = entry.funeralHome.trim().replace(/\s+/g, " ");
+        namesByNormalized.set(normalizeFuneralHome(clean), clean);
       }
     }
+    const idByNormalizedName = new Map<string, string>();
+    await Promise.all(
+      [...namesByNormalized.entries()].map(async ([normalizedName, name]) => {
+        const home = await tx.funeralHome.upsert({
+          where: { normalizedName },
+          update: {},
+          create: { name, normalizedName },
+        });
+        idByNormalizedName.set(normalizedName, home.id);
+      }),
+    );
+
+    // Previously this issued one entry.create (with a nested deceased create) per entry.
+    // Two batched calls replace what could be dozens of sequential round trips per save.
+    const entryRows = allEntries.map(({ section, entry, position }) => {
+      const funeralHomeNameSnapshot =
+        entry.type === "funeral" || entry.type === "funeralHomeOnly" ? entry.funeralHome.trim().replace(/\s+/g, " ") : undefined;
+      return {
+        id: entry.id,
+        reportId: report.id,
+        sectionKey: section.key,
+        type: entry.type,
+        rush: entry.rush,
+        keepSeparate: entry.keepSeparate,
+        position,
+        funeralHomeId: funeralHomeNameSnapshot ? idByNormalizedName.get(normalizeFuneralHome(funeralHomeNameSnapshot)) : undefined,
+        funeralHomeNameSnapshot,
+        text: entry.type === "plain" || entry.type === "count" ? entry.text : undefined,
+        leftText: entry.type === "combined" ? entry.leftText : undefined,
+        rightText: entry.type === "combined" ? entry.rightText : undefined,
+        count: entry.type === "count" || entry.type === "combined" ? entry.count : undefined,
+        createdAt: new Date(entry.createdAt),
+      };
+    });
+    const deceasedRows = allEntries.flatMap(({ entry }) =>
+      entry.type === "funeral"
+        ? entry.deceased.map((person, personPosition) => ({
+            id: person.id,
+            entryId: entry.id,
+            name: person.name,
+            locationCode: person.locationCode || null,
+            specialRequest: person.specialRequest || null,
+            position: personPosition,
+          }))
+        : [],
+    );
+
+    if (entryRows.length) await tx.entry.createMany({ data: entryRows });
+    if (deceasedRows.length) await tx.deceased.createMany({ data: deceasedRows });
   }
 }
 

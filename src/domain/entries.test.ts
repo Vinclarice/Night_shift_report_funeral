@@ -106,3 +106,73 @@ describe("paste parsing", () => {
     expect(parsed.deceased[0].name).toBe("John O'Connor-Smith");
   });
 });
+
+describe("parses every line format from the reference night shift report", () => {
+  it("parses single-deceased funeral lines with a location code", () => {
+    const cases: Array<[string, string, string, string]> = [
+      ["Greene \u2013 Johnson (TRL)", "Greene", "Johnson", "TRL"],
+      ["MD Crem \u2013 Rumer (17B)", "MD Crem", "Rumer", "17B"],
+      ["Crescent \u2013 Wanzer (13A)", "Crescent", "Wanzer", "13A"],
+      ["McGuire \u2013 Willoughby (13A)", "McGuire", "Willoughby", "13A"],
+      ["Inman \u2013 Lassahn (SSR)", "Inman", "Lassahn", "SSR"],
+      ["Moloney \u2013 Rivera (SSR)", "Moloney", "Rivera", "SSR"],
+      ["Alfirdaus \u2013 Fall (PR)", "Alfirdaus", "Fall", "PR"],
+    ];
+    for (const [source, funeralHome, name, locationCode] of cases) {
+      const entry = parsePastedLines(source)[0].entry as FuneralEntry;
+      expect(entry.type).toBe("funeral");
+      expect(entry.funeralHome).toBe(funeralHome);
+      expect(entry.deceased).toHaveLength(1);
+      expect(entry.deceased[0].name).toBe(name);
+      expect(entry.deceased[0].locationCode).toBe(locationCode);
+      expect(entry.deceased[0].specialRequest).toBe("");
+    }
+  });
+
+  it("parses multiple deceased for one funeral home joined by '+' with no parens", () => {
+    const entry = parsePastedLines("NMS \u2013 Nicholas + Zhang")[0].entry as FuneralEntry;
+    expect(entry.funeralHome).toBe("NMS");
+    expect(entry.deceased.map((person) => person.name)).toEqual(["Nicholas", "Zhang"]);
+    expect(entry.deceased.every((person) => person.locationCode === "" && person.specialRequest === "")).toBe(true);
+  });
+
+  it("captures a single free-text parenthetical as the location code, including punctuation", () => {
+    // The sheet uses a single paren for two different things in practice: a short location
+    // code (13A, TRL, SSR) and a longer free-text note (a question, a callback instruction).
+    // parsePerson has no way to distinguish these \u2014 a lone paren is always read as the location
+    // code, never the (bolded, uppercased-on-print) special request. That's arguably a real
+    // ambiguity in the format itself, not something this test is asserting is ideal \u2014 it's
+    // pinning down today's actual behavior so a future parser change doesn't silently misfile
+    // one of these to the other.
+    const curry = parsePastedLines("NMS \u2013 Curry (FDP or S/O?)")[0].entry as FuneralEntry;
+    expect(curry.deceased[0]).toMatchObject({ name: "Curry", locationCode: "FDP or S/O?", specialRequest: "" });
+
+    const hernandez = parsePastedLines("Beltway Crem \u2013 Hernandez (FH will call)")[0].entry as FuneralEntry;
+    expect(hernandez.deceased[0]).toMatchObject({ name: "Hernandez", locationCode: "FH will call", specialRequest: "" });
+  });
+
+  it("keeps a note dash inside the parenthetical from being mistaken for the funeral-home separator", () => {
+    // "Brown/PA \u2013 Helwig (Roadtrip \u2013 Ron OK)" has two dash-like separators; the non-greedy
+    // funeral-home regex must split on the first one (right after "Brown/PA"), not get confused
+    // by the second dash sitting inside the parenthetical note.
+    const entry = parsePastedLines("Brown/PA \u2013 Helwig (Roadtrip \u2013 Ron OK)")[0].entry as FuneralEntry;
+    expect(entry.funeralHome).toBe("Brown/PA");
+    expect(entry.deceased).toHaveLength(1);
+    expect(entry.deceased[0].name).toBe("Helwig");
+    expect(entry.deceased[0].locationCode).toBe("Roadtrip \u2013 Ron OK");
+  });
+
+  it("parses count and combined lines", () => {
+    expect(parsePastedLines("Reese x 3")[0].entry).toMatchObject({ type: "count", text: "Reese", count: 3 });
+    expect(parsePastedLines("Sewell x 2")[0].entry).toMatchObject({ type: "count", text: "Sewell", count: 2 });
+    expect(parsePastedLines("McGuire // JFC x 2")[0].entry).toMatchObject({ type: "combined", leftText: "McGuire", rightText: "JFC", count: 2 });
+  });
+
+  it("falls back to a flagged plain line for single names with no recognizable structure", () => {
+    for (const source of ["Fraizer-Mason", "Covenant"]) {
+      const line = parsePastedLines(source)[0];
+      expect(line.entry).toMatchObject({ type: "plain", text: source });
+      expect(line.warning).toBe("Kept as plain text; review before adding.");
+    }
+  });
+});

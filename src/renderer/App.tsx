@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
-import { addEntry, moveEntry, normalizeFuneralHome, parsePastedLines, titleCaseName } from "@/domain/entries";
+import { addEntry, formatEntryLine, moveEntry, normalizeFuneralHome, parsePastedLines, titleCaseName } from "@/domain/entries";
 import { REPORT_SECTIONS } from "@/domain/report";
 import type {
   LayoutSettings,
@@ -16,20 +16,21 @@ import { PrintSettings } from "./components/PrintSettings";
 import { FuneralHomeManager } from "./components/FuneralHomeManager";
 import { RecoveryPanel } from "./components/RecoveryPanel";
 import { useOverflowCompaction } from "./hooks/useOverflowCompaction";
-
-type EntryKind = ReportEntry["type"];
-type EditingTarget = { entryId: string; personId?: string } | null;
+import { useEntryForm } from "./hooks/useEntryForm";
+import type { EntryKind } from "./hooks/useEntryForm";
 
 function baseEntry() {
   return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
 }
 
 function entrySummary(entry: ReportEntry): string {
+  // Deliberately terser than formatEntryLine's print-ready text for the funeral case only: the
+  // sidebar already lists each deceased person's location code and special request directly
+  // beneath this line (see the person-actions rows below), so repeating that detail here would
+  // just be noise. Every other entry type has nothing extra to omit, so it delegates to the
+  // single canonical formatter instead of re-implementing the same formatting a second time.
   if (entry.type === "funeral") return `${entry.funeralHome} – ${entry.deceased.map((person) => person.name).join(" + ")}`;
-  if (entry.type === "funeralHomeOnly") return entry.funeralHome;
-  if (entry.type === "count") return `${entry.text} x ${entry.count}`;
-  if (entry.type === "combined") return `${entry.leftText} // ${entry.rightText} x ${entry.count}`;
-  return entry.text;
+  return formatEntryLine(entry);
 }
 
 export function App() {
@@ -39,17 +40,7 @@ export function App() {
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [message, setMessage] = useState("");
   const [selectedSection, setSelectedSection] = useState<SectionKey>("human-deliver");
-  const [entryKind, setEntryKind] = useState<EntryKind>("funeral");
-  const [funeralHome, setFuneralHome] = useState("");
-  const [deceasedName, setDeceasedName] = useState("");
-  const [locationCode, setLocationCode] = useState("");
-  const [specialRequest, setSpecialRequest] = useState("");
-  const [text, setText] = useState("");
-  const [rightText, setRightText] = useState("");
-  const [count, setCount] = useState(1);
-  const [rush, setRush] = useState(false);
-  const [keepSeparate, setKeepSeparate] = useState(false);
-  const [editing, setEditing] = useState<EditingTarget>(null);
+  const { form, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, loadEntry } = useEntryForm();
   const [pasteText, setPasteText] = useState("");
   const [pasteReview, setPasteReview] = useState<Array<ParsedLine & { include: boolean }> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -81,11 +72,6 @@ export function App() {
     }).catch((error: Error) => { setStatus("error"); setMessage(error.message); });
     return () => { active = false; };
   }, []);
-
-  function resetForm() {
-    setFuneralHome(""); setDeceasedName(""); setLocationCode(""); setSpecialRequest("");
-    setText(""); setRightText(""); setCount(1); setRush(false); setKeepSeparate(false); setEditing(null);
-  }
 
   function canonicalFuneralHome(value: string) {
     const clean = titleCaseName(value);
@@ -160,28 +146,28 @@ export function App() {
   }
 
   function buildEntry(): ReportEntry {
-    const base = { ...baseEntry(), rush, keepSeparate };
-    if (entryKind === "funeral") {
-      if (!funeralHome.trim() || !deceasedName.trim()) throw new Error("Funeral home and deceased name are required.");
-      return { ...base, type: "funeral", funeralHome: canonicalFuneralHome(funeralHome), deceased: [{ id: crypto.randomUUID(), name: titleCaseName(deceasedName), locationCode: locationCode.trim(), specialRequest: specialRequest.trim() }] };
+    const base = { ...baseEntry(), rush: form.rush, keepSeparate: form.keepSeparate };
+    if (form.entryKind === "funeral") {
+      if (!form.funeralHome.trim() || !form.deceasedName.trim()) throw new Error("Funeral home and deceased name are required.");
+      return { ...base, type: "funeral", funeralHome: canonicalFuneralHome(form.funeralHome), deceased: [{ id: crypto.randomUUID(), name: titleCaseName(form.deceasedName), locationCode: form.locationCode.trim(), specialRequest: form.specialRequest.trim() }] };
     }
-    if (entryKind === "funeralHomeOnly") {
-      if (!funeralHome.trim()) throw new Error("Funeral home is required.");
-      return { ...base, type: "funeralHomeOnly", funeralHome: canonicalFuneralHome(funeralHome) };
+    if (form.entryKind === "funeralHomeOnly") {
+      if (!form.funeralHome.trim()) throw new Error("Funeral home is required.");
+      return { ...base, type: "funeralHomeOnly", funeralHome: canonicalFuneralHome(form.funeralHome) };
     }
-    if (entryKind === "count") return { ...base, type: "count", text: text.trim(), count: Math.max(1, count) };
-    if (entryKind === "combined") return { ...base, type: "combined", leftText: text.trim(), rightText: rightText.trim(), count: Math.max(1, count) };
-    return { ...base, type: "plain", text: text.trim() };
+    if (form.entryKind === "count") return { ...base, type: "count", text: form.text.trim(), count: Math.max(1, form.count) };
+    if (form.entryKind === "combined") return { ...base, type: "combined", leftText: form.text.trim(), rightText: form.rightText.trim(), count: Math.max(1, form.count) };
+    return { ...base, type: "plain", text: form.text.trim() };
   }
 
   function removeEditingTarget(next: NightReport) {
-    if (!editing) return;
+    if (!form.editing) return;
     for (const section of next.sections) {
-      const entryIndex = section.entries.findIndex((entry) => entry.id === editing.entryId);
+      const entryIndex = section.entries.findIndex((entry) => entry.id === form.editing!.entryId);
       if (entryIndex < 0) continue;
       const entry = section.entries[entryIndex];
-      if (entry.type === "funeral" && editing.personId) {
-        entry.deceased = entry.deceased.filter((person) => person.id !== editing.personId);
+      if (entry.type === "funeral" && form.editing.personId) {
+        entry.deceased = entry.deceased.filter((person) => person.id !== form.editing!.personId);
         if (!entry.deceased.length) section.entries.splice(entryIndex, 1);
       } else section.entries.splice(entryIndex, 1);
     }
@@ -196,22 +182,8 @@ export function App() {
       const section = next.sections.find((item) => item.key === selectedSection)!;
       addEntry(section, entry);
       void persist(next);
-      resetForm();
+      reset();
     } catch (error) { setMessage((error as Error).message); }
-  }
-
-  function beginEdit(entry: ReportEntry, personId?: string) {
-    setEditing({ entryId: entry.id, personId });
-    if (entry.type === "funeral") {
-      const person = entry.deceased.find((candidate) => candidate.id === personId) ?? entry.deceased[0];
-      setEntryKind("funeral"); setFuneralHome(entry.funeralHome); setDeceasedName(person.name); setLocationCode(person.locationCode); setSpecialRequest(person.specialRequest); setRush(entry.rush); setKeepSeparate(entry.keepSeparate);
-    } else if (entry.type === "funeralHomeOnly") {
-      setEntryKind("funeralHomeOnly"); setFuneralHome(entry.funeralHome); setRush(entry.rush); setKeepSeparate(entry.keepSeparate);
-    } else if (entry.type === "combined") {
-      setEntryKind("combined"); setText(entry.leftText); setRightText(entry.rightText); setCount(entry.count);
-    } else if (entry.type === "count") {
-      setEntryKind("count"); setText(entry.text); setCount(entry.count);
-    } else { setEntryKind("plain"); setText(entry.text); }
   }
 
   function deleteEntry(entryId: string, personId?: string) {
@@ -353,38 +325,38 @@ export function App() {
         <aside className="editor-panel">
           <section className="panel-section">
             <label>Section<select value={selectedSection} onChange={(event) => {
-              const key = event.target.value as SectionKey; setSelectedSection(key); resetForm();
-              setEntryKind(key === "cremated-deliver" ? "funeralHomeOnly" : "funeral");
+              const key = event.target.value as SectionKey; setSelectedSection(key);
+              reset(key === "cremated-deliver" ? "funeralHomeOnly" : "funeral");
             }}>{REPORT_SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.category === "human" ? "Human" : "Cremated"} — {section.title}</option>)}</select></label>
           </section>
 
           <form className="entry-form panel-section" onSubmit={submitEntry}>
-            <div className="section-heading"><div><p className="eyebrow">{editing ? "Editing" : "Add entry"}</p><h2>{activeSection.title}</h2></div>{editing && <button type="button" className="text-button" onClick={resetForm}>Cancel</button>}</div>
-            <label>Format<select value={entryKind} onChange={(event) => setEntryKind(event.target.value as EntryKind)}>
+            <div className="section-heading"><div><p className="eyebrow">{form.editing ? "Editing" : "Add entry"}</p><h2>{activeSection.title}</h2></div>{form.editing && <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>}</div>
+            <label>Format<select value={form.entryKind} onChange={(event) => setEntryKind(event.target.value as EntryKind)}>
               <option value="funeral">Funeral home + deceased</option>
               <option value="funeralHomeOnly">Funeral home only</option>
               <option value="count">Simple count</option>
               <option value="combined">Combined line</option>
               <option value="plain">Plain text</option>
             </select></label>
-            {(entryKind === "funeral" || entryKind === "funeralHomeOnly") && <>
-              <label>Funeral home<input list="funeral-home-options" value={funeralHome} onChange={(event) => setFuneralHome(event.target.value)} placeholder="Start typing…" /></label>
+            {(form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly") && <>
+              <label>Funeral home<input list="funeral-home-options" value={form.funeralHome} onChange={(event) => setField("funeralHome", event.target.value)} placeholder="Start typing…" /></label>
               <datalist id="funeral-home-options">{bootstrap.funeralHomes.map((home) => <option key={home.id} value={home.name} />)}</datalist>
             </>}
-            {entryKind === "funeral" && <div className="two-field"><label>Deceased<input value={deceasedName} onChange={(event) => setDeceasedName(event.target.value)} /></label><label>Location / code<input value={locationCode} onChange={(event) => setLocationCode(event.target.value)} placeholder="13A" /></label></div>}
-            {entryKind === "funeral" && <label>Special request<input value={specialRequest} onChange={(event) => setSpecialRequest(event.target.value)} placeholder="Optional — prints bold" /></label>}
-            {(entryKind === "plain" || entryKind === "count" || entryKind === "combined") && <label>{entryKind === "combined" ? "Left name" : "Text"}<input value={text} onChange={(event) => setText(event.target.value)} /></label>}
-            {entryKind === "combined" && <label>Right name<input value={rightText} onChange={(event) => setRightText(event.target.value)} /></label>}
-            {(entryKind === "count" || entryKind === "combined") && <label>Count<input type="number" min="1" value={count} onChange={(event) => setCount(Number(event.target.value))} /></label>}
-            {(entryKind === "funeral" || entryKind === "funeralHomeOnly") && <div className="check-row">{isDeliver && <label><input type="checkbox" checked={rush} onChange={(event) => setRush(event.target.checked)} /> Rush — list first</label>}<label><input type="checkbox" checked={keepSeparate} onChange={(event) => setKeepSeparate(event.target.checked)} /> Keep as separate line</label></div>}
-            <button className="primary full" type="submit">{editing ? "Save changes" : "Add to report"}</button>
+            {form.entryKind === "funeral" && <div className="two-field"><label>Deceased<input value={form.deceasedName} onChange={(event) => setField("deceasedName", event.target.value)} /></label><label>Location / code<input value={form.locationCode} onChange={(event) => setField("locationCode", event.target.value)} placeholder="13A" /></label></div>}
+            {form.entryKind === "funeral" && <label>Special request<input value={form.specialRequest} onChange={(event) => setField("specialRequest", event.target.value)} placeholder="Optional — prints bold" /></label>}
+            {(form.entryKind === "plain" || form.entryKind === "count" || form.entryKind === "combined") && <label>{form.entryKind === "combined" ? "Left name" : "Text"}<input value={form.text} onChange={(event) => setField("text", event.target.value)} /></label>}
+            {form.entryKind === "combined" && <label>Right name<input value={form.rightText} onChange={(event) => setField("rightText", event.target.value)} /></label>}
+            {(form.entryKind === "count" || form.entryKind === "combined") && <label>Count<input type="number" min="1" value={form.count} onChange={(event) => setCount(Number(event.target.value))} /></label>}
+            {(form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly") && <div className="check-row">{isDeliver && <label><input type="checkbox" checked={form.rush} onChange={(event) => setRush(event.target.checked)} /> Rush — list first</label>}<label><input type="checkbox" checked={form.keepSeparate} onChange={(event) => setKeepSeparate(event.target.checked)} /> Keep as separate line</label></div>}
+            <button className="primary full" type="submit">{form.editing ? "Save changes" : "Add to report"}</button>
           </form>
 
           <section className="panel-section current-entries">
             <div className="section-heading"><div><p className="eyebrow">Current entries</p><h2>{activeSection.entries.length || "None"}</h2></div></div>
             {activeSection.entries.map((entry) => <div className="entry-item" key={entry.id}>
               <div className="entry-item-title">{entry.rush && <span className="rush-pill">Rush</span>}{entrySummary(entry)}</div>
-              {entry.type === "funeral" ? <div className="person-actions">{entry.deceased.map((person) => <div key={person.id}><span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span><button onClick={() => beginEdit(entry, person.id)}>Edit</button><button onClick={() => deleteEntry(entry.id, person.id)}>Remove</button></div>)}</div> : <div className="item-actions"><button onClick={() => beginEdit(entry)}>Edit</button><button onClick={() => deleteEntry(entry.id)}>Delete</button></div>}
+              {entry.type === "funeral" ? <div className="person-actions">{entry.deceased.map((person) => <div key={person.id}><span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span><button onClick={() => loadEntry(entry, person.id)}>Edit</button><button onClick={() => deleteEntry(entry.id, person.id)}>Remove</button></div>)}</div> : <div className="item-actions"><button onClick={() => loadEntry(entry)}>Edit</button><button onClick={() => deleteEntry(entry.id)}>Delete</button></div>}
             </div>)}
           </section>
 
