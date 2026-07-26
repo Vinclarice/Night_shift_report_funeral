@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
 import { addEntry, moveEntry, normalizeFuneralHome, parsePastedLines, titleCaseName } from "@/domain/entries";
-import { REPORT_SECTIONS } from "@/domain/report";
 import type {
   LayoutSettings,
   NightReport,
@@ -17,29 +16,46 @@ import { FuneralHomeManager } from "./components/FuneralHomeManager";
 import { RecoveryPanel } from "./components/RecoveryPanel";
 import { PasteReviewModal } from "./components/PasteReviewModal";
 import { EntryForm } from "./components/EntryForm";
+import { SectionNav } from "./components/SectionNav";
 import { useOverflowCompaction } from "./hooks/useOverflowCompaction";
 import { useEntryForm } from "./hooks/useEntryForm";
 import { entrySummary } from "./entrySummary";
-import { IconBuilding, IconCheck, IconHistory, IconPencil, IconPrinter, IconRedo, IconSliders, IconTrash, IconUndo, IconX } from "./icons";
+import { IconBuilding, IconCheck, IconHistory, IconPencil, IconPrinter, IconRedo, IconSliders, IconTrash, IconUndo } from "./icons";
+import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
+import { Card } from "./ui/Card";
+import { Drawer } from "./ui/Drawer";
+import { IconButton } from "./ui/IconButton";
+import { ToastProvider, useToast } from "./ui/Toast";
+
+type DrawerKey = "directory" | "recovery" | "print" | null;
 
 function baseEntry() {
   return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
 }
 
+// Wraps the real app in ToastProvider so every notification (including render(<App/>) in tests)
+// has somewhere to go, without every consumer needing to remember to mount the provider.
 export function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
+  const toast = useToast();
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [report, setReport] = useState<NightReport | null>(null);
   const [layout, setLayout] = useState<LayoutSettings | null>(null);
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
-  const [message, setMessage] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [selectedSection, setSelectedSection] = useState<SectionKey>("human-deliver");
   const { form, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, loadEntry } = useEntryForm();
   const [pasteText, setPasteText] = useState("");
   const [pasteReview, setPasteReview] = useState<Array<ParsedLine & { include: boolean }> | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showDirectory, setShowDirectory] = useState(false);
-  const [showRecovery, setShowRecovery] = useState(false);
+  const [activeDrawer, setActiveDrawer] = useState<DrawerKey>(null);
   const [calibration, setCalibration] = useState(false);
   const [revisions, setRevisions] = useState<Array<{ id: string; revisionNumber: number; finalizedAt: string }>>([]);
   const queue = useMemo(() => new MutationQueue(), []);
@@ -66,9 +82,10 @@ export function App() {
       setLayout(data.layout);
       layoutRef.current = data.layout;
       setStatus("saved");
-    }).catch((error: Error) => { setStatus("error"); setMessage(error.message); });
+    }).catch((error: Error) => { setStatus("error"); toast.error(error.message); });
     return () => { active = false; };
-  }, []);
+    // toast's identity is stable for the lifetime of the provider, so this still only runs once.
+  }, [toast]);
 
   function canonicalFuneralHome(value: string) {
     const clean = titleCaseName(value);
@@ -96,7 +113,6 @@ export function App() {
     reportRef.current = next;
     setReport(next);
     setStatus("saving");
-    setMessage("");
     return queue.enqueue(async () => {
       setStatus("saving");
       const saved = await window.nightShift.saveReport(next, versionRef.current);
@@ -107,7 +123,7 @@ export function App() {
       setLastSavedAt(new Date());
       await refreshSupportingData();
       return saved;
-    }).catch((error: Error) => { setStatus("error"); setMessage(error.message); return null; });
+    }).catch((error: Error) => { setStatus("error"); toast.error(error.message); return null; });
   }
 
   function persist(next: NightReport) {
@@ -221,7 +237,7 @@ export function App() {
       addEntry(section, entry);
       void persist(next);
       reset();
-    } catch (error) { setMessage((error as Error).message); }
+    } catch (error) { toast.warning((error as Error).message); }
   }
 
   function deleteEntry(entryId: string, personId?: string) {
@@ -249,7 +265,7 @@ export function App() {
       await refreshSupportingData();
     } catch (error) {
       setStatus("error");
-      setMessage((error as Error).message);
+      toast.error((error as Error).message);
     }
   }
 
@@ -264,7 +280,7 @@ export function App() {
       setRevisions(await window.nightShift.listRevisions(saved.id));
     } catch (error) {
       setStatus("error");
-      setMessage((error as Error).message);
+      toast.error((error as Error).message);
     }
   }
 
@@ -319,7 +335,7 @@ export function App() {
 
     setSelectedSection(sectionKey);
     void persist(next);
-    if (parseWarning) setMessage(parseWarning);
+    if (parseWarning) toast.warning(parseWarning);
   }
 
   function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string) {
@@ -334,7 +350,7 @@ export function App() {
   async function saveLayout(next: LayoutSettings) {
     setLayout(next);
     layoutRef.current = next;
-    try { const saved = await window.nightShift.saveLayout(next); layoutRef.current = saved; setLayout(saved); } catch (error) { setMessage((error as Error).message); }
+    try { const saved = await window.nightShift.saveLayout(next); layoutRef.current = saved; setLayout(saved); } catch (error) { toast.warning((error as Error).message); }
   }
 
   if (!bootstrap || !layout) return <main className="loading-screen"><div className="loading-card"><span className="spinner" />Preparing tonight’s report…</div></main>;
@@ -347,8 +363,8 @@ export function App() {
         <h1>Start tonight’s report</h1>
         <p>The report date is calculated automatically. Begin empty or carry forward the most recent finalized report.</p>
         <div className="start-actions">
-          {bootstrap.latestFinalized && <button className="primary" onClick={() => void createDraft("clone")}>New copy from last report</button>}
-          <button className={bootstrap.latestFinalized ? "secondary" : "primary"} onClick={() => void createDraft("empty")}>Start empty</button>
+          {bootstrap.latestFinalized && <Button variant="primary" onClick={() => void createDraft("clone")}>New copy from last report</Button>}
+          <Button variant={bootstrap.latestFinalized ? "secondary" : "primary"} onClick={() => void createDraft("empty")}>Start empty</Button>
         </div>
       </section>
     </main>
@@ -356,15 +372,18 @@ export function App() {
 
   const activeSection = report.sections.find((section) => section.key === selectedSection)!;
   const isDeliver = selectedSection === "human-deliver" || selectedSection === "cremated-deliver";
+  const drawerTitle = activeDrawer === "directory" ? "Funeral homes" : activeDrawer === "recovery" ? "Recovery" : "Print setup";
 
   return (
     <main className="app-shell">
       <header className="app-header no-print">
         <div><p className="eyebrow">Night operations</p><h1>Night Shift Report</h1></div>
         <div className="header-actions">
-          <span
+          <Badge
             key={status}
-            className={`save-state ${status}`}
+            className="save-state"
+            tone={status === "saved" ? "success" : status === "saving" ? "warning" : "danger"}
+            dot
             role="status"
             aria-live="polite"
             title={lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : undefined}
@@ -373,43 +392,48 @@ export function App() {
             {status === "saved" && lastSavedAt && (
               <span className="save-timestamp"> · {lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
             )}
-          </span>
+          </Badge>
 
           {report.status === "draft" && (
             <div className="undo-redo-group">
-              <button className="quiet btn-icon" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}><IconUndo />Undo</button>
-              <button className="quiet btn-icon" disabled={!redoAvailable} title="Redo (Ctrl+Y)" onClick={redo}><IconRedo />Redo</button>
+              <Button variant="quiet" icon={<IconUndo />} disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}>Undo</Button>
+              <Button variant="quiet" icon={<IconRedo />} disabled={!redoAvailable} title="Redo (Ctrl+Y)" onClick={redo}>Redo</Button>
             </div>
           )}
 
           <div className="header-divider" aria-hidden="true" />
 
           <div className="header-tools" role="group" aria-label="Panels">
-            <button className="quiet btn-icon" aria-expanded={showDirectory} onClick={() => setShowDirectory(!showDirectory)}><IconBuilding />Funeral homes</button>
-            <button className="quiet btn-icon" aria-expanded={showRecovery} onClick={() => setShowRecovery(!showRecovery)}><IconHistory />Recovery</button>
-            <button className="quiet btn-icon" aria-expanded={showAdvanced} onClick={() => setShowAdvanced(!showAdvanced)}><IconSliders />Print setup</button>
+            <Button variant="quiet" icon={<IconBuilding />} aria-pressed={activeDrawer === "directory"} onClick={() => setActiveDrawer(activeDrawer === "directory" ? null : "directory")}>Funeral homes</Button>
+            <Button variant="quiet" icon={<IconHistory />} aria-pressed={activeDrawer === "recovery"} onClick={() => setActiveDrawer(activeDrawer === "recovery" ? null : "recovery")}>Recovery</Button>
+            <Button variant="quiet" icon={<IconSliders />} aria-pressed={activeDrawer === "print"} onClick={() => setActiveDrawer(activeDrawer === "print" ? null : "print")}>Print setup</Button>
           </div>
 
           <div className="header-divider" aria-hidden="true" />
 
           <div className="header-primary">
-            {report.status === "draft" ? <button className="primary btn-icon" disabled={status === "saving"} onClick={() => void finalize()}><IconCheck />Finalize</button> : <button className="secondary btn-icon" disabled={status === "saving"} onClick={() => void reopen()}>Reopen</button>}
-            <button className="print-button btn-icon" disabled={overflow} title={overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}><IconPrinter />{report.status === "draft" ? "Print draft" : "Print report"}</button>
+            {report.status === "draft"
+              ? <Button variant="primary" icon={<IconCheck />} disabled={status === "saving"} onClick={() => void finalize()}>Finalize</Button>
+              : <Button variant="secondary" disabled={status === "saving"} onClick={() => void reopen()}>Reopen</Button>}
+            <Button variant="print" icon={<IconPrinter />} disabled={overflow} title={overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}>
+              {report.status === "draft" ? "Print draft" : "Print report"}
+            </Button>
           </div>
         </div>
       </header>
 
-      {message && <div className="message-bar no-print">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}><IconX /></button></div>}
       {overflow && <div className="overflow-warning no-print">Printing is paused because this report still exceeds one page after automatic compaction. Reduce card widths, adjust print scale, or trim entries.</div>}
 
       <div className="workspace no-print">
         <aside className="editor-panel">
-          <section className="panel-section">
-            <label>Section<select value={selectedSection} onChange={(event) => {
-              const key = event.target.value as SectionKey; setSelectedSection(key);
+          <SectionNav
+            report={report}
+            selected={selectedSection}
+            onSelect={(key) => {
+              setSelectedSection(key);
               reset(key === "cremated-deliver" ? "funeralHomeOnly" : "funeral");
-            }}>{REPORT_SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.category === "human" ? "Human" : "Cremated"} — {section.title}</option>)}</select></label>
-          </section>
+            }}
+          />
 
           <EntryForm
             form={form}
@@ -432,30 +456,86 @@ export function App() {
                 {activeSection.entries.length ? <h2>{activeSection.entries.length}</h2> : <p className="empty-hint">No entries yet — add one above.</p>}
               </div>
             </div>
-            {activeSection.entries.map((entry) => <div className="entry-item" key={entry.id}>
-              <div className="entry-item-title">{entry.rush && <span className="rush-pill">Rush</span>}{entrySummary(entry)}</div>
-              {entry.type === "funeral" ? <div className="person-actions">{entry.deceased.map((person) => <div key={person.id}><span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span><button className="icon-button" aria-label={`Edit ${person.name}`} title="Edit" onClick={() => loadEntry(entry, person.id)}><IconPencil /></button><button className="icon-button danger-hover" aria-label={`Remove ${person.name}`} title="Remove" onClick={() => deleteEntry(entry.id, person.id)}><IconTrash /></button></div>)}</div> : <div className="item-actions"><button className="icon-button" aria-label="Edit entry" title="Edit" onClick={() => loadEntry(entry)}><IconPencil /></button><button className="icon-button danger-hover" aria-label="Delete entry" title="Delete" onClick={() => deleteEntry(entry.id)}><IconTrash /></button></div>}
-            </div>)}
+            {activeSection.entries.map((entry) => (
+              <Card className="entry-item" hoverable key={entry.id}>
+                <div className="entry-item-title">
+                  {entry.rush && <Badge tone="danger" className="rush-pill">Rush</Badge>}
+                  {entrySummary(entry)}
+                </div>
+                {entry.type === "funeral" ? (
+                  <div className="person-actions">
+                    {entry.deceased.map((person) => (
+                      <div key={person.id}>
+                        <span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span>
+                        <IconButton icon={<IconPencil />} aria-label={`Edit ${person.name}`} title="Edit" onClick={() => loadEntry(entry, person.id)} />
+                        <IconButton icon={<IconTrash />} tone="danger" aria-label={`Remove ${person.name}`} title="Remove" onClick={() => deleteEntry(entry.id, person.id)} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="item-actions">
+                    <IconButton icon={<IconPencil />} aria-label="Edit entry" title="Edit" onClick={() => loadEntry(entry)} />
+                    <IconButton icon={<IconTrash />} tone="danger" aria-label="Delete entry" title="Delete" onClick={() => deleteEntry(entry.id)} />
+                  </div>
+                )}
+              </Card>
+            ))}
           </section>
 
           <section className="panel-section paste-panel">
             <p className="eyebrow">Quick paste</p><h2>Review multiple lines</h2>
             <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="Paste one entry per line…" rows={4} />
-            <button className="secondary full" disabled={!pasteText.trim()} onClick={beginPasteReview}>Review paste</button>
+            <Button variant="secondary" full disabled={!pasteText.trim()} onClick={beginPasteReview}>Review paste</Button>
           </section>
-
-          {showAdvanced && <PrintSettings layout={layout} calibration={calibration} onCalibration={setCalibration} onChange={(next) => void saveLayout(next)} onResetSection={() => { const next = { ...layout, sectionWidths: { ...layout.sectionWidths } }; delete next.sectionWidths[selectedSection]; void saveLayout(next); }} />}
-          {showDirectory && <FuneralHomeManager homes={bootstrap.funeralHomes} onUpdate={(homes) => setBootstrap({ ...bootstrap, funeralHomes: homes })} />}
-          {showRecovery && <RecoveryPanel backups={bootstrap.backups} revisions={revisions} onLoadRevisions={async () => setRevisions(await window.nightShift.listRevisions(report.id))} onRestoreRevision={async (id) => { const restored = await window.nightShift.restoreRevision(report.id, id, versionRef.current); reportRef.current = restored; setReport(restored); versionRef.current = restored.version; resetUndoHistory(); }} />}
         </aside>
 
         <section className={`preview-panel ${report.status}`}>
-          <div className="preview-toolbar"><div><p className="eyebrow">Live print preview</p><span>Click a ruled line to type · 8.5 × 11 in</span></div><span className={`status-badge ${report.status}`}>{report.status === "finalized" ? "Finalized" : "Draft"}</span></div>
-          <div className="page-stage"><div className="page-stage-frame"><ReportPage report={report} layout={layout} compactLevel={compactLevel} calibration={calibration} interactive onLineCommit={report.status === "draft" ? commitPreviewLine : undefined} onEntryMove={report.status === "draft" ? movePreviewEntry : undefined} onWidthChange={(key, width) => setLayout((current) => { if (!current) return current; const next = { ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }; layoutRef.current = next; return next; })} onWidthCommit={(key, width) => { const current = layoutRef.current; if (current) void saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }); }} /></div></div>
+          <div className="preview-toolbar">
+            <div><p className="eyebrow">Live print preview</p><span>Click a ruled line to type · 8.5 × 11 in</span></div>
+            <Badge tone={report.status === "finalized" ? "success" : "warning"} dot className="status-badge">{report.status === "finalized" ? "Finalized" : "Draft"}</Badge>
+          </div>
+          <div className="page-stage">
+            <div className="page-stage-frame">
+              <ReportPage
+                report={report}
+                layout={layout}
+                compactLevel={compactLevel}
+                calibration={calibration}
+                interactive
+                onLineCommit={report.status === "draft" ? commitPreviewLine : undefined}
+                onEntryMove={report.status === "draft" ? movePreviewEntry : undefined}
+                onWidthChange={(key, width) => setLayout((current) => { if (!current) return current; const next = { ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }; layoutRef.current = next; return next; })}
+                onWidthCommit={(key, width) => { const current = layoutRef.current; if (current) void saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }); }}
+              />
+            </div>
+          </div>
         </section>
       </div>
 
       <div className="print-only"><ReportPage report={report} layout={layout} compactLevel={compactLevel} calibration={calibration} /></div>
+
+      <Drawer open={activeDrawer !== null} title={drawerTitle} onClose={() => setActiveDrawer(null)}>
+        {activeDrawer === "directory" && (
+          <FuneralHomeManager homes={bootstrap.funeralHomes} onUpdate={(homes) => setBootstrap({ ...bootstrap, funeralHomes: homes })} />
+        )}
+        {activeDrawer === "recovery" && (
+          <RecoveryPanel
+            backups={bootstrap.backups}
+            revisions={revisions}
+            onLoadRevisions={async () => setRevisions(await window.nightShift.listRevisions(report.id))}
+            onRestoreRevision={async (id) => { const restored = await window.nightShift.restoreRevision(report.id, id, versionRef.current); reportRef.current = restored; setReport(restored); versionRef.current = restored.version; resetUndoHistory(); }}
+          />
+        )}
+        {activeDrawer === "print" && (
+          <PrintSettings
+            layout={layout}
+            calibration={calibration}
+            onCalibration={setCalibration}
+            onChange={(next) => void saveLayout(next)}
+            onResetSection={() => { const next = { ...layout, sectionWidths: { ...layout.sectionWidths } }; delete next.sectionWidths[selectedSection]; void saveLayout(next); }}
+          />
+        )}
+      </Drawer>
 
       {pasteReview && (
         <PasteReviewModal lines={pasteReview} onToggle={togglePasteLine} onCancel={() => setPasteReview(null)} onConfirm={commitPaste} />

@@ -10,9 +10,7 @@ interface Props {
 
 export function PrintSettings({ layout, calibration, onCalibration, onChange, onResetSection }: Props) {
   return (
-    <section className="panel-section settings-panel">
-      <p className="eyebrow">Advanced print setup</p>
-      <h2>Printer calibration</h2>
+    <>
       <label>
         Page margin ({layout.marginInches.toFixed(2)} in)
         <input type="range" min="0.2" max="0.6" step="0.01" value={layout.marginInches} onChange={(event) => onChange({ ...layout, marginInches: Number(event.target.value) })} />
@@ -27,6 +25,6 @@ export function PrintSettings({ layout, calibration, onCalibration, onChange, on
       </div>
       <label className="switch-row"><input type="checkbox" checked={calibration} onChange={(event) => onCalibration(event.target.checked)} /> Show calibration marks</label>
       <button className="secondary full" onClick={onResetSection}>Reset selected card width to Auto</button>
-    </section>
+    </>
   );
 }

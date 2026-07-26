@@ -13,9 +13,7 @@ export function FuneralHomeManager({ homes, onUpdate }: Props) {
   const [target, setTarget] = useState("");
 
   return (
-    <section className="panel-section settings-panel">
-      <p className="eyebrow">Directory</p>
-      <h2>Learned funeral homes</h2>
+    <>
       {homes.length === 0 && <p className="muted">Names will appear here after entries are saved.</p>}
       {homes.map((home) => (
         <div className="directory-row" key={home.id}>
@@ -42,6 +40,6 @@ export function FuneralHomeManager({ homes, onUpdate }: Props) {
           <button className="secondary" disabled={!source || !target} onClick={() => void window.nightShift.mergeFuneralHomes(source, target).then(onUpdate)}>Merge</button>
         </div>
       )}
-    </section>
+    </>
   );
 }

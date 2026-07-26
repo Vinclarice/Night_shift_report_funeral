@@ -32,9 +32,7 @@ export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRe
   }
 
   return (
-    <section className="panel-section settings-panel">
-      <p className="eyebrow">Recovery</p>
-      <h2>Revisions and backups</h2>
+    <>
       <button className="secondary full" disabled={busy} onClick={() => void run(onLoadRevisions)}>
         {busy ? "Loading…" : "Load report revisions"}
       </button>
@@ -67,6 +65,6 @@ export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRe
           }}
         />
       )}
-    </section>
+    </>
   );
 }
