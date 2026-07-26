@@ -23,11 +23,11 @@ describe("print report", () => {
       <ReportPage
         report={createEmptyReport("2026-07-26")}
         layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
-        compactLevel={2}
+        compactLevel={1}
       />,
     );
 
-    expect(container.querySelector(".report-page")).toHaveClass("compact-2");
+    expect(container.querySelector(".report-page")).toHaveClass("compact-1");
   });
 
   it("lets the operator type into an empty preview row and commit with Enter", () => {

@@ -26,7 +26,48 @@ let repository: PrismaReportRepository;
 let service: ReportService;
 let backups: BackupManager;
 
-const reportSchema = z.object({ id: z.string(), reportDate: z.string(), status: z.enum(["draft", "finalized"]), version: z.number().int(), finalizedAt: z.string().nullable(), sections: z.array(z.any()) });
+const deceasedPersonSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  locationCode: z.string(),
+  specialRequest: z.string(),
+});
+
+const baseEntryFields = {
+  id: z.string(),
+  rush: z.boolean(),
+  keepSeparate: z.boolean(),
+  createdAt: z.string(),
+};
+
+const reportEntrySchema = z.discriminatedUnion("type", [
+  z.object({ ...baseEntryFields, type: z.literal("funeral"), funeralHome: z.string(), deceased: z.array(deceasedPersonSchema) }),
+  z.object({ ...baseEntryFields, type: z.literal("funeralHomeOnly"), funeralHome: z.string() }),
+  z.object({ ...baseEntryFields, type: z.literal("count"), text: z.string(), count: z.number().int() }),
+  z.object({ ...baseEntryFields, type: z.literal("combined"), leftText: z.string(), rightText: z.string(), count: z.number().int() }),
+  z.object({ ...baseEntryFields, type: z.literal("plain"), text: z.string() }),
+]);
+
+const sectionKeySchema = z.enum([
+  "human-deliver",
+  "human-airport",
+  "human-fdp",
+  "human-pending",
+  "human-ship-outs",
+  "cremated-deliver",
+  "cremated-mail",
+  "cremated-fdp",
+  "cremated-certs",
+]);
+
+const reportSectionSchema = z.object({
+  key: sectionKeySchema,
+  category: z.enum(["human", "cremated"]),
+  title: z.string(),
+  entries: z.array(reportEntrySchema),
+});
+
+const reportSchema = z.object({ id: z.string(), reportDate: z.string(), status: z.enum(["draft", "finalized"]), version: z.number().int(), finalizedAt: z.string().nullable(), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {

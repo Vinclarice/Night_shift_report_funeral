@@ -10,8 +10,12 @@ import type {
   ReportEntry,
   SectionKey,
 } from "@/domain/types";
-import type { BackupSummary, BootstrapData, FuneralHomeOption } from "@/shared/contracts";
+import type { BootstrapData } from "@/shared/contracts";
 import { ReportPage } from "./components/ReportPage";
+import { PrintSettings } from "./components/PrintSettings";
+import { FuneralHomeManager } from "./components/FuneralHomeManager";
+import { RecoveryPanel } from "./components/RecoveryPanel";
+import { useOverflowCompaction } from "./hooks/useOverflowCompaction";
 
 type EntryKind = ReportEntry["type"];
 type EditingTarget = { entryId: string; personId?: string } | null;
@@ -26,10 +30,6 @@ function entrySummary(entry: ReportEntry): string {
   if (entry.type === "count") return `${entry.text} x ${entry.count}`;
   if (entry.type === "combined") return `${entry.leftText} // ${entry.rightText} x ${entry.count}`;
   return entry.text;
-}
-
-function formatBytes(size: number) {
-  return size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function App() {
@@ -56,20 +56,15 @@ export function App() {
   const [showDirectory, setShowDirectory] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [calibration, setCalibration] = useState(false);
-  const [compaction, setCompaction] = useState<{ key: string; level: 0 | 1 | 2 }>({ key: "", level: 0 });
-  const [overflow, setOverflow] = useState(false);
   const [revisions, setRevisions] = useState<Array<{ id: string; revisionNumber: number; finalizedAt: string }>>([]);
   const queue = useMemo(() => new MutationQueue(), []);
   const versionRef = useRef(0);
   const reportRef = useRef<NightReport | null>(null);
   const layoutRef = useRef<LayoutSettings | null>(null);
-  const compactionKey = useMemo(() => JSON.stringify({
-    sections: report?.sections,
-    margin: layout?.marginInches,
-    scale: layout?.scale,
-    offsetY: layout?.offsetYInches,
-  }), [report?.sections, layout?.marginInches, layout?.scale, layout?.offsetYInches]);
-  const compactLevel = compaction.key === compactionKey ? compaction.level : 0;
+  const undoStackRef = useRef<NightReport[]>([]);
+  const [undoAvailable, setUndoAvailable] = useState(false);
+  const undoRef = useRef<() => void>(() => {});
+  const { compactLevel, overflow } = useOverflowCompaction(report, layout);
 
   useEffect(() => {
     let active = true;
@@ -79,34 +74,13 @@ export function App() {
       setReport(data.report);
       reportRef.current = data.report;
       versionRef.current = data.report?.version ?? 0;
+      resetUndoHistory();
       setLayout(data.layout);
       layoutRef.current = data.layout;
       setStatus("saved");
     }).catch((error: Error) => { setStatus("error"); setMessage(error.message); });
     return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    const page = document.querySelector<HTMLElement>(".page-stage .report-page");
-    const content = page?.querySelector<HTMLElement>(".report-content");
-    const columns = page ? [...page.querySelectorAll<HTMLElement>(".report-column")] : [];
-    if (!page || !content) return;
-    const check = () => {
-      const contentBottom = Math.max(content.getBoundingClientRect().bottom, ...columns.map((column) => column.getBoundingClientRect().bottom));
-      const exceedsPage = contentBottom > page.getBoundingClientRect().bottom - 12;
-      if (exceedsPage && compactLevel < 2) {
-        setCompaction({ key: compactionKey, level: (compactLevel + 1) as 1 | 2 });
-        setOverflow(false);
-      } else {
-        setOverflow(exceedsPage);
-      }
-    };
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(content);
-    columns.forEach((column) => observer.observe(column));
-    return () => observer.disconnect();
-  }, [report, layout, compactLevel, compactionKey]);
 
   function resetForm() {
     setFuneralHome(""); setDeceasedName(""); setLocationCode(""); setSpecialRequest("");
@@ -123,7 +97,45 @@ export function App() {
     setBootstrap((current) => current ? { ...current, funeralHomes: data.funeralHomes, backups: data.backups } : data);
   }
 
+  const UNDO_HISTORY_LIMIT = 15;
+
+  function resetUndoHistory() {
+    undoStackRef.current = [];
+    setUndoAvailable(false);
+  }
+
+  function pushUndo(previous: NightReport) {
+    undoStackRef.current = [...undoStackRef.current, structuredClone(previous)].slice(-UNDO_HISTORY_LIMIT);
+    setUndoAvailable(undoStackRef.current.length > 0);
+  }
+
+  function undo() {
+    const current = reportRef.current;
+    if (!current || current.status !== "draft" || !undoStackRef.current.length) return;
+    const stack = undoStackRef.current;
+    const previous = stack[stack.length - 1];
+    undoStackRef.current = stack.slice(0, -1);
+    setUndoAvailable(undoStackRef.current.length > 0);
+    void persist(previous);
+  }
+  undoRef.current = undo;
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isEditableField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (isEditableField || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+      event.preventDefault();
+      undoRef.current();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
   function persist(next: NightReport) {
+    // Every mutating action funnels through here, so this is the single point that captures
+    // undo history — a snapshot of what the report looked like right before this change.
+    if (reportRef.current) pushUndo(reportRef.current);
     reportRef.current = next;
     setReport(next);
     setStatus("saving");
@@ -144,6 +156,7 @@ export function App() {
     setStatus("saving");
     const created = await window.nightShift.createDraft(mode);
     setReport(created); reportRef.current = created; versionRef.current = created.version; setStatus("saved");
+    resetUndoHistory();
   }
 
   function buildEntry(): ReportEntry {
@@ -220,6 +233,7 @@ export function App() {
     setStatus("saving");
     const saved = await window.nightShift.finalizeReport(current, versionRef.current);
     reportRef.current = saved; setReport(saved); versionRef.current = saved.version; setStatus("saved");
+    resetUndoHistory();
     setRevisions(await window.nightShift.listRevisions(saved.id));
     await refreshSupportingData();
   }
@@ -228,6 +242,7 @@ export function App() {
     const current = reportRef.current!;
     const saved = await window.nightShift.reopenReport(current, versionRef.current);
     reportRef.current = saved; setReport(saved); versionRef.current = saved.version;
+    resetUndoHistory();
     setRevisions(await window.nightShift.listRevisions(saved.id));
   }
 
@@ -252,12 +267,18 @@ export function App() {
     if (existingIndex >= 0) section.entries.splice(existingIndex, 1);
 
     const clean = value.trim();
+    let parseWarning: string | undefined;
     if (clean) {
-      let parsed = parsePastedLines(clean)[0].entry;
+      const parsedLine = parsePastedLines(clean)[0];
+      let parsed = parsedLine.entry;
       if (parsed.type === "plain" && (sectionKey === "cremated-deliver" || existing?.type === "funeralHomeOnly")) {
         parsed = { ...parsed, type: "funeralHomeOnly", funeralHome: canonicalFuneralHome(parsed.text) };
       }
       if (parsed.type === "funeral" || parsed.type === "funeralHomeOnly") parsed.funeralHome = canonicalFuneralHome(parsed.funeralHome);
+      // Only surface the parser's warning if the line is still ambiguous plain text after the
+      // section-specific coercions above; a successful funeral/funeralHomeOnly reinterpretation
+      // means it was resolved, not left for review.
+      if (parsed.type === "plain") parseWarning = parsedLine.warning;
       if (existing) {
         parsed = {
           ...parsed,
@@ -272,6 +293,7 @@ export function App() {
 
     setSelectedSection(sectionKey);
     void persist(next);
+    if (parseWarning) setMessage(parseWarning);
   }
 
   function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string) {
@@ -315,6 +337,7 @@ export function App() {
         <div><p className="eyebrow">Night operations</p><h1>Night Shift Report</h1></div>
         <div className="header-actions">
           <span className={`save-state ${status}`}>{status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}</span>
+          {report.status === "draft" && <button className="quiet" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}>Undo</button>}
           <button className="quiet" onClick={() => setShowDirectory(!showDirectory)}>Funeral homes</button>
           <button className="quiet" onClick={() => setShowRecovery(!showRecovery)}>Recovery</button>
           <button className="quiet" onClick={() => setShowAdvanced(!showAdvanced)}>Print setup</button>
@@ -373,7 +396,7 @@ export function App() {
 
           {showAdvanced && <PrintSettings layout={layout} calibration={calibration} onCalibration={setCalibration} onChange={(next) => void saveLayout(next)} onResetSection={() => { const next = { ...layout, sectionWidths: { ...layout.sectionWidths } }; delete next.sectionWidths[selectedSection]; void saveLayout(next); }} />}
           {showDirectory && <FuneralHomeManager homes={bootstrap.funeralHomes} onUpdate={(homes) => setBootstrap({ ...bootstrap, funeralHomes: homes })} />}
-          {showRecovery && <RecoveryPanel backups={bootstrap.backups} revisions={revisions} onLoadRevisions={async () => setRevisions(await window.nightShift.listRevisions(report.id))} onRestoreRevision={async (id) => { const restored = await window.nightShift.restoreRevision(report.id, id, versionRef.current); reportRef.current = restored; setReport(restored); versionRef.current = restored.version; }} />}
+          {showRecovery && <RecoveryPanel backups={bootstrap.backups} revisions={revisions} onLoadRevisions={async () => setRevisions(await window.nightShift.listRevisions(report.id))} onRestoreRevision={async (id) => { const restored = await window.nightShift.restoreRevision(report.id, id, versionRef.current); reportRef.current = restored; setReport(restored); versionRef.current = restored.version; resetUndoHistory(); }} />}
         </aside>
 
         <section className="preview-panel">
@@ -387,25 +410,4 @@ export function App() {
       {pasteReview && <div className="modal-backdrop no-print"><section className="modal"><div className="modal-header"><div><p className="eyebrow">Paste review</p><h2>Confirm parsed entries</h2></div><button onClick={() => setPasteReview(null)}>×</button></div><div className="review-list">{pasteReview.map((line, index) => <label className="review-row" key={`${line.source}-${index}`}><input type="checkbox" checked={line.include} onChange={(event) => setPasteReview((current) => current!.map((candidate, itemIndex) => itemIndex === index ? { ...candidate, include: event.target.checked } : candidate))} /><span><strong>{line.entry.type}</strong>{entrySummary(line.entry)}{line.warning && <em>{line.warning}</em>}</span></label>)}</div><div className="modal-actions"><button className="secondary" onClick={() => setPasteReview(null)}>Cancel</button><button className="primary" onClick={commitPaste}>Add selected lines</button></div></section></div>}
     </main>
   );
-}
-
-function PrintSettings({ layout, calibration, onCalibration, onChange, onResetSection }: { layout: LayoutSettings; calibration: boolean; onCalibration: (value: boolean) => void; onChange: (layout: LayoutSettings) => void; onResetSection: () => void }) {
-  return <section className="panel-section settings-panel"><p className="eyebrow">Advanced print setup</p><h2>Printer calibration</h2>
-    <label>Page margin ({layout.marginInches.toFixed(2)} in)<input type="range" min="0.2" max="0.6" step="0.01" value={layout.marginInches} onChange={(event) => onChange({ ...layout, marginInches: Number(event.target.value) })} /></label>
-    <label>Content scale ({Math.round(layout.scale * 100)}%)<input type="range" min="0.8" max="1.05" step="0.01" value={layout.scale} onChange={(event) => onChange({ ...layout, scale: Number(event.target.value) })} /></label>
-    <div className="two-field"><label>Horizontal offset<input type="number" min="-0.5" max="0.5" step="0.01" value={layout.offsetXInches} onChange={(event) => onChange({ ...layout, offsetXInches: Number(event.target.value) })} /></label><label>Vertical offset<input type="number" min="-0.5" max="0.5" step="0.01" value={layout.offsetYInches} onChange={(event) => onChange({ ...layout, offsetYInches: Number(event.target.value) })} /></label></div>
-    <label className="switch-row"><input type="checkbox" checked={calibration} onChange={(event) => onCalibration(event.target.checked)} /> Show calibration marks</label>
-    <button className="secondary full" onClick={onResetSection}>Reset selected card width to Auto</button>
-  </section>;
-}
-
-function FuneralHomeManager({ homes, onUpdate }: { homes: FuneralHomeOption[]; onUpdate: (homes: FuneralHomeOption[]) => void }) {
-  const [source, setSource] = useState(""); const [target, setTarget] = useState("");
-  return <section className="panel-section settings-panel"><p className="eyebrow">Directory</p><h2>Learned funeral homes</h2>{homes.length === 0 && <p className="muted">Names will appear here after entries are saved.</p>}{homes.map((home) => <div className="directory-row" key={home.id}><input defaultValue={home.name} onBlur={(event) => { if (event.target.value.trim() !== home.name) void window.nightShift.renameFuneralHome(home.id, event.target.value).then(onUpdate); }} /><button onClick={() => void window.nightShift.deleteFuneralHome(home.id).then(onUpdate)}>Remove</button></div>)}
-    {homes.length > 1 && <div className="merge-box"><label>Merge<select value={source} onChange={(event) => setSource(event.target.value)}><option value="">Choose…</option>{homes.map((home) => <option value={home.id} key={home.id}>{home.name}</option>)}</select></label><label>Into<select value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Choose…</option>{homes.filter((home) => home.id !== source).map((home) => <option value={home.id} key={home.id}>{home.name}</option>)}</select></label><button className="secondary" disabled={!source || !target} onClick={() => void window.nightShift.mergeFuneralHomes(source, target).then(onUpdate)}>Merge</button></div>}
-  </section>;
-}
-
-function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRevision }: { backups: BackupSummary[]; revisions: Array<{ id: string; revisionNumber: number; finalizedAt: string }>; onLoadRevisions: () => void; onRestoreRevision: (id: string) => void }) {
-  return <section className="panel-section settings-panel"><p className="eyebrow">Recovery</p><h2>Revisions and backups</h2><button className="secondary full" onClick={onLoadRevisions}>Load report revisions</button>{revisions.map((revision) => <div className="recovery-row" key={revision.id}><span>Revision {revision.revisionNumber}<small>{new Date(revision.finalizedAt).toLocaleString()}</small></span><button onClick={() => onRestoreRevision(revision.id)}>Restore</button></div>)}<h3>Database backups</h3>{backups.map((backup) => <div className="recovery-row" key={backup.name}><span>{new Date(backup.createdAt).toLocaleString()}<small>{formatBytes(backup.size)}</small></span><button onClick={() => { if (confirm("Restore this backup and restart the app?")) void window.nightShift.restoreBackup(backup.name); }}>Restore</button></div>)}</section>;
 }

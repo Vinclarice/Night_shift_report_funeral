@@ -7,7 +7,7 @@ import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/
 interface Props {
   report: NightReport;
   layout: LayoutSettings;
-  compactLevel?: 0 | 1 | 2;
+  compactLevel?: 0 | 1;
   calibration?: boolean;
   interactive?: boolean;
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
