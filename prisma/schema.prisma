@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  // The application overrides this with %LOCALAPPDATA% at runtime.
+  url      = "file:./night-shift-report.db"
+}
+
+model Report {
+  id              String    @id @default(cuid())
+  reportDate      String    @unique
+  status          String    @default("draft")
+  version         Int       @default(0)
+  basedOnReportId String?
+  finalizedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  entries         Entry[]
+  revisions       Revision[]
+}
+
+model Entry {
+  id                      String   @id
+  reportId                String
+  sectionKey              String
+  type                    String
+  rush                    Boolean  @default(false)
+  keepSeparate            Boolean  @default(false)
+  position                Int
+  funeralHomeId           String?
+  funeralHomeNameSnapshot String?
+  text                    String?
+  leftText                String?
+  rightText               String?
+  count                   Int?
+  createdAt               DateTime
+  report                  Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  funeralHome             FuneralHome? @relation(fields: [funeralHomeId], references: [id], onDelete: SetNull)
+  deceased                Deceased[]
+
+  @@index([reportId, sectionKey, position])
+}
+
+model Deceased {
+  id             String @id
+  entryId        String
+  name           String
+  locationCode   String?
+  specialRequest String?
+  position       Int
+  entry          Entry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+}
+
+model FuneralHome {
+  id             String  @id @default(cuid())
+  name           String
+  normalizedName String  @unique
+  createdAt      DateTime @default(now())
+  entries        Entry[]
+}
+
+model Revision {
+  id             String   @id @default(cuid())
+  reportId       String
+  revisionNumber Int
+  snapshotJson   String
+  finalizedAt    DateTime @default(now())
+  report         Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, revisionNumber])
+}
+
+model LayoutPreference {
+  sectionKey  String  @id
+  widthInches Float?
+}
+
+model PrintPreference {
+  id             Int   @id @default(1)
+  marginInches   Float @default(0.35)
+  scale          Float @default(1)
+  offsetXInches  Float @default(0)
+  offsetYInches  Float @default(0)
+}
