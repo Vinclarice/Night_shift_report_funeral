@@ -98,9 +98,17 @@ function registerIpc() {
   handle("report:save", (_event, report: NightReport, expectedVersion: number) => service.save(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion)));
   handle("report:finalize", async (_event, report: NightReport, expectedVersion: number) => {
     const final = await service.finalize(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion));
-    await backups.create("finalized");
-    await repository.purgeOlderThan(dateDaysAgo(90));
-    await backups.purge(14);
+    // The finalize write above is the durable, user-facing operation, and it already succeeded.
+    // Backups and retention are best-effort maintenance from here on — if either fails, the
+    // renderer should still see finalize as successful rather than an error for a report that's
+    // already safely finalized on disk.
+    try {
+      await backups.create("finalized");
+      await repository.purgeOlderThan(dateDaysAgo(90));
+      await backups.purge(14);
+    } catch (error) {
+      console.error("Post-finalize maintenance (backup/retention) failed:", error);
+    }
     return final;
   });
   handle("report:reopen", (_event, report: NightReport, expectedVersion: number) => service.reopen(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion)));

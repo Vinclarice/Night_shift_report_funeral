@@ -31,7 +31,7 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
   }
 
   return (
-    <form className="entry-form panel-section" onSubmit={handleSubmit}>
+    <form className="entry-form panel-section" onSubmit={handleSubmit} noValidate>
       <div className="section-heading">
         <div>
           <p className="eyebrow">{form.editing ? "Editing" : "Add entry"}</p>
@@ -75,7 +75,7 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
       )}
       {form.entryKind === "combined" && <label>Right name<input value={form.rightText} onChange={(event) => setField("rightText", event.target.value)} /></label>}
       {(form.entryKind === "count" || form.entryKind === "combined") && (
-        <label>Count<input type="number" min="1" value={form.count} onChange={(event) => setCount(Number(event.target.value))} /></label>
+        <label>Count<input type="number" min="1" value={form.count} onChange={(event) => { const parsed = Number(event.target.value); setCount(Number.isFinite(parsed) ? parsed : 0); }} /></label>
       )}
       {isFuneralKind && (
         <div className="check-row">

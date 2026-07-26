@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { PrismaClient } from "@/generated/prisma-client";
@@ -343,7 +343,26 @@ export class BackupManager {
 
   async restore(name: string) {
     if (!/^[\w.-]+\.db$/.test(name)) throw new Error("Invalid backup name.");
+    const source = join(this.backupDirectory, name);
+    // Snapshot the current database before touching anything, in case the chosen backup turns
+    // out to be the wrong one — this is the only way back if so. Must happen before close()
+    // since it needs the live connection.
+    await this.create("pre-restore");
     await this.repository.close();
-    await copyFile(join(this.backupDirectory, name), this.repository.databasePath);
+
+    // Atomic replace: copy into a temp file on the same filesystem, then rename over the live
+    // database, rather than overwriting it directly. A copyFile straight to the live path that
+    // fails partway would otherwise leave a truncated, corrupted database with no way back.
+    const databasePath = this.repository.databasePath;
+    const tempPath = `${databasePath}.restoring-${Date.now()}`;
+    await copyFile(source, tempPath);
+    await rename(tempPath, databasePath);
+
+    // Clean up any WAL/SHM sidecar files left over from the database we just replaced — they
+    // describe uncommitted writes against the OLD file and must never be applied to the new one.
+    await Promise.all([
+      rm(`${databasePath}-wal`, { force: true }),
+      rm(`${databasePath}-shm`, { force: true }),
+    ]);
   }
 }

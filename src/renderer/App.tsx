@@ -45,8 +45,11 @@ export function App() {
   const reportRef = useRef<NightReport | null>(null);
   const layoutRef = useRef<LayoutSettings | null>(null);
   const undoStackRef = useRef<NightReport[]>([]);
+  const redoStackRef = useRef<NightReport[]>([]);
   const [undoAvailable, setUndoAvailable] = useState(false);
+  const [redoAvailable, setRedoAvailable] = useState(false);
   const undoRef = useRef<() => void>(() => {});
+  const redoRef = useRef<() => void>(() => {});
   const { compactLevel, overflow } = useOverflowCompaction(report, layout);
 
   useEffect(() => {
@@ -79,41 +82,15 @@ export function App() {
 
   function resetUndoHistory() {
     undoStackRef.current = [];
+    redoStackRef.current = [];
     setUndoAvailable(false);
+    setRedoAvailable(false);
   }
 
-  function pushUndo(previous: NightReport) {
-    undoStackRef.current = [...undoStackRef.current, structuredClone(previous)].slice(-UNDO_HISTORY_LIMIT);
-    setUndoAvailable(undoStackRef.current.length > 0);
-  }
-
-  function undo() {
-    const current = reportRef.current;
-    if (!current || current.status !== "draft" || !undoStackRef.current.length) return;
-    const stack = undoStackRef.current;
-    const previous = stack[stack.length - 1];
-    undoStackRef.current = stack.slice(0, -1);
-    setUndoAvailable(undoStackRef.current.length > 0);
-    void persist(previous);
-  }
-  undoRef.current = undo;
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      const isEditableField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (isEditableField || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
-      event.preventDefault();
-      undoRef.current();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, []);
-
-  function persist(next: NightReport) {
-    // Every mutating action funnels through here, so this is the single point that captures
-    // undo history — a snapshot of what the report looked like right before this change.
-    if (reportRef.current) pushUndo(reportRef.current);
+  // Applies a report without touching undo/redo history. persist() (below) uses this after it
+  // has already recorded history for a genuine edit; undo()/redo() use it directly, since they
+  // manage the two stacks themselves and must not re-record onto the stack they just popped from.
+  function applyReport(next: NightReport) {
     reportRef.current = next;
     setReport(next);
     setStatus("saving");
@@ -129,6 +106,63 @@ export function App() {
       return saved;
     }).catch((error: Error) => { setStatus("error"); setMessage(error.message); return null; });
   }
+
+  function persist(next: NightReport) {
+    // Every mutating action except undo/redo themselves funnels through here: it records the
+    // pre-edit state on the undo stack and clears any redo branch, matching standard undo/redo
+    // semantics — making a fresh edit after undoing abandons the old "future" you undid away from.
+    if (reportRef.current) {
+      undoStackRef.current = [...undoStackRef.current, structuredClone(reportRef.current)].slice(-UNDO_HISTORY_LIMIT);
+      setUndoAvailable(true);
+    }
+    redoStackRef.current = [];
+    setRedoAvailable(false);
+    return applyReport(next);
+  }
+
+  function undo() {
+    const current = reportRef.current;
+    if (!current || current.status !== "draft" || !undoStackRef.current.length) return;
+    const stack = undoStackRef.current;
+    const previous = stack[stack.length - 1];
+    undoStackRef.current = stack.slice(0, -1);
+    setUndoAvailable(undoStackRef.current.length > 0);
+    redoStackRef.current = [...redoStackRef.current, structuredClone(current)].slice(-UNDO_HISTORY_LIMIT);
+    setRedoAvailable(true);
+    void applyReport(previous);
+  }
+  undoRef.current = undo;
+
+  function redo() {
+    const current = reportRef.current;
+    if (!current || current.status !== "draft" || !redoStackRef.current.length) return;
+    const stack = redoStackRef.current;
+    const next = stack[stack.length - 1];
+    redoStackRef.current = stack.slice(0, -1);
+    setRedoAvailable(redoStackRef.current.length > 0);
+    undoStackRef.current = [...undoStackRef.current, structuredClone(current)].slice(-UNDO_HISTORY_LIMIT);
+    setUndoAvailable(true);
+    void applyReport(next);
+  }
+  redoRef.current = redo;
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isEditableField = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (isEditableField || !(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undoRef.current();
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redoRef.current();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   async function createDraft(mode: "empty" | "clone") {
     setStatus("saving");
@@ -147,8 +181,17 @@ export function App() {
       if (!form.funeralHome.trim()) throw new Error("Funeral home is required.");
       return { ...base, type: "funeralHomeOnly", funeralHome: canonicalFuneralHome(form.funeralHome) };
     }
-    if (form.entryKind === "count") return { ...base, type: "count", text: form.text.trim(), count: Math.max(1, form.count) };
-    if (form.entryKind === "combined") return { ...base, type: "combined", leftText: form.text.trim(), rightText: form.rightText.trim(), count: Math.max(1, form.count) };
+    if (form.entryKind === "count") {
+      if (!form.text.trim()) throw new Error("Text is required.");
+      if (!Number.isFinite(form.count) || form.count < 1) throw new Error("Count must be a positive number.");
+      return { ...base, type: "count", text: form.text.trim(), count: Math.round(form.count) };
+    }
+    if (form.entryKind === "combined") {
+      if (!form.text.trim() || !form.rightText.trim()) throw new Error("Left and right text are both required.");
+      if (!Number.isFinite(form.count) || form.count < 1) throw new Error("Count must be a positive number.");
+      return { ...base, type: "combined", leftText: form.text.trim(), rightText: form.rightText.trim(), count: Math.round(form.count) };
+    }
+    if (!form.text.trim()) throw new Error("Text is required.");
     return { ...base, type: "plain", text: form.text.trim() };
   }
 
@@ -195,19 +238,31 @@ export function App() {
     await queue.drain();
     const current = reportRef.current!;
     setStatus("saving");
-    const saved = await window.nightShift.finalizeReport(current, versionRef.current);
-    reportRef.current = saved; setReport(saved); versionRef.current = saved.version; setStatus("saved");
-    resetUndoHistory();
-    setRevisions(await window.nightShift.listRevisions(saved.id));
-    await refreshSupportingData();
+    try {
+      const saved = await window.nightShift.finalizeReport(current, versionRef.current);
+      reportRef.current = saved; setReport(saved); versionRef.current = saved.version; setStatus("saved");
+      resetUndoHistory();
+      setRevisions(await window.nightShift.listRevisions(saved.id));
+      await refreshSupportingData();
+    } catch (error) {
+      setStatus("error");
+      setMessage((error as Error).message);
+    }
   }
 
   async function reopen() {
     const current = reportRef.current!;
-    const saved = await window.nightShift.reopenReport(current, versionRef.current);
-    reportRef.current = saved; setReport(saved); versionRef.current = saved.version;
-    resetUndoHistory();
-    setRevisions(await window.nightShift.listRevisions(saved.id));
+    setStatus("saving");
+    try {
+      const saved = await window.nightShift.reopenReport(current, versionRef.current);
+      reportRef.current = saved; setReport(saved); versionRef.current = saved.version;
+      setStatus("saved");
+      resetUndoHistory();
+      setRevisions(await window.nightShift.listRevisions(saved.id));
+    } catch (error) {
+      setStatus("error");
+      setMessage((error as Error).message);
+    }
   }
 
   function beginPasteReview() {
@@ -306,6 +361,7 @@ export function App() {
         <div className="header-actions">
           <span className={`save-state ${status}`} role="status" aria-live="polite">{status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}</span>
           {report.status === "draft" && <button className="quiet" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}>Undo</button>}
+          {report.status === "draft" && <button className="quiet" disabled={!redoAvailable} title="Redo (Ctrl+Y)" onClick={redo}>Redo</button>}
           <button className="quiet" aria-expanded={showDirectory} onClick={() => setShowDirectory(!showDirectory)}>Funeral homes</button>
           <button className="quiet" aria-expanded={showRecovery} onClick={() => setShowRecovery(!showRecovery)}>Recovery</button>
           <button className="quiet" aria-expanded={showAdvanced} onClick={() => setShowAdvanced(!showAdvanced)}>Print setup</button>
