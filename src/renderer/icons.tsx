@@ -128,3 +128,25 @@ export function IconPlus(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function IconMinus(props: SVGProps<SVGSVGElement>) {
+  return <Icon {...props}><path d="M5 12h14" /></Icon>;
+}
+
+export function IconSidebar(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M15 4v16M18 9h1M18 12h1" />
+    </Icon>
+  );
+}
+
+export function IconWand(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="m4 20 11-11M13 4l1-2 1 2 2 1-2 1-1 2-1-2-2-1zM18 13l.8-1.6.8 1.6 1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8z" />
+      <path d="m6 14 4 4" />
+    </Icon>
+  );
+}

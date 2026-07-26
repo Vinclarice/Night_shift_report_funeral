@@ -1,6 +1,6 @@
 {
   "name": "night-shift-report",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Print-first Windows night shift report application",

@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { entrySummary } from "../entrySummary";
 import { IconX } from "../icons";
 import type { ParsedLine } from "@/domain/types";
+import { useDialogSurface } from "../ui/useDialogSurface";
 
 interface Props {
   lines: Array<ParsedLine & { include: boolean }>;
@@ -13,19 +15,11 @@ interface Props {
 
 export function PasteReviewModal({ lines, onToggle, onCancel, onConfirm }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useDialogSurface(true, onCancel, closeButtonRef);
 
-  useEffect(() => {
-    closeButtonRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onCancel]);
-
-  return (
+  return createPortal(
     <div className="modal-backdrop no-print">
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="paste-review-heading">
+      <section ref={surfaceRef} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-labelledby="paste-review-heading">
         <div className="modal-header">
           <div>
             <p className="eyebrow">Paste review</p>
@@ -50,6 +44,7 @@ export function PasteReviewModal({ lines, onToggle, onCancel, onConfirm }: Props
           <button className="primary" onClick={onConfirm}>Add selected lines</button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

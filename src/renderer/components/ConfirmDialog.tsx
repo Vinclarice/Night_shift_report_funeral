@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { createPortal } from "react-dom";
+import { useDialogSurface } from "../ui/useDialogSurface";
 
 interface Props {
   title: string;
@@ -17,19 +19,11 @@ interface Props {
  */
 export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, busy, onConfirm, onCancel }: Props) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useDialogSurface(true, onCancel, confirmRef);
 
-  useEffect(() => {
-    confirmRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onCancel]);
-
-  return (
+  return createPortal(
     <div className="modal-backdrop no-print">
-      <section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-heading">
+      <section ref={surfaceRef} tabIndex={-1} className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-heading">
         <div className="modal-header">
           <div>
             <h2 id="confirm-dialog-heading">{title}</h2>
@@ -43,6 +37,7 @@ export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

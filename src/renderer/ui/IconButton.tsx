@@ -10,10 +10,10 @@ export interface IconButtonProps extends NativeButtonProps {
   tone?: "default" | "danger";
 }
 
-export function IconButton({ icon, tone = "default", className, ...rest }: IconButtonProps) {
+export function IconButton({ icon, tone = "default", className, title, ...rest }: IconButtonProps) {
   const classes = ["icon-button", tone === "danger" && "danger-hover", className].filter(Boolean).join(" ");
   return (
-    <button type="button" className={classes} {...rest}>
+    <button type="button" className={classes} title={title} data-tooltip={title} {...rest}>
       {icon}
     </button>
   );

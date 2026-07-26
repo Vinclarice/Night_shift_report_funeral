@@ -4,14 +4,14 @@ A local, print-first Windows application for preparing the nightly Human Remains
 
 ## Use the portable app
 
-1. Double-click `Night Shift Report Portable 0.1.2.exe`.
+1. Double-click `Night Shift Report Portable 0.2.0.exe`.
 2. Choose **Start empty**, or clone the latest finalized report when one exists.
-3. Click any ruled line in the live preview to type or edit it directly. Press **Enter** or click away to save; press **Escape** to cancel. The Human Remains Deliver, FDP, Pending, and Ship-Outs cards always keep three free rows; Airport Drops keeps one.
+3. Choose a section from the left report navigator. Add or edit entries in the contextual inspector on the right, or click any ruled line in the live canvas to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
 4. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
 5. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
-6. You can also select a section and use the guided form, or paste multiple entries through the required review screen.
-7. Drag a card's small right-edge handle to set its width. Use **Print setup** > **Reset selected card width to Auto** to remove that override.
-8. Use **Print setup** to show the calibration marks and tune margin, scale, or printer offsets.
+6. Use **Paste** in the inspector to add multiple entries through the required review screen.
+7. Use the canvas Fit and zoom controls to adjust the on-screen view without changing the printed report. Drag a card's small right-edge handle to set its print width.
+8. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
 9. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
 10. Choose **Print report** and select the company printer or Microsoft Print to PDF.
 
@@ -19,7 +19,7 @@ The app stores its database and backups in `%LOCALAPPDATA%\Night Shift Report`. 
 
 ## Moving to another computer
 
-- For ordinary use, copy only `release\Night Shift Report Portable 0.1.2.exe`. It includes the application runtime and does not require Node.js, pnpm, or `node_modules`.
+- For ordinary use, copy only `release\Night Shift Report Portable 0.2.0.exe`. It includes the application runtime and does not require Node.js, pnpm, or `node_modules`.
 - For continued development, move or copy the source project without `node_modules`, then run `pnpm install` in its new location. Dependencies are generated for the current project path and computer and should not be treated as project files.
 - Report data is not stored beside the executable. To transfer existing reports, close the app and separately copy `%LOCALAPPDATA%\Night Shift Report` to the same location on the destination computer.
 
@@ -55,10 +55,11 @@ The implementation is separated into:
 - `src/application`: workflows, version conflicts, revisions, and the serialized mutation queue.
 - `src/infrastructure`: SQLite migrations, Prisma repositories, retention, backups, and recovery.
 - `src/main` and `src/preload`: Electron lifecycle, protected IPC, portable data paths, and printing.
-- `src/renderer`: guided editor and the shared preview/print report component.
+- `src/renderer`: the React report controller, workspace state, document studio, contextual inspector, and shared preview/print component.
 
 ## Release notes
 
+- Version 0.2.0 introduces the dark document-studio interface, contextual inspector, responsive minimum-width layout, fit/manual preview zoom, consolidated Tools menu, and portal-based accessible overlays. The verified print layout and stored report format are unchanged.
 - Email delivery is intentionally deferred from v1. A later version can attach a generated PDF or use a configured email client after company policy and recipient handling are decided.
 - The executable is unsigned. Windows or company policy may warn or block it; test that explicitly on the company computer during the feasibility gate.
 - There is no cloud sync, authentication, archive browser, auto-update system, or separate PDF export library in v1.

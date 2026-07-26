@@ -38,6 +38,7 @@ function mockApi(initialReport: NightReport): NightShiftApi {
 
 describe("App", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     window.nightShift = mockApi(createEmptyReport("2026-07-26"));
   });
 
@@ -131,5 +132,36 @@ describe("App", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     await screen.findByText(/Kept as plain text/);
+  });
+
+  it("keeps the navigator and contextual inspector synchronized", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    fireEvent.click(screen.getByRole("button", { name: "Human remains FDP" }));
+
+    const inspector = screen.getByRole("complementary", { name: "Report inspector" });
+    expect(inspector).toHaveTextContent("FDP");
+    expect(inspector).toHaveTextContent("No entries yet");
+  });
+
+  it("opens secondary tools in an accessible utility sheet", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Print setup/ }));
+
+    expect(screen.getByRole("dialog", { name: "Print setup" })).toBeInTheDocument();
+  });
+
+  it("switches the inspector to read-only after finalization", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
+
+    await screen.findByText("This report is locked");
+    expect(screen.getByRole("button", { name: "Reopen" })).toBeEnabled();
   });
 });

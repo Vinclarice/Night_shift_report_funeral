@@ -16,7 +16,13 @@ test("launches portably and renders the exact nine-card page", async () => {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
     await page.getByRole("button", { name: "Start empty" }).click();
-    await expect(page.getByText("Live print preview")).toBeVisible();
+    await expect(page.getByText("Live canvas")).toBeVisible();
+    await page.screenshot({ path: "test-results/studio-empty.png" });
+    await page.getByRole("button", { name: "Finalize" }).click();
+    await expect(page.getByText("This report is locked")).toBeVisible();
+    await page.screenshot({ path: "test-results/studio-finalized.png" });
+    await page.getByRole("button", { name: "Reopen" }).click();
+    await expect(page.getByRole("button", { name: "Finalize" })).toBeVisible();
     const preview = page.locator(".report-page").first();
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
     await expect(page.getByText("DRAFT").first()).toBeVisible();
@@ -83,6 +89,16 @@ test("launches portably and renders the exact nine-card page", async () => {
     });
     await page.reload();
     await expect(page.getByText("Priority Family").first()).toBeVisible();
+    await page.screenshot({ path: "test-results/studio-populated.png" });
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1180, 760));
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await page.screenshot({ path: "test-results/studio-narrow.png" });
+    await page.getByRole("button", { name: "Tools" }).click();
+    await page.getByRole("menuitem", { name: /Print setup/ }).click();
+    await expect(page.getByRole("dialog", { name: "Print setup" })).toBeVisible();
+    await page.screenshot({ path: "test-results/studio-print-setup.png" });
+    await page.getByRole("button", { name: "Close Print setup" }).click();
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
     await page.evaluate(() => { for (const element of document.querySelectorAll<HTMLElement>("*")) element.scrollTop = 0; window.scrollTo(0, 0); });
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
@@ -150,9 +166,9 @@ test("the packaged Windows application starts with clean local data", async () =
   });
   try {
     const page = await electronApp.firstWindow();
-    await expect(page.getByRole("heading", { name: /Start tonight/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Build tonight/ })).toBeVisible();
     await page.getByRole("button", { name: "Start empty" }).click();
-    await expect(page.getByText("Live print preview")).toBeVisible();
+    await expect(page.getByText("Live canvas")).toBeVisible();
     expect(existsSync(join(dataDirectory, "night-shift-report.db"))).toBe(true);
   } finally {
     await electronApp.close();

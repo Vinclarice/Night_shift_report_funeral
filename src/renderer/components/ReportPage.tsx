@@ -14,6 +14,10 @@ interface Props {
   onWidthCommit?: (key: ReportSection["key"], width: number) => void;
   onLineCommit?: (key: ReportSection["key"], entryId: string | null, value: string) => void;
   onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string) => void;
+  selectedSectionKey?: ReportSection["key"];
+  selectedEntryId?: string;
+  onSelectSection?: (key: ReportSection["key"]) => void;
+  onSelectEntry?: (key: ReportSection["key"], entryId: string) => void;
 }
 
 const THREE_FREE_ROW_SECTIONS = new Set<ReportSection["key"]>([
@@ -64,7 +68,7 @@ function EntryLine({ entry }: { entry: ReportEntry }) {
   return <>{entry.text}</>;
 }
 
-function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"] }) {
+function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"] }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
@@ -108,7 +112,7 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
   }
 
   return (
-    <button type="button" draggable={Boolean(entry && onEntryMove)} className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}`} aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`} onDragStart={beginDrag} onClick={() => { setDraft(original); setEditing(true); }} title={entry ? "Click to edit or drag to another section" : "Click to type directly in the report"}>
+    <button type="button" draggable={Boolean(entry && onEntryMove)} className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${selected ? " selected" : ""}`} aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`} onDragStart={beginDrag} onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }} title={entry ? "Click to edit or drag to another section" : "Click to type directly in the report"}>
       {entry ? <EntryLine entry={entry} /> : <>&nbsp;</>}
     </button>
   );
@@ -122,6 +126,10 @@ function SectionCard({
   onWidthCommit,
   onLineCommit,
   onEntryMove,
+  selected,
+  selectedEntryId,
+  onSelectSection,
+  onSelectEntry,
 }: {
   section: ReportSection;
   width?: number;
@@ -130,6 +138,10 @@ function SectionCard({
   onWidthCommit?: Props["onWidthCommit"];
   onLineCommit?: Props["onLineCommit"];
   onEntryMove?: Props["onEntryMove"];
+  selected?: boolean;
+  selectedEntryId?: string;
+  onSelectSection?: Props["onSelectSection"];
+  onSelectEntry?: Props["onSelectEntry"];
 }) {
   const [dropActive, setDropActive] = useState(false);
   const freeRows = THREE_FREE_ROW_SECTIONS.has(section.key) ? 3 : 1;
@@ -165,7 +177,7 @@ function SectionCard({
 
   return (
     <section
-      className={`section-card${dropActive ? " drop-active" : ""}`}
+      className={`section-card${dropActive ? " drop-active" : ""}${selected ? " studio-selected" : ""}`}
       data-testid="section-card"
       data-section-key={section.key}
       style={width ? { width: `${width}in` } : undefined}
@@ -177,12 +189,12 @@ function SectionCard({
       <h3>{section.title}</h3>
       {section.entries.map((entry) => (
         onLineCommit
-          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} />
+          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
           : <div className="report-row" key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
-          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} autoWidth={!width} freeRowIndex={index} />
+          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} autoWidth={!width} freeRowIndex={index} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
           : <div className="report-row blank-row" data-testid="free-row" aria-label={`${section.title} free row ${index + 1}`} key={`free-${index}`}>&nbsp;</div>
       ))}
       {interactive && (
@@ -192,7 +204,7 @@ function SectionCard({
   );
 }
 
-export function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove }: Props) {
+export function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -214,13 +226,13 @@ export function ReportPage({ report, layout, compactLevel = 0, calibration = fal
           <div className="report-column human-column">
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
             ))}
           </div>
           <div className="report-column cremated-column">
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
             ))}
           </div>
         </div>

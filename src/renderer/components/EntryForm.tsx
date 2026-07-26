@@ -4,6 +4,8 @@ import type { FormEvent } from "react";
 import type { EntryFormState, EntryKind, TextField } from "../hooks/useEntryForm";
 import type { FuneralHomeOption } from "@/shared/contracts";
 import { IconCheck, IconPlus } from "../icons";
+import { Button } from "../ui/Button";
+import { SegmentedControl } from "../ui/SegmentedControl";
 
 const FORMAT_OPTIONS: Array<{ value: EntryKind; label: string }> = [
   { value: "funeral", label: "Funeral" },
@@ -49,18 +51,7 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
         {form.editing && <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>}
       </div>
       <p className="format-label">Format</p>
-      <div className="format-toggle" role="group" aria-label="Format">
-        {FORMAT_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={form.entryKind === option.value}
-            onClick={() => setEntryKind(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl label="Format" value={form.entryKind} options={FORMAT_OPTIONS} onChange={setEntryKind} />
       <div className="dynamic-fields" key={form.entryKind}>
         {isFuneralKind && (
           <>
@@ -97,7 +88,7 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
           </div>
         )}
       </div>
-      <button className="primary full btn-icon" type="submit">{form.editing ? <IconCheck /> : <IconPlus />}{form.editing ? "Save changes" : "Add to report"}</button>
+      <Button variant="primary" full type="submit" icon={form.editing ? <IconCheck /> : <IconPlus />}>{form.editing ? "Save changes" : "Add to report"}</Button>
     </form>
   );
 }

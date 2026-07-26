@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { IconX } from "../icons";
+import { useDialogSurface } from "./useDialogSurface";
 
 interface DrawerProps {
   open: boolean;
@@ -18,22 +20,13 @@ interface DrawerProps {
  */
 export function Drawer({ open, title, onClose, children }: DrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    closeRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+  const surfaceRef = useDialogSurface(open, onClose, closeRef);
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop no-print" onClick={onClose}>
-      <section className="drawer" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+      <section ref={surfaceRef} tabIndex={-1} className="drawer" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
         <div className="drawer-header">
           <h2>{title}</h2>
           <button ref={closeRef} aria-label={`Close ${title}`} onClick={onClose}>
@@ -42,6 +35,7 @@ export function Drawer({ open, title, onClose, children }: DrawerProps) {
         </div>
         <div className="drawer-body">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
