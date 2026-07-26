@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { BackupSummary } from "@/shared/contracts";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 function formatBytes(size: number) {
   return size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -16,6 +17,7 @@ interface Props {
 export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRevision }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [pendingBackup, setPendingBackup] = useState<BackupSummary | null>(null);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -47,9 +49,24 @@ export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRe
       {backups.map((backup) => (
         <div className="recovery-row" key={backup.name}>
           <span>{new Date(backup.createdAt).toLocaleString()}<small>{formatBytes(backup.size)}</small></span>
-          <button disabled={busy} onClick={() => { if (confirm("Restore this backup and restart the app?")) void window.nightShift.restoreBackup(backup.name); }}>Restore</button>
+          <button disabled={busy} onClick={() => setPendingBackup(backup)}>Restore</button>
         </div>
       ))}
+      {pendingBackup && (
+        <ConfirmDialog
+          title="Restore this backup?"
+          message={`This replaces the current database with the backup from ${new Date(pendingBackup.createdAt).toLocaleString()} and restarts the app. This can't be undone.`}
+          confirmLabel="Restore and restart"
+          danger
+          busy={busy}
+          onCancel={() => setPendingBackup(null)}
+          onConfirm={() => {
+            const backup = pendingBackup;
+            setPendingBackup(null);
+            void run(() => window.nightShift.restoreBackup(backup.name));
+          }}
+        />
+      )}
     </section>
   );
 }

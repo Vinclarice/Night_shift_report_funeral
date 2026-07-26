@@ -20,6 +20,7 @@ import { EntryForm } from "./components/EntryForm";
 import { useOverflowCompaction } from "./hooks/useOverflowCompaction";
 import { useEntryForm } from "./hooks/useEntryForm";
 import { entrySummary } from "./entrySummary";
+import { IconBuilding, IconCheck, IconHistory, IconPencil, IconPrinter, IconRedo, IconSliders, IconTrash, IconUndo, IconX } from "./icons";
 
 function baseEntry() {
   return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
@@ -31,6 +32,7 @@ export function App() {
   const [layout, setLayout] = useState<LayoutSettings | null>(null);
   const [status, setStatus] = useState<"loading" | "saved" | "saving" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [selectedSection, setSelectedSection] = useState<SectionKey>("human-deliver");
   const { form, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, loadEntry } = useEntryForm();
   const [pasteText, setPasteText] = useState("");
@@ -102,6 +104,7 @@ export function App() {
       setReport((current) => current ? { ...current, version: saved.version } : saved);
       if (reportRef.current) reportRef.current.version = saved.version;
       setStatus("saved");
+      setLastSavedAt(new Date());
       await refreshSupportingData();
       return saved;
     }).catch((error: Error) => { setStatus("error"); setMessage(error.message); return null; });
@@ -359,18 +362,44 @@ export function App() {
       <header className="app-header no-print">
         <div><p className="eyebrow">Night operations</p><h1>Night Shift Report</h1></div>
         <div className="header-actions">
-          <span className={`save-state ${status}`} role="status" aria-live="polite">{status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}</span>
-          {report.status === "draft" && <button className="quiet" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}>Undo</button>}
-          {report.status === "draft" && <button className="quiet" disabled={!redoAvailable} title="Redo (Ctrl+Y)" onClick={redo}>Redo</button>}
-          <button className="quiet" aria-expanded={showDirectory} onClick={() => setShowDirectory(!showDirectory)}>Funeral homes</button>
-          <button className="quiet" aria-expanded={showRecovery} onClick={() => setShowRecovery(!showRecovery)}>Recovery</button>
-          <button className="quiet" aria-expanded={showAdvanced} onClick={() => setShowAdvanced(!showAdvanced)}>Print setup</button>
-          {report.status === "draft" ? <button className="primary" disabled={status === "saving"} onClick={() => void finalize()}>Finalize</button> : <button className="secondary" disabled={status === "saving"} onClick={() => void reopen()}>Reopen</button>}
-          <button className="print-button" disabled={overflow} title={overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}>{report.status === "draft" ? "Print draft" : "Print report"}</button>
+          <span
+            key={status}
+            className={`save-state ${status}`}
+            role="status"
+            aria-live="polite"
+            title={lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : undefined}
+          >
+            {status === "saving" ? "Saving…" : status === "error" ? "Save error" : "Saved"}
+            {status === "saved" && lastSavedAt && (
+              <span className="save-timestamp"> · {lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+            )}
+          </span>
+
+          {report.status === "draft" && (
+            <div className="undo-redo-group">
+              <button className="quiet btn-icon" disabled={!undoAvailable} title="Undo last change (Ctrl+Z)" onClick={undo}><IconUndo />Undo</button>
+              <button className="quiet btn-icon" disabled={!redoAvailable} title="Redo (Ctrl+Y)" onClick={redo}><IconRedo />Redo</button>
+            </div>
+          )}
+
+          <div className="header-divider" aria-hidden="true" />
+
+          <div className="header-tools" role="group" aria-label="Panels">
+            <button className="quiet btn-icon" aria-expanded={showDirectory} onClick={() => setShowDirectory(!showDirectory)}><IconBuilding />Funeral homes</button>
+            <button className="quiet btn-icon" aria-expanded={showRecovery} onClick={() => setShowRecovery(!showRecovery)}><IconHistory />Recovery</button>
+            <button className="quiet btn-icon" aria-expanded={showAdvanced} onClick={() => setShowAdvanced(!showAdvanced)}><IconSliders />Print setup</button>
+          </div>
+
+          <div className="header-divider" aria-hidden="true" />
+
+          <div className="header-primary">
+            {report.status === "draft" ? <button className="primary btn-icon" disabled={status === "saving"} onClick={() => void finalize()}><IconCheck />Finalize</button> : <button className="secondary btn-icon" disabled={status === "saving"} onClick={() => void reopen()}>Reopen</button>}
+            <button className="print-button btn-icon" disabled={overflow} title={overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}><IconPrinter />{report.status === "draft" ? "Print draft" : "Print report"}</button>
+          </div>
         </div>
       </header>
 
-      {message && <div className="message-bar no-print">{message}<button onClick={() => setMessage("")}>×</button></div>}
+      {message && <div className="message-bar no-print">{message}<button aria-label="Dismiss message" onClick={() => setMessage("")}><IconX /></button></div>}
       {overflow && <div className="overflow-warning no-print">Printing is paused because this report still exceeds one page after automatic compaction. Reduce card widths, adjust print scale, or trim entries.</div>}
 
       <div className="workspace no-print">
@@ -397,10 +426,15 @@ export function App() {
           />
 
           <section className="panel-section current-entries">
-            <div className="section-heading"><div><p className="eyebrow">Current entries</p><h2>{activeSection.entries.length || "None"}</h2></div></div>
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Current entries</p>
+                {activeSection.entries.length ? <h2>{activeSection.entries.length}</h2> : <p className="empty-hint">No entries yet — add one above.</p>}
+              </div>
+            </div>
             {activeSection.entries.map((entry) => <div className="entry-item" key={entry.id}>
               <div className="entry-item-title">{entry.rush && <span className="rush-pill">Rush</span>}{entrySummary(entry)}</div>
-              {entry.type === "funeral" ? <div className="person-actions">{entry.deceased.map((person) => <div key={person.id}><span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span><button onClick={() => loadEntry(entry, person.id)}>Edit</button><button onClick={() => deleteEntry(entry.id, person.id)}>Remove</button></div>)}</div> : <div className="item-actions"><button onClick={() => loadEntry(entry)}>Edit</button><button onClick={() => deleteEntry(entry.id)}>Delete</button></div>}
+              {entry.type === "funeral" ? <div className="person-actions">{entry.deceased.map((person) => <div key={person.id}><span>{person.name}{person.locationCode && ` (${person.locationCode})`}</span><button className="icon-button" aria-label={`Edit ${person.name}`} title="Edit" onClick={() => loadEntry(entry, person.id)}><IconPencil /></button><button className="icon-button danger-hover" aria-label={`Remove ${person.name}`} title="Remove" onClick={() => deleteEntry(entry.id, person.id)}><IconTrash /></button></div>)}</div> : <div className="item-actions"><button className="icon-button" aria-label="Edit entry" title="Edit" onClick={() => loadEntry(entry)}><IconPencil /></button><button className="icon-button danger-hover" aria-label="Delete entry" title="Delete" onClick={() => deleteEntry(entry.id)}><IconTrash /></button></div>}
             </div>)}
           </section>
 
@@ -415,9 +449,9 @@ export function App() {
           {showRecovery && <RecoveryPanel backups={bootstrap.backups} revisions={revisions} onLoadRevisions={async () => setRevisions(await window.nightShift.listRevisions(report.id))} onRestoreRevision={async (id) => { const restored = await window.nightShift.restoreRevision(report.id, id, versionRef.current); reportRef.current = restored; setReport(restored); versionRef.current = restored.version; resetUndoHistory(); }} />}
         </aside>
 
-        <section className="preview-panel">
-          <div className="preview-toolbar"><div><p className="eyebrow">Live print preview</p><span>Click a ruled line to type · 8.5 × 11 in</span></div><span>{report.status === "finalized" ? "Finalized" : "Draft"}</span></div>
-          <div className="page-stage"><ReportPage report={report} layout={layout} compactLevel={compactLevel} calibration={calibration} interactive onLineCommit={report.status === "draft" ? commitPreviewLine : undefined} onEntryMove={report.status === "draft" ? movePreviewEntry : undefined} onWidthChange={(key, width) => setLayout((current) => { if (!current) return current; const next = { ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }; layoutRef.current = next; return next; })} onWidthCommit={(key, width) => { const current = layoutRef.current; if (current) void saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }); }} /></div>
+        <section className={`preview-panel ${report.status}`}>
+          <div className="preview-toolbar"><div><p className="eyebrow">Live print preview</p><span>Click a ruled line to type · 8.5 × 11 in</span></div><span className={`status-badge ${report.status}`}>{report.status === "finalized" ? "Finalized" : "Draft"}</span></div>
+          <div className="page-stage"><div className="page-stage-frame"><ReportPage report={report} layout={layout} compactLevel={compactLevel} calibration={calibration} interactive onLineCommit={report.status === "draft" ? commitPreviewLine : undefined} onEntryMove={report.status === "draft" ? movePreviewEntry : undefined} onWidthChange={(key, width) => setLayout((current) => { if (!current) return current; const next = { ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }; layoutRef.current = next; return next; })} onWidthCommit={(key, width) => { const current = layoutRef.current; if (current) void saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } }); }} /></div></div>
         </section>
       </div>
 

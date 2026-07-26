@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { entrySummary } from "../entrySummary";
+import { IconX } from "../icons";
 import type { ParsedLine } from "@/domain/types";
 
 interface Props {
@@ -30,7 +31,7 @@ export function PasteReviewModal({ lines, onToggle, onCancel, onConfirm }: Props
             <p className="eyebrow">Paste review</p>
             <h2 id="paste-review-heading">Confirm parsed entries</h2>
           </div>
-          <button ref={closeButtonRef} onClick={onCancel} aria-label="Close paste review">×</button>
+          <button ref={closeButtonRef} onClick={onCancel} aria-label="Close paste review"><IconX /></button>
         </div>
         <div className="review-list">
           {lines.map((line, index) => (

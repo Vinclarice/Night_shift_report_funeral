@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { FuneralHomeOption } from "@/shared/contracts";
+import { IconTrash } from "../icons";
 
 interface Props {
   homes: FuneralHomeOption[];
@@ -19,7 +20,7 @@ export function FuneralHomeManager({ homes, onUpdate }: Props) {
       {homes.map((home) => (
         <div className="directory-row" key={home.id}>
           <input defaultValue={home.name} onBlur={(event) => { if (event.target.value.trim() !== home.name) void window.nightShift.renameFuneralHome(home.id, event.target.value).then(onUpdate); }} />
-          <button onClick={() => void window.nightShift.deleteFuneralHome(home.id).then(onUpdate)}>Remove</button>
+          <button className="icon-button danger-hover" aria-label={`Remove ${home.name}`} title="Remove" onClick={() => void window.nightShift.deleteFuneralHome(home.id).then(onUpdate)}><IconTrash /></button>
         </div>
       ))}
       {homes.length > 1 && (

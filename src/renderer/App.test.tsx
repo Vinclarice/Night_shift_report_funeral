@@ -51,7 +51,7 @@ describe("App", () => {
   it("undo restores the report to its state before the last edit, and becomes unavailable once history is exhausted", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
 
     await addEntry("Greene", "Johnson");
     const undoButton = await screen.findByRole("button", { name: "Undo" });
@@ -59,7 +59,7 @@ describe("App", () => {
 
     fireEvent.click(undoButton);
 
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
     // Exactly one edit was made, so undo history should now be exhausted rather than looping
     // back to the edited state on a second press.
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
@@ -68,11 +68,11 @@ describe("App", () => {
   it("redo re-applies an undone edit, and becomes unavailable once redo history is exhausted", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
 
     await addEntry("Greene", "Johnson");
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
 
     const redoButton = await screen.findByRole("button", { name: "Redo" });
     expect(redoButton).toBeEnabled();
@@ -85,11 +85,11 @@ describe("App", () => {
   it("clears redo history once a fresh edit is made after undoing", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
 
     await addEntry("Greene", "Johnson");
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
-    await screen.findByRole("heading", { name: "None" });
+    await screen.findByText("No entries yet — add one above.");
     expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled();
 
     await addEntry("McGuire", "Smith");
@@ -101,24 +101,24 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
 
-    fireEvent.change(screen.getByLabelText("Format"), { target: { value: "count" } });
+    fireEvent.click(screen.getByRole("button", { name: "Count" }));
     fireEvent.click(screen.getByRole("button", { name: "Add to report" }));
 
     await screen.findByText(/Text is required/);
-    expect(screen.getByRole("heading", { name: "None" })).toBeInTheDocument();
+    expect(screen.getByText("No entries yet — add one above.")).toBeInTheDocument();
   });
 
   it("rejects a count entry with a non-positive count instead of saving NaN", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
 
-    fireEvent.change(screen.getByLabelText("Format"), { target: { value: "count" } });
+    fireEvent.click(screen.getByRole("button", { name: "Count" }));
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: "Reese" } });
     fireEvent.change(screen.getByLabelText("Count"), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Add to report" }));
 
     await screen.findByText(/Count must be a positive number/);
-    expect(screen.getByRole("heading", { name: "None" })).toBeInTheDocument();
+    expect(screen.getByText("No entries yet — add one above.")).toBeInTheDocument();
   });
 
   it("surfaces the parser's ambiguous-line warning when committed directly in the preview", async () => {
