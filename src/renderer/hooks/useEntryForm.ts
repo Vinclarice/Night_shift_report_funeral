@@ -45,6 +45,33 @@ type EntryFormAction =
   | { type: "RESET"; entryKind?: EntryKind }
   | { type: "LOAD_ENTRY"; entry: ReportEntry; personId?: string };
 
+export function loadedState(entry: ReportEntry, personId?: string): EntryFormState {
+  const editing: EditingTarget = { entryId: entry.id, personId };
+  if (entry.type === "funeral") {
+    const person = entry.deceased.find((candidate) => candidate.id === personId) ?? entry.deceased[0];
+    return {
+      ...emptyState("funeral"),
+      funeralHome: entry.funeralHome,
+      deceasedName: person.name,
+      locationCode: person.locationCode,
+      specialRequest: person.specialRequest,
+      rush: entry.rush,
+      keepSeparate: entry.keepSeparate,
+      editing,
+    };
+  }
+  if (entry.type === "funeralHomeOnly") {
+    return { ...emptyState("funeralHomeOnly"), funeralHome: entry.funeralHome, rush: entry.rush, keepSeparate: entry.keepSeparate, editing };
+  }
+  if (entry.type === "combined") {
+    return { ...emptyState("combined"), text: entry.leftText, rightText: entry.rightText, count: entry.count, editing };
+  }
+  if (entry.type === "count") {
+    return { ...emptyState("count"), text: entry.text, count: entry.count, editing };
+  }
+  return { ...emptyState("plain"), text: entry.text, editing };
+}
+
 function entryFormReducer(state: EntryFormState, action: EntryFormAction): EntryFormState {
   switch (action.type) {
     case "SET_TEXT":
@@ -59,45 +86,32 @@ function entryFormReducer(state: EntryFormState, action: EntryFormAction): Entry
       return { ...state, entryKind: action.value };
     case "RESET":
       return emptyState(action.entryKind ?? state.entryKind);
-    case "LOAD_ENTRY": {
-      const { entry, personId } = action;
-      const editing: EditingTarget = { entryId: entry.id, personId };
-      if (entry.type === "funeral") {
-        const person = entry.deceased.find((candidate) => candidate.id === personId) ?? entry.deceased[0];
-        return {
-          ...emptyState("funeral"),
-          funeralHome: entry.funeralHome,
-          deceasedName: person.name,
-          locationCode: person.locationCode,
-          specialRequest: person.specialRequest,
-          rush: entry.rush,
-          keepSeparate: entry.keepSeparate,
-          editing,
-        };
-      }
-      if (entry.type === "funeralHomeOnly") {
-        return { ...emptyState("funeralHomeOnly"), funeralHome: entry.funeralHome, rush: entry.rush, keepSeparate: entry.keepSeparate, editing };
-      }
-      if (entry.type === "combined") {
-        return { ...emptyState("combined"), text: entry.leftText, rightText: entry.rightText, count: entry.count, editing };
-      }
-      if (entry.type === "count") {
-        return { ...emptyState("count"), text: entry.text, count: entry.count, editing };
-      }
-      return { ...emptyState("plain"), text: entry.text, editing };
-    }
+    case "LOAD_ENTRY":
+      return loadedState(action.entry, action.personId);
     default:
       return state;
   }
+}
+
+/** What the form should contain on first render — either a blank form of a kind, or a loaded entry. */
+export type EntryFormSeed =
+  | { kind: "blank"; entryKind: EntryKind }
+  | { kind: "entry"; entry: ReportEntry; personId?: string };
+
+function seedState(seed: EntryFormSeed): EntryFormState {
+  return seed.kind === "entry" ? loadedState(seed.entry, seed.personId) : emptyState(seed.entryKind);
 }
 
 /**
  * Backs the guided entry form. Replaces eleven independent useState fields with a single
  * reducer so "what does editing an existing entry populate" and "what does resetting clear"
  * are each one function instead of scattered across every call site.
+ *
+ * The seed is applied through useReducer's lazy initializer, so the caller re-seeds the form by
+ * remounting it with a new `key` rather than by syncing state in an effect.
  */
-export function useEntryForm(initialEntryKind: EntryKind = "funeral") {
-  const [form, dispatch] = useReducer(entryFormReducer, initialEntryKind, emptyState);
+export function useEntryForm(seed: EntryFormSeed = { kind: "blank", entryKind: "funeral" }) {
+  const [form, dispatch] = useReducer(entryFormReducer, seed, seedState);
 
   return {
     form,

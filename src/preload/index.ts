@@ -17,6 +17,17 @@ const api: NightShiftApi = {
   listBackups: () => ipcRenderer.invoke("backup:list"),
   restoreBackup: (name) => ipcRenderer.invoke("backup:restore", name),
   printReport: () => ipcRenderer.invoke("report:print"),
+  listReports: () => ipcRenderer.invoke("report:list"),
+  loadReport: (id) => ipcRenderer.invoke("report:load", id),
+  windowControl: (action) => ipcRenderer.invoke("window:control", action),
+  isWindowMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+  // Returns its own unsubscribe so the renderer never has to reach for ipcRenderer directly to
+  // detach, which would mean widening the contextBridge surface beyond these named methods.
+  onWindowMaximizeChange: (listener) => {
+    const handler = (_event: unknown, maximized: boolean) => listener(maximized);
+    ipcRenderer.on("window:maximize-changed", handler);
+    return () => { ipcRenderer.off("window:maximize-changed", handler); };
+  },
 };
 
 contextBridge.exposeInMainWorld("nightShift", api);

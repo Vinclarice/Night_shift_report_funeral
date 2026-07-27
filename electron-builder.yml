@@ -9,7 +9,10 @@ files:
 extraResources:
   - from: src/generated/prisma-client/query_engine-windows.dll.node
     to: prisma/query_engine-windows.dll.node
+  - from: resources/icon.png
+    to: ../resources/icon.png
 win:
+  icon: resources/icon.ico
   target:
     - portable
   artifactName: Night Shift Report Portable ${version}.${ext}

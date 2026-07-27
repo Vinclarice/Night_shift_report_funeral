@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { CSSProperties, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import { formatEntryLine } from "@/domain/entries";
@@ -38,35 +38,37 @@ function displayDate(value: string): string {
     .toUpperCase();
 }
 
-function EntryLine({ entry }: { entry: ReportEntry }) {
+const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
   if (entry.type === "funeral") {
+    const hasVisibleRush = entry.deceased.some((person) => /rush/i.test(person.specialRequest));
     return (
-      <>
-        <strong>{entry.funeralHome}</strong>
-        {" – "}
+      <span className="entry-line-content">
+        <strong className="entry-primary">{entry.funeralHome}</strong>
+        <span className="entry-separator" aria-hidden="true"> – </span>
         {entry.deceased.map((person, index) => (
-          <span key={person.id}>
-            {index > 0 && " + "}
-            {person.name}
-            {person.locationCode && ` (${person.locationCode})`}
-            {person.specialRequest && <strong>{` (${person.specialRequest.toUpperCase()})`}</strong>}
+          <span className="deceased-person" key={person.id}>
+            {index > 0 && <span className="entry-separator" aria-hidden="true"> + </span>}
+            <span className="deceased-name">{person.name}</span>
+            {person.locationCode && <span className="location-code">{person.locationCode}</span>}
+            {person.specialRequest && <strong className={`special-request${/rush/i.test(person.specialRequest) ? " rush-request" : ""}`}>{person.specialRequest.toUpperCase()}</strong>}
           </span>
         ))}
-      </>
+        {entry.rush && !hasVisibleRush && <strong className="special-request rush-request">RUSH</strong>}
+      </span>
     );
   }
   if (entry.type === "funeralHomeOnly") {
     return (
-      <>
-        <strong>{entry.funeralHome}</strong>
-        {entry.rush && <strong> (RUSH DELIVERY)</strong>}
-      </>
+      <span className="entry-line-content">
+        <strong className="entry-primary">{entry.funeralHome}</strong>
+        {entry.rush && <strong className="special-request rush-request">RUSH DELIVERY</strong>}
+      </span>
     );
   }
-  if (entry.type === "count") return <>{entry.text} x {entry.count}</>;
-  if (entry.type === "combined") return <>{entry.leftText} // {entry.rightText} x {entry.count}</>;
-  return <>{entry.text}</>;
-}
+  if (entry.type === "count") return <span className="entry-line-content"><span>{entry.text}</span><strong className="entry-count">x {entry.count}</strong></span>;
+  if (entry.type === "combined") return <span className="entry-line-content"><span>{entry.leftText}</span><span className="entry-separator"> // </span><span>{entry.rightText}</span><strong className="entry-count">x {entry.count}</strong></span>;
+  return <span className="entry-line-content"><span>{entry.text}</span></span>;
+});
 
 function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"] }) {
   const original = entry ? formatEntryLine(entry) : "";
@@ -112,13 +114,13 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
   }
 
   return (
-    <button type="button" draggable={Boolean(entry && onEntryMove)} className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${selected ? " selected" : ""}`} aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`} onDragStart={beginDrag} onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }} title={entry ? "Click to edit or drag to another section" : "Click to type directly in the report"}>
+    <button type="button" draggable={Boolean(entry && onEntryMove)} className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${entry?.rush ? " rush-row" : ""}${selected ? " selected" : ""}`} aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`} onDragStart={beginDrag} onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }} title={entry ? "Click to edit or drag to another section" : "Click to type directly in the report"}>
       {entry ? <EntryLine entry={entry} /> : <>&nbsp;</>}
     </button>
   );
 }
 
-function SectionCard({
+const SectionCard = memo(function SectionCard({
   section,
   width,
   interactive,
@@ -190,7 +192,7 @@ function SectionCard({
       {section.entries.map((entry) => (
         onLineCommit
           ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
-          : <div className="report-row" key={entry.id}><EntryLine entry={entry} /></div>
+          : <div className={`report-row${entry.rush ? " rush-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
@@ -202,9 +204,14 @@ function SectionCard({
       )}
     </section>
   );
-}
+});
 
-export function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry }: Props) {
+/**
+ * Memoized because the live canvas re-renders on every keystroke elsewhere in the studio. The
+ * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
+ * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
+ */
+export const ReportPage = memo(function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -240,4 +247,4 @@ export function ReportPage({ report, layout, compactLevel = 0, calibration = fal
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>
   );
-}
+});

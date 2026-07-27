@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 
 import { addEntry, parsePastedLines, titleCaseName } from "@/domain/entries";
-import type { NightReport, ParsedLine, ReportEntry } from "@/domain/types";
+import type { NightReport, ParsedLine, ReportEntry, ReportSection } from "@/domain/types";
 import { entrySummary } from "../entrySummary";
 import { useEntryForm } from "../hooks/useEntryForm";
+import type { EntryFormSeed } from "../hooks/useEntryForm";
 import { IconPencil, IconPlus, IconTrash, IconX } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
@@ -20,38 +21,21 @@ function baseEntry() {
   return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
 }
 
-export function Inspector({ report }: { report: NightReport }) {
+function defaultKindFor(section: ReportSection) {
+  return section.key === "cremated-deliver" ? "funeralHomeOnly" as const : "funeral" as const;
+}
+
+/**
+ * Owns the entry form's reducer. The Inspector remounts this with a new `key` whenever the
+ * selection changes, which is what re-seeds the form — previously an effect compared the selection
+ * against a ref and called reset/loadEntry as a side effect of rendering.
+ */
+function EntryFormPanel({ report, section, seed }: { report: NightReport; section: ReportSection; seed: EntryFormSeed }) {
   const controller = useReportController();
-  const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
   const toast = useToast();
-  const section = report.sections.find((candidate) => candidate.key === workspace.selection.sectionKey)!;
-  const entryForm = useEntryForm(section.key === "cremated-deliver" ? "funeralHomeOnly" : "funeral");
-  const { form, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, loadEntry } = entryForm;
-  const [pasteText, setPasteText] = useState("");
-  const [pasteReview, setPasteReview] = useState<Array<ParsedLine & { include: boolean }> | null>(null);
-  const selectionRef = useRef("");
-  const syncRef = useRef({ section, reset, loadEntry });
+  const { form, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset } = useEntryForm(seed);
   const isDeliver = section.key === "human-deliver" || section.key === "cremated-deliver";
-  const readOnly = report.status === "finalized";
-
-  useEffect(() => {
-    syncRef.current = { section, reset, loadEntry };
-  });
-
-  useEffect(() => {
-    const selection = workspace.selection;
-    const key = selection.kind === "entry" ? `entry:${selection.entryId}:${selection.personId ?? ""}` : `section:${selection.sectionKey}:${workspace.inspectorMode}`;
-    if (selectionRef.current === key) return;
-    selectionRef.current = key;
-    const current = syncRef.current;
-    if (selection.kind === "entry") {
-      const entry = current.section.entries.find((candidate) => candidate.id === selection.entryId);
-      if (entry) current.loadEntry(entry, selection.personId);
-    } else {
-      current.reset(current.section.key === "cremated-deliver" ? "funeralHomeOnly" : "funeral");
-    }
-  }, [workspace.selection, workspace.inspectorMode]);
 
   function buildEntry(): ReportEntry {
     const base = { ...baseEntry(), rush: form.rush, keepSeparate: form.keepSeparate };
@@ -105,6 +89,36 @@ export function Inspector({ report }: { report: NightReport }) {
     }
   }
 
+  return (
+    <EntryForm
+      form={form} activeSectionTitle={section.title} isDeliver={isDeliver} funeralHomes={controller.bootstrap?.funeralHomes ?? []}
+      setField={setField} setCount={setCount} setRush={setRush} setKeepSeparate={setKeepSeparate} setEntryKind={setEntryKind}
+      reset={() => { reset(defaultKindFor(section)); dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" }); }}
+      onSubmit={submitEntry}
+    />
+  );
+}
+
+export function Inspector({ report }: { report: NightReport }) {
+  const controller = useReportController();
+  const workspace = useWorkspaceState();
+  const dispatch = useWorkspaceDispatch();
+  const section = report.sections.find((candidate) => candidate.key === workspace.selection.sectionKey)!;
+  const [pasteText, setPasteText] = useState("");
+  const [pasteReview, setPasteReview] = useState<Array<ParsedLine & { include: boolean }> | null>(null);
+  const readOnly = report.status === "finalized";
+
+  const selection = workspace.selection;
+  const selectedEntry = selection.kind === "entry"
+    ? section.entries.find((candidate) => candidate.id === selection.entryId)
+    : undefined;
+  const formKey = selectedEntry
+    ? `entry:${selectedEntry.id}:${selection.kind === "entry" ? selection.personId ?? "" : ""}`
+    : `section:${section.key}:${workspace.inspectorMode}`;
+  const formSeed: EntryFormSeed = selectedEntry
+    ? { kind: "entry", entry: selectedEntry, personId: selection.kind === "entry" ? selection.personId : undefined }
+    : { kind: "blank", entryKind: defaultKindFor(section) };
+
   function deleteEntry(entryId: string, personId?: string) {
     const next = structuredClone(report);
     const target = next.sections.find((candidate) => candidate.key === section.key)!;
@@ -151,12 +165,7 @@ export function Inspector({ report }: { report: NightReport }) {
               <Button variant="primary" full disabled={!pasteText.trim()} onClick={reviewPaste}>Review paste</Button>
             </section>
           ) : (
-            <EntryForm
-              form={form} activeSectionTitle={section.title} isDeliver={isDeliver} funeralHomes={controller.bootstrap?.funeralHomes ?? []}
-              setField={setField} setCount={setCount} setRush={setRush} setKeepSeparate={setKeepSeparate} setEntryKind={setEntryKind}
-              reset={() => { reset(section.key === "cremated-deliver" ? "funeralHomeOnly" : "funeral"); dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" }); }}
-              onSubmit={submitEntry}
-            />
+            <EntryFormPanel key={formKey} report={report} section={section} seed={formSeed} />
           )}
 
           <section className="inspector-block entry-browser">

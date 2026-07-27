@@ -150,3 +150,57 @@ export function IconWand(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function IconArchive(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
+      <path d="M10 12h4" />
+    </Icon>
+  );
+}
+
+export function IconSearch(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 4 4" />
+    </Icon>
+  );
+}
+
+export function IconArrowLeft(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M19 12H5" />
+      <path d="m11 6-6 6 6 6" />
+    </Icon>
+  );
+}
+
+/* Window controls. Square caps and a 1.4 stroke match the Windows 11 title-bar glyph metrics. */
+function ChromeIcon(props: SVGProps<SVGSVGElement>) {
+  return <Icon viewBox="0 0 12 12" width={12} height={12} strokeWidth={1.15} strokeLinecap="butt" strokeLinejoin="miter" {...props} />;
+}
+
+export function IconChromeMinimize(props: SVGProps<SVGSVGElement>) {
+  return <ChromeIcon {...props}><path d="M1.5 6h9" /></ChromeIcon>;
+}
+
+export function IconChromeMaximize(props: SVGProps<SVGSVGElement>) {
+  return <ChromeIcon {...props}><rect x="1.7" y="1.7" width="8.6" height="8.6" rx="0.6" /></ChromeIcon>;
+}
+
+export function IconChromeRestore(props: SVGProps<SVGSVGElement>) {
+  return (
+    <ChromeIcon {...props}>
+      <rect x="1.5" y="3.5" width="7" height="7" rx="0.6" />
+      <path d="M3.9 3.4V2.1a.6.6 0 0 1 .6-.6h5.4a.6.6 0 0 1 .6.6v5.4a.6.6 0 0 1-.6.6H9.2" />
+    </ChromeIcon>
+  );
+}
+
+export function IconChromeClose(props: SVGProps<SVGSVGElement>) {
+  return <ChromeIcon {...props}><path d="m2.2 2.2 7.6 7.6M9.8 2.2 2.2 9.8" /></ChromeIcon>;
+}

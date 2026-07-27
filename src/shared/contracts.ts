@@ -4,6 +4,17 @@ import type { RevisionSummary } from "@/application/repository";
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
 
+/** A past report as listed in the read-only archive. Deliberately does not carry entries. */
+export interface ReportSummary {
+  id: string;
+  reportDate: string;
+  status: "draft" | "finalized";
+  entryCount: number;
+  finalizedAt: string | null;
+}
+
+export type WindowControl = "minimize" | "maximize" | "close";
+
 export interface BootstrapData {
   report: NightReport | null;
   latestFinalized: NightReport | null;
@@ -27,6 +38,11 @@ export interface NightShiftApi {
   listBackups(): Promise<BackupSummary[]>;
   restoreBackup(name: string): Promise<void>;
   printReport(): Promise<{ success: boolean; failureReason?: string }>;
+  listReports(): Promise<ReportSummary[]>;
+  loadReport(id: string): Promise<NightReport | null>;
+  windowControl(action: WindowControl): Promise<void>;
+  isWindowMaximized(): Promise<boolean>;
+  onWindowMaximizeChange(listener: (maximized: boolean) => void): () => void;
 }
 
 export const DEFAULT_LAYOUT: LayoutSettings = {

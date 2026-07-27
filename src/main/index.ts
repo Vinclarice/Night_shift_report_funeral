@@ -1,8 +1,8 @@
-import { access, copyFile, mkdir } from "node:fs/promises";
+import { access, appendFile, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen, shell } from "electron";
 import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
@@ -25,6 +25,59 @@ let mainWindow: BrowserWindow | null = null;
 let repository: PrismaReportRepository;
 let service: ReportService;
 let backups: BackupManager;
+
+const STUDIO_BACKGROUND = "#080b10";
+const windowStatePath = join(userDataPath, "window-state.json");
+const logDirectory = join(userDataPath, "logs");
+
+/**
+ * console.error goes nowhere in a packaged build, so anything that fails overnight leaves no trace.
+ * Failures here are swallowed deliberately: logging must never be the reason an operation fails.
+ */
+async function logError(scope: string, error: unknown) {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  console.error(`[${scope}]`, error);
+  try {
+    await mkdir(logDirectory, { recursive: true });
+    const day = new Date().toISOString().slice(0, 10);
+    await appendFile(join(logDirectory, `main-${day}.log`), `${new Date().toISOString()} [${scope}] ${detail}\n`, "utf8");
+  } catch { /* logging must not throw */ }
+}
+
+const windowStateSchema = z.object({
+  width: z.number().int().min(640),
+  height: z.number().int().min(480),
+  x: z.number().int().optional(),
+  y: z.number().int().optional(),
+  maximized: z.boolean(),
+});
+type WindowState = z.infer<typeof windowStateSchema>;
+
+async function readWindowState(): Promise<WindowState | null> {
+  try {
+    const parsed = windowStateSchema.parse(JSON.parse(await readFile(windowStatePath, "utf8")));
+    // A saved position is only usable if it still lands on a display that is currently attached —
+    // otherwise unplugging a second monitor would reopen the window off-screen.
+    if (parsed.x === undefined || parsed.y === undefined) return parsed;
+    const visible = screen.getAllDisplays().some(({ workArea }) =>
+      parsed.x! >= workArea.x - 16 && parsed.y! >= workArea.y - 16 &&
+      parsed.x! < workArea.x + workArea.width && parsed.y! < workArea.y + workArea.height);
+    return visible ? parsed : { ...parsed, x: undefined, y: undefined };
+  } catch {
+    return null;
+  }
+}
+
+async function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const maximized = mainWindow.isMaximized();
+    const bounds = maximized ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    await writeFile(windowStatePath, JSON.stringify({ ...bounds, maximized } satisfies WindowState), "utf8");
+  } catch (error) {
+    await logError("window-state", error);
+  }
+}
 
 const deceasedPersonSchema = z.object({
   id: z.string(),
@@ -107,7 +160,7 @@ function registerIpc() {
       await repository.purgeOlderThan(dateDaysAgo(90));
       await backups.purge(14);
     } catch (error) {
-      console.error("Post-finalize maintenance (backup/retention) failed:", error);
+      await logError("post-finalize-maintenance", error);
     }
     return final;
   });
@@ -126,16 +179,37 @@ function registerIpc() {
       mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });
   });
+  handle("report:list", () => repository.listReports());
+  handle("report:load", (_event, id: string) => repository.findById(z.string().min(1).parse(id)));
+  handle("window:control", (_event, action: string) => {
+    if (!mainWindow) return;
+    switch (z.enum(["minimize", "maximize", "close"]).parse(action)) {
+      case "minimize": return mainWindow.minimize();
+      case "maximize": return mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+      case "close": return mainWindow.close();
+    }
+  });
+  handle("window:is-maximized", () => mainWindow?.isMaximized() ?? false);
 }
 
 async function createWindow() {
+  const saved = await readWindowState();
+  const iconPath = join(currentDirectory, "../../resources/icon.png");
   mainWindow = new BrowserWindow({
-    width: 1500,
-    height: 960,
+    width: saved?.width ?? 1500,
+    height: saved?.height ?? 960,
+    x: saved?.x,
+    y: saved?.y,
     minWidth: 1180,
     minHeight: 760,
     title: "Night Shift Report",
     show: false,
+    // The studio chrome draws its own title bar, so the OS frame is removed entirely. Without a
+    // matching background colour the window paints white for a frame before React mounts, which
+    // reads as a flash against a near-black UI.
+    frame: false,
+    backgroundColor: STUDIO_BACKGROUND,
+    icon: iconPath,
     webPreferences: {
       preload: join(currentDirectory, "../preload/index.cjs"),
       contextIsolation: true,
@@ -143,17 +217,28 @@ async function createWindow() {
       sandbox: true,
     },
   });
+  if (saved?.maximized) mainWindow.maximize();
   mainWindow.webContents.setWindowOpenHandler(({ url }) => { if (url.startsWith("https://")) void shell.openExternal(url); return { action: "deny" }; });
   mainWindow.webContents.on("will-navigate", (event) => event.preventDefault());
   if (process.env.ELECTRON_RENDERER_URL) await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   else await mainWindow.loadFile(join(currentDirectory, "../renderer/index.html"));
   mainWindow.once("ready-to-show", () => mainWindow?.show());
+
+  const emitMaximize = () => mainWindow?.webContents.send("window:maximize-changed", mainWindow.isMaximized());
+  mainWindow.on("maximize", emitMaximize);
+  mainWindow.on("unmaximize", emitMaximize);
+  // Bounds are captured on close rather than on every resize event: a drag fires hundreds of
+  // resize events and none of the intermediate ones are worth a disk write.
+  mainWindow.on("close", () => { void saveWindowState(); });
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 app.on("second-instance", () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
 
 app.whenReady().then(async () => {
+  // The default Electron menu ships File/Edit/View/Window/Help — including Toggle DevTools — in
+  // packaged builds. The app has no menu commands of its own, so it is removed rather than rebuilt.
+  Menu.setApplicationMenu(null);
   await mkdir(userDataPath, { recursive: true });
   const databasePath = join(userDataPath, "night-shift-report.db");
   const backupDirectory = join(userDataPath, "backups");

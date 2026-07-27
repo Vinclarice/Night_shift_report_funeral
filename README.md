@@ -11,11 +11,17 @@ A local, print-first Windows application for preparing the nightly Human Remains
 5. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
 6. Use **Paste** in the inspector to add multiple entries through the required review screen.
 7. Use the canvas Fit and zoom controls to adjust the on-screen view without changing the printed report. Drag a card's small right-edge handle to set its print width.
-8. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
-9. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
-10. Choose **Print report** and select the company printer or Microsoft Print to PDF.
+8. Press **Ctrl+K** to open the command palette. Type to jump to any section or run a command — undo, redo, print, open a tools panel, or toggle the inspector. Arrow keys move, Enter runs, Escape closes. Finalize and Reopen are intentionally excluded so they can't fire from a fuzzy match.
+9. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
+10. Open **Tools** > **Report archive** to view or reprint any retained report. The archive is read-only; finalized reports stay immutable.
+11. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
+12. Choose **Print report** and select the company printer or Microsoft Print to PDF.
 
-The app stores its database and backups in `%LOCALAPPDATA%\Night Shift Report`. Reports are retained for 90 days; database backups are retained for 14 days. **Recovery** can restore finalized revisions or retained backups.
+Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
+
+The app stores its database, backups, logs, and window state in `%LOCALAPPDATA%\Night Shift Report`. Reports are retained for 90 days; database backups are retained for 14 days. **Recovery** can restore finalized revisions or retained backups. Main-process errors are written to `logs\main-<date>.log`, which is the first place to look if something fails overnight.
+
+The window is frameless: the dark command bar is also the title bar, with its own minimize, maximize, and close controls at the right. Window size, position, and maximized state are restored on next launch.
 
 ## Moving to another computer
 
@@ -54,11 +60,14 @@ The implementation is separated into:
 - `src/domain`: dates, parsing, normalization, merging, duplicate handling, rush ordering, and report types.
 - `src/application`: workflows, version conflicts, revisions, and the serialized mutation queue.
 - `src/infrastructure`: SQLite migrations, Prisma repositories, retention, backups, and recovery.
-- `src/main` and `src/preload`: Electron lifecycle, protected IPC, portable data paths, and printing.
-- `src/renderer`: the React report controller, workspace state, document studio, contextual inspector, and shared preview/print component.
+- `src/main` and `src/preload`: Electron lifecycle, protected IPC, portable data paths, window state, logging, and printing.
+- `src/renderer`: the React report controller, workspace state, document studio, contextual inspector, command palette, archive, and shared preview/print component.
+
+Renderer state is split into two contexts. `useReportState` carries values that change (report, layout, save status); `useReportActions` carries an identity-stable set of operations. Components needing only actions — the command palette, for example — therefore never re-render on report changes. `useReportController` remains as a combined shim for older call sites.
 
 ## Release notes
 
+- Unreleased: frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). The stored report format is unchanged; the printed report's visual styling was revised and needs a fresh pass through the physical print-quality gate below.
 - Version 0.2.0 introduces the dark document-studio interface, contextual inspector, responsive minimum-width layout, fit/manual preview zoom, consolidated Tools menu, and portal-based accessible overlays. The verified print layout and stored report format are unchanged.
 - Email delivery is intentionally deferred from v1. A later version can attach a generated PDF or use a configured email client after company policy and recipient handling are decided.
 - The executable is unsigned. Windows or company policy may warn or block it; test that explicitly on the company computer during the feasibility gate.

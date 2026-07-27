@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { addEntry, moveEntry, parsePastedLines } from "@/domain/entries";
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBuilding, IconCheck, IconHistory, IconMinus, IconPlus, IconPrinter, IconRedo, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
+import { IconArchive, IconBuilding, IconCheck, IconHistory, IconMinus, IconPlus, IconPrinter, IconRedo, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Badge } from "../ui/Badge";
@@ -11,12 +11,15 @@ import { Button } from "../ui/Button";
 import { Drawer } from "../ui/Drawer";
 import { IconButton } from "../ui/IconButton";
 import { useToast } from "../ui/Toast";
+import { ArchivePanel } from "./ArchivePanel";
+import { CommandPalette } from "./CommandPalette";
 import { FuneralHomeManager } from "./FuneralHomeManager";
 import { Inspector } from "./Inspector";
 import { PrintSettings } from "./PrintSettings";
 import { RecoveryPanel } from "./RecoveryPanel";
 import { ReportNavigator } from "./ReportNavigator";
 import { ReportPage } from "./ReportPage";
+import { WindowControls } from "./TitleBar";
 
 function formatReportDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -38,7 +41,7 @@ function CommandBar({ report }: { report: NightReport }) {
     return () => window.removeEventListener("pointerdown", close);
   }, []);
 
-  function openUtility(utility: "directory" | "recovery" | "print") {
+  function openUtility(utility: "directory" | "recovery" | "print" | "archive") {
     dispatch({ type: "SET_UTILITY", utility });
     setToolsOpen(false);
   }
@@ -50,6 +53,8 @@ function CommandBar({ report }: { report: NightReport }) {
         <div><p>Night Shift Report</p><strong>{formatReportDate(report.reportDate)}</strong></div>
         <Badge tone={report.status === "finalized" ? "success" : "warning"}>{report.status === "finalized" ? "Finalized" : "Draft"}</Badge>
       </div>
+      {/* Empty space between the two clusters is the window drag handle. */}
+      <div className="command-drag-region" aria-hidden="true" />
       <div className="command-actions">
         <Badge className="save-state studio-save-state" tone={controller.status === "saved" ? "success" : controller.status === "saving" ? "warning" : "danger"} dot role="status" aria-live="polite">
           {controller.status === "saving" ? "Saving…" : controller.status === "error" ? "Save error" : "Saved"}
@@ -61,6 +66,7 @@ function CommandBar({ report }: { report: NightReport }) {
           {toolsOpen && (
             <div className="tools-popover" role="menu">
               <button role="menuitem" onClick={() => openUtility("directory")}><IconBuilding /><span><strong>Funeral homes</strong><small>Manage saved directory names</small></span></button>
+              <button role="menuitem" onClick={() => openUtility("archive")}><IconArchive /><span><strong>Report archive</strong><small>View and reprint past reports</small></span></button>
               <button role="menuitem" onClick={() => openUtility("recovery")}><IconHistory /><span><strong>Recovery</strong><small>Revisions and database backups</small></span></button>
               <button role="menuitem" onClick={() => openUtility("print")}><IconSliders /><span><strong>Print setup</strong><small>Calibrate margins and scale</small></span></button>
             </div>
@@ -70,6 +76,7 @@ function CommandBar({ report }: { report: NightReport }) {
           {report.status === "draft" ? <Button variant="primary" icon={<IconCheck />} busy={controller.status === "saving"} onClick={() => void controller.finalize()}>Finalize</Button> : <Button variant="secondary" busy={controller.status === "saving"} onClick={() => void controller.reopen()}>Reopen</Button>}
           <Button variant="print" icon={<IconPrinter />} disabled={controller.overflow} title={controller.overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}>{report.status === "draft" ? "Print draft" : "Print report"}</Button>
         </div>
+        <WindowControls />
       </div>
     </header>
   );
@@ -83,6 +90,11 @@ function PreviewCanvas({ report }: { report: NightReport }) {
   const canvasRef = useRef<HTMLElement>(null);
   const [fitZoom, setFitZoom] = useState(0.72);
   const zoom = workspace.zoomMode === "fit" ? fitZoom : workspace.zoom;
+  // The page is the most expensive thing in the app to render. Deferring it lets a keystroke in the
+  // inspector paint immediately and the canvas catch up a frame later, rather than the two
+  // competing for the same commit.
+  const deferredReport = useDeferredValue(report);
+  const deferredLayout = useDeferredValue(controller.layout!);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -98,7 +110,7 @@ function PreviewCanvas({ report }: { report: NightReport }) {
     return () => observer.disconnect();
   }, []);
 
-  function commitPreviewLine(sectionKey: SectionKey, entryId: string | null, value: string) {
+  const commitPreviewLine = useCallback(function commitPreviewLine(sectionKey: SectionKey, entryId: string | null, value: string) {
     if (report.status !== "draft") return;
     const next = structuredClone(report);
     const section = next.sections.find((item) => item.key === sectionKey)!;
@@ -119,15 +131,26 @@ function PreviewCanvas({ report }: { report: NightReport }) {
     dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" });
     void controller.persist(next);
     if (parseWarning) toast.warning(parseWarning);
-  }
+  }, [report, controller, dispatch, toast]);
 
-  function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string) {
+  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string) {
     if (report.status !== "draft") return;
     const next = structuredClone(report);
     if (!moveEntry(next, sourceKey, targetKey, entryId)) return;
     dispatch({ type: "SELECT_SECTION", sectionKey: targetKey, mode: "browse" });
     void controller.persist(next);
-  }
+  }, [report, controller, dispatch]);
+
+  const handleSelectSection = useCallback((sectionKey: SectionKey) => dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" }), [dispatch]);
+  const handleSelectEntry = useCallback((sectionKey: SectionKey, entryId: string) => dispatch({ type: "SELECT_ENTRY", sectionKey, entryId }), [dispatch]);
+  const handleWidthChange = useCallback((key: SectionKey, width: number) => {
+    const current = controller.layout!;
+    controller.previewLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } });
+  }, [controller]);
+  const handleWidthCommit = useCallback((key: SectionKey, width: number) => {
+    const current = controller.layout!;
+    void controller.saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } });
+  }, [controller]);
 
   return (
     <section className={`studio-canvas ${report.status}`} ref={canvasRef}>
@@ -146,15 +169,15 @@ function PreviewCanvas({ report }: { report: NightReport }) {
         <div className="page-stage" style={{ "--preview-scale": zoom } as CSSProperties}>
           <div className="page-stage-frame">
             <ReportPage
-              report={report} layout={controller.layout!} compactLevel={controller.compactLevel} calibration={controller.calibration} interactive
+              report={deferredReport} layout={deferredLayout} compactLevel={controller.compactLevel} calibration={controller.calibration} interactive
               selectedSectionKey={workspace.selection.sectionKey}
               selectedEntryId={workspace.selection.kind === "entry" ? workspace.selection.entryId : undefined}
-              onSelectSection={(sectionKey) => dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" })}
-              onSelectEntry={(sectionKey, entryId) => dispatch({ type: "SELECT_ENTRY", sectionKey, entryId })}
+              onSelectSection={handleSelectSection}
+              onSelectEntry={handleSelectEntry}
               onLineCommit={report.status === "draft" ? commitPreviewLine : undefined}
               onEntryMove={report.status === "draft" ? movePreviewEntry : undefined}
-              onWidthChange={(key, width) => controller.previewLayout({ ...controller.layout!, sectionWidths: { ...controller.layout!.sectionWidths, [key]: width } })}
-              onWidthCommit={(key, width) => void controller.saveLayout({ ...controller.layout!, sectionWidths: { ...controller.layout!.sectionWidths, [key]: width } })}
+              onWidthChange={handleWidthChange}
+              onWidthCommit={handleWidthCommit}
             />
           </div>
         </div>
@@ -163,25 +186,37 @@ function PreviewCanvas({ report }: { report: NightReport }) {
   );
 }
 
+const UTILITY_TITLES: Record<string, string> = {
+  directory: "Funeral home directory",
+  recovery: "Recovery center",
+  print: "Print setup",
+  archive: "Report archive",
+};
+
 export function Studio() {
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
   const report = controller.report!;
-  const utilityTitle = workspace.utility === "directory" ? "Funeral home directory" : workspace.utility === "recovery" ? "Recovery center" : "Print setup";
+  const utilityTitle = UTILITY_TITLES[workspace.utility ?? ""] ?? "Tools";
   const selectedSection = workspace.selection.sectionKey;
+  // An archived report being previewed takes over the print target, so a reprint from the archive
+  // sends that report rather than tonight's. Cleared when the archive drawer closes.
+  const printTarget = controller.archiveReport ?? report;
 
   return (
     <main className={`studio-shell${workspace.inspectorOpen ? " inspector-visible" : ""}`}>
       <CommandBar report={report} />
       {controller.overflow && <div className="overflow-warning no-print">Printing is paused because this report exceeds one page. Adjust card widths, print scale, or entries before printing.</div>}
       <div className="studio-workspace no-print"><ReportNavigator report={report} /><PreviewCanvas report={report} />{workspace.inspectorOpen && <Inspector report={report} />}</div>
-      <div className="print-only"><ReportPage report={report} layout={controller.layout!} compactLevel={controller.compactLevel} calibration={controller.calibration} /></div>
+      <div className="print-only"><ReportPage report={printTarget} layout={controller.layout!} compactLevel={controller.compactLevel} calibration={controller.calibration} /></div>
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
         {workspace.utility === "recovery" && <RecoveryPanel backups={controller.bootstrap!.backups} revisions={controller.revisions} onLoadRevisions={async () => controller.setRevisions(await window.nightShift.listRevisions(report.id))} onRestoreRevision={controller.restoreRevision} />}
         {workspace.utility === "print" && <PrintSettings layout={controller.layout!} calibration={controller.calibration} onCalibration={controller.setCalibration} onChange={(next) => void controller.saveLayout(next)} onResetSection={() => void controller.saveLayout({ ...controller.layout!, sectionWidths: { ...controller.layout!.sectionWidths, [selectedSection]: undefined } })} />}
+        {workspace.utility === "archive" && <ArchivePanel />}
       </Drawer>
+      <CommandPalette report={report} />
     </main>
   );
 }

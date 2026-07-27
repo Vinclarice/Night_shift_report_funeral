@@ -63,6 +63,29 @@ describe("print report", () => {
     expect(container.querySelector('[data-section-key="human-airport"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
   });
 
+  it("styles existing entry details semantically without duplicating report data", () => {
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "rush-entry",
+      type: "funeral",
+      funeralHome: "McGuire",
+      deceased: [{ id: "person-one", name: "Priority Family", locationCode: "13A", specialRequest: "Rush delivery" }],
+      rush: true,
+      keepSeparate: false,
+      createdAt: "2026-07-25T12:00:00.000Z",
+    });
+
+    const { container } = render(<ReportPage report={report} layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }} />);
+
+    expect(screen.getByText("McGuire")).toHaveClass("entry-primary");
+    expect(screen.getByText("Priority Family")).toHaveClass("deceased-name");
+    expect(screen.getAllByText("13A")).toHaveLength(1);
+    expect(screen.getByText("13A")).toHaveClass("location-code");
+    expect(screen.getAllByText("RUSH DELIVERY")).toHaveLength(1);
+    expect(screen.getByText("RUSH DELIVERY")).toHaveClass("rush-request");
+    expect(container.querySelector('[data-section-key="human-deliver"] .report-row')).toHaveClass("rush-row");
+  });
+
   it("expands an auto-width card immediately as a longer line is typed", () => {
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }} interactive onLineCommit={vi.fn()} />);
     fireEvent.click(screen.getAllByRole("button", { name: "Type in Human Remains DELIVER" })[0]);

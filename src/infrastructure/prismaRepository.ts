@@ -79,6 +79,23 @@ export class PrismaReportRepository implements ReportRepository {
 
   findByDate(date: string) { return this.loadedBy({ reportDate: date }); }
 
+  findById(id: string) { return this.loadedBy({ id }); }
+
+  /** Summaries only — the archive list never needs entry bodies, just a count per report. */
+  async listReports() {
+    const items = await this.client.report.findMany({
+      orderBy: { reportDate: "desc" },
+      select: { id: true, reportDate: true, status: true, finalizedAt: true, _count: { select: { entries: true } } },
+    });
+    return items.map((item) => ({
+      id: item.id,
+      reportDate: item.reportDate,
+      status: item.status === "finalized" ? "finalized" as const : "draft" as const,
+      entryCount: item._count.entries,
+      finalizedAt: item.finalizedAt ? item.finalizedAt.toISOString() : null,
+    }));
+  }
+
   async latestFinalized() {
     const item = await this.client.report.findFirst({ where: { status: "finalized" }, orderBy: { reportDate: "desc" } });
     return item ? this.loadedBy({ id: item.id }) : null;

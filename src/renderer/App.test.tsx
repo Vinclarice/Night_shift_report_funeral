@@ -33,6 +33,11 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     listBackups: async () => [],
     restoreBackup: async () => {},
     printReport: async () => ({ success: true }),
+    listReports: async () => [],
+    loadReport: async () => current,
+    windowControl: async () => {},
+    isWindowMaximized: async () => false,
+    onWindowMaximizeChange: () => () => {},
   };
 }
 

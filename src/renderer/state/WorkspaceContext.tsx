@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { SectionKey } from "@/domain/types";
 
 export type InspectorMode = "browse" | "create" | "edit" | "paste";
-export type UtilityKey = "directory" | "recovery" | "print" | null;
+export type UtilityKey = "directory" | "recovery" | "print" | "archive" | null;
 export type WorkspaceSelection =
   | { kind: "section"; sectionKey: SectionKey }
   | { kind: "entry"; sectionKey: SectionKey; entryId: string; personId?: string };
