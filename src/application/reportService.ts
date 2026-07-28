@@ -38,8 +38,7 @@ export class ReportService {
    */
   async resumableDraft(): Promise<NightReport | null> {
     if (await this.loadTonight()) return null;
-    const draft = await this.repository.latestDraft();
-    return draft && draft.reportDate <= this.tonightDate ? draft : null;
+    return this.repository.latestDraft(this.tonightDate);
   }
 
   async createTonight(mode: "empty" | "clone"): Promise<NightReport> {
@@ -74,4 +73,3 @@ export class ReportService {
     return this.repository.restoreRevision(reportId, revisionId, expectedVersion);
   }
 }
-

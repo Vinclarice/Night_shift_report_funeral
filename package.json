@@ -1,6 +1,6 @@
 {
   "name": "night-shift-report",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Print-first Windows night shift report application",
@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "db:validate": "prisma validate",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm db:validate && pnpm build && pnpm test:e2e",
+    "verify": "prisma generate && pnpm lint && pnpm typecheck && pnpm test && pnpm db:validate && pnpm build && pnpm test:e2e",
     "package:portable": "pnpm build && electron-builder --win portable && pnpm test:e2e:packaged",
     "postinstall": "prisma generate"
   },

@@ -101,8 +101,11 @@ export class PrismaReportRepository implements ReportRepository {
     return item ? this.loadedBy({ id: item.id }) : null;
   }
 
-  async latestDraft() {
-    const item = await this.client.report.findFirst({ where: { status: "draft" }, orderBy: { reportDate: "desc" } });
+  async latestDraft(onOrBefore: string) {
+    const item = await this.client.report.findFirst({
+      where: { status: "draft", reportDate: { lte: onOrBefore } },
+      orderBy: { reportDate: "desc" },
+    });
     return item ? this.loadedBy({ id: item.id }) : null;
   }
 

@@ -11,8 +11,8 @@ class MemoryRepository implements ReportRepository {
   async latestFinalized() {
     return [...this.reports.values()].filter((r) => r.status === "finalized").sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
   }
-  async latestDraft() {
-    return [...this.reports.values()].filter((r) => r.status === "draft").sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
+  async latestDraft(onOrBefore: string) {
+    return [...this.reports.values()].filter((r) => r.status === "draft" && r.reportDate <= onOrBefore).sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
   }
   async create(report: NightReport) { this.reports.set(report.reportDate, structuredClone(report)); return structuredClone(report); }
   async save(report: NightReport, expectedVersion: number) {
@@ -120,5 +120,17 @@ describe("report date rolling over mid-shift", () => {
     // Clock moved backwards (or the future draft was made deliberately); 2026-07-29 is ahead of
     // this service's 2026-07-28, so it is not a stranded draft from the current shift.
     expect(await new ReportService(repository, beforeMidnight).resumableDraft()).toBeNull();
+  });
+
+  it("offers the newest eligible draft even when a later future draft also exists", async () => {
+    const repository = new MemoryRepository();
+    const olderDraft = createEmptyReport("2026-07-27");
+    const futureDraft = createEmptyReport("2026-07-29");
+    repository.reports.set(olderDraft.reportDate, olderDraft);
+    repository.reports.set(futureDraft.reportDate, futureDraft);
+
+    const resumable = await new ReportService(repository, beforeMidnight).resumableDraft();
+
+    expect(resumable?.reportDate).toBe("2026-07-27");
   });
 });

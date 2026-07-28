@@ -115,6 +115,12 @@ export function moveEntry(report: NightReport, sourceKey: SectionKey, targetKey:
   if (index < 0) return false;
   const [entry] = source.entries.splice(index, 1);
 
+  if (beforeEntryId === null) {
+    entry.pinnedBottom = true;
+    addEntry(target, entry);
+    return true;
+  }
+
   if (beforeEntryId) {
     entry.pinnedBottom = false;
     const at = target.entries.findIndex((candidate) => candidate.id === beforeEntryId);

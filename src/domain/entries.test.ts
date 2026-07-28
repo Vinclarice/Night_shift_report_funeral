@@ -290,6 +290,20 @@ describe("moveEntry positioning", () => {
     expect(source.entries).toHaveLength(0);
   });
 
+  it("pins an entry dropped at the end of another section", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-airport")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(funeral({ id: "moving", funeralHome: "Inman", keepSeparate: true }));
+    target.entries.push(funeral({ id: "existing", funeralHome: "Greene", keepSeparate: true }));
+
+    expect(moveEntry(report, "human-airport", "human-fdp", "moving", null)).toBe(true);
+    addEntry(target, funeral({ id: "later", funeralHome: "McGuire", keepSeparate: true }));
+
+    expect(target.entries.map((entry) => entry.id)).toEqual(["existing", "later", "moving"]);
+    expect(target.entries.at(-1)!.pinnedBottom).toBe(true);
+  });
+
   it("treats a same-section drop with no target row as a no-op so nothing is pinned by accident", () => {
     const report = createEmptyReport("2026-07-26");
     const target = report.sections.find((section) => section.key === "human-fdp")!;

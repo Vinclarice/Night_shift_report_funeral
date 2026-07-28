@@ -4,7 +4,7 @@ A local, print-first Windows application for preparing the nightly Human Remains
 
 ## Use the portable app
 
-1. Double-click `Night Shift Report Portable 0.2.0.exe`.
+1. Double-click `Night Shift Report Portable 1.0.0.exe`.
 2. Choose **Start empty**, or clone the latest finalized report when one exists.
 3. Choose a section from the left report navigator, then add or edit entries in the inspector immediately beside it. The live canvas sits to the right; you can also click any ruled line there to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
 4. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
@@ -28,7 +28,7 @@ The window is frameless: the dark command bar is also the title bar, with its ow
 
 ## Moving to another computer
 
-- For ordinary use, copy only `release\Night Shift Report Portable 0.2.0.exe`. It includes the application runtime and does not require Node.js, pnpm, or `node_modules`.
+- For ordinary use, copy only `release\Night Shift Report Portable 1.0.0.exe`. It includes the application runtime and does not require Node.js, pnpm, or `node_modules`.
 - For continued development, move or copy the source project without `node_modules`, then run `pnpm install` in its new location. Dependencies are generated for the current project path and computer and should not be treated as project files.
 - Report data is not stored beside the executable. To transfer existing reports, close the app and separately copy `%LOCALAPPDATA%\Night Shift Report` to the same location on the destination computer.
 
@@ -72,7 +72,7 @@ Renderer state is split into two contexts. `useReportState` carries values that 
 
 ## Release notes
 
-- Unreleased: frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, drag-to-reorder with bottom-pinning, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). Adds a `pinnedBottom` column to `Entry`, applied automatically to existing databases on launch. The printed report's visual styling was revised — special requests print darker, Cremated funeral-home names are no longer bold when a row carries no deceased name, and Cremated cards start narrower while still expanding for edge cases — so it needs a fresh pass through the physical print-quality gate below.
+- Version 1.0.0 adds a frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, drag-to-reorder with bottom-pinning, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). It also recovers drafts stranded when the report date rolls over after midnight. The `pinnedBottom` column is applied automatically to existing databases on launch. The printed report's visual styling was revised — special requests print darker, Cremated funeral-home names are no longer bold when a row carries no deceased name, and Cremated cards start narrower while still expanding for edge cases — so it needs a fresh pass through the physical print-quality gate below.
 - Version 0.2.0 introduces the dark document-studio interface, contextual inspector, responsive minimum-width layout, fit/manual preview zoom, consolidated Tools menu, and portal-based accessible overlays. The verified print layout and stored report format are unchanged.
 - Email delivery is intentionally deferred from v1. A later version can attach a generated PDF or use a configured email client after company policy and recipient handling are decided.
 - The executable is unsigned. Windows or company policy may warn or block it; test that explicitly on the company computer during the feasibility gate.
