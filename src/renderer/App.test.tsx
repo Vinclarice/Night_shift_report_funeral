@@ -10,7 +10,7 @@ import { App } from "./App";
 function mockApi(initialReport: NightReport): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
+    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
     createDraft: async () => current,
     saveReport: async (report, expectedVersion) => {
       current = { ...report, version: expectedVersion + 1 };
@@ -40,6 +40,46 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     onWindowMaximizeChange: () => () => {},
   };
 }
+
+describe("resuming a draft stranded by the date rollover", () => {
+  function strandedDraft() {
+    const draft = createEmptyReport("2026-07-28");
+    draft.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "carried", type: "plain", text: "Started before midnight", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-27T22:00:00.000Z",
+    });
+    return draft;
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    const draft = strandedDraft();
+    // No report for tonight, because the calendar day advanced mid-shift.
+    window.nightShift = { ...mockApi(createEmptyReport("2026-07-29")), bootstrap: async () => ({ report: null, latestFinalized: null, resumableDraft: draft, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }) };
+  });
+
+  it("surfaces the stranded draft on the start screen with its date and size", async () => {
+    render(<App />);
+
+    expect(await screen.findByText(/Unfinished report for/)).toHaveTextContent("Tuesday, Jul 28");
+    expect(screen.getByText(/1 entry/)).toBeInTheDocument();
+  });
+
+  it("opens that draft rather than creating a new report", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Resume that report" }));
+
+    // The editor opens on the resumed draft, with the entry made earlier in the shift intact.
+    await screen.findByText("Night Shift Report");
+    expect(screen.getByRole("complementary", { name: "Report inspector" })).toHaveTextContent("Started before midnight");
+  });
+
+  it("still allows starting fresh instead", async () => {
+    render(<App />);
+    await screen.findByRole("button", { name: "Resume that report" });
+
+    expect(screen.getByRole("button", { name: "Start empty" })).toBeEnabled();
+  });
+});
 
 describe("App", () => {
   beforeEach(() => {

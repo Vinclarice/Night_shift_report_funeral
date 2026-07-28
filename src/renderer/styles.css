@@ -339,6 +339,9 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .brand-mark { background: linear-gradient(135deg, var(--studio-emerald), var(--studio-violet)); color: #07110d; box-shadow: var(--studio-glow); }
 .start-card h1 { color: white; font: 750 42px/1.05 "Segoe UI Variable", "Segoe UI", sans-serif; letter-spacing: -.04em; margin: 14px auto 18px; max-width: 470px; }
 .start-card p:not(.studio-kicker) { color: #aeb9b4; max-width: 480px; margin-inline: auto; }
+.start-resume { display: grid; gap: 3px; margin-top: 24px; padding: 13px 15px; border: 1px solid rgb(33 230 164 / 26%); border-radius: var(--radius-md); background: rgb(33 230 164 / 8%); text-align: left; }
+.start-resume strong { color: #eaf1ee; font-size: 12.5px; }
+.start-resume span { color: var(--studio-muted); font-size: 11px; line-height: 1.45; }
 .start-assurance { display: flex; justify-content: center; gap: 22px; margin-top: 30px; color: #78847f; font-size: 11px; font-weight: 650; }
 .start-assurance span::before { content: "·"; margin-right: 8px; color: var(--studio-emerald); }
 .crash-card h1 { color: #ff8e82; }

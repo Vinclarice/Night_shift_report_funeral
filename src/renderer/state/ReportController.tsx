@@ -34,6 +34,7 @@ export interface ReportState {
 
 export interface ReportActions {
   createDraft: (mode: "empty" | "clone") => Promise<void>;
+  resumeDraft: () => void;
   persist: (next: NightReport) => Promise<NightReport | null>;
   undo: () => void;
   redo: () => void;
@@ -158,6 +159,17 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
         reportRef.current = created;
         versionRef.current = created.version;
         setReport(created);
+        resetUndoHistory();
+        setStatus("saved");
+      },
+      // Opens the stranded draft that bootstrap already loaded. Nothing is written here: the report
+      // is unchanged until the next edit, so resuming and then closing leaves it exactly as it was.
+      resumeDraft() {
+        const draft = bootstrapRef.current?.resumableDraft;
+        if (!draft) return;
+        reportRef.current = draft;
+        versionRef.current = draft.version;
+        setReport(draft);
         resetUndoHistory();
         setStatus("saved");
       },

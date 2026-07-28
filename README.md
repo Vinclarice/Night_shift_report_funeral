@@ -20,6 +20,8 @@ A local, print-first Windows application for preparing the nightly Human Remains
 
 Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
 
+A report is named for the next calendar day, so that name changes at midnight — partway through a shift. If the app is restarted after midnight there is no report yet for the new date, and the start screen offers **Resume that report** for the draft begun earlier in the same shift rather than leaving it stranded. Resuming opens it unchanged; nothing is written until the next edit.
+
 The app stores its database, backups, logs, and window state in `%LOCALAPPDATA%\Night Shift Report`. Reports are retained for 90 days; database backups are retained for 14 days. **Recovery** can restore finalized revisions or retained backups. Main-process errors are written to `logs\main-<date>.log`, which is the first place to look if something fails overnight.
 
 The window is frameless: the dark command bar is also the title bar, with its own minimize, maximize, and close controls at the right. Window size, position, and maximized state are restored on next launch.

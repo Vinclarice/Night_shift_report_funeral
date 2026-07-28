@@ -11,6 +11,9 @@ class MemoryRepository implements ReportRepository {
   async latestFinalized() {
     return [...this.reports.values()].filter((r) => r.status === "finalized").sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
   }
+  async latestDraft() {
+    return [...this.reports.values()].filter((r) => r.status === "draft").sort((a, b) => b.reportDate.localeCompare(a.reportDate))[0] ?? null;
+  }
   async create(report: NightReport) { this.reports.set(report.reportDate, structuredClone(report)); return structuredClone(report); }
   async save(report: NightReport, expectedVersion: number) {
     const current = this.reports.get(report.reportDate);
@@ -70,3 +73,52 @@ describe("ReportService", () => {
   });
 });
 
+
+describe("report date rolling over mid-shift", () => {
+  const beforeMidnight = () => new Date(2026, 6, 27, 21, 0);
+  const afterMidnight = () => new Date(2026, 6, 28, 1, 0);
+
+  it("names the report for the next calendar day, which changes partway through a night shift", () => {
+    expect(new ReportService(new MemoryRepository(), beforeMidnight).tonightDate).toBe("2026-07-28");
+    expect(new ReportService(new MemoryRepository(), afterMidnight).tonightDate).toBe("2026-07-29");
+  });
+
+  it("offers the draft started earlier in the shift once the date has rolled over", async () => {
+    const repository = new MemoryRepository();
+    await new ReportService(repository, beforeMidnight).createTonight("empty");
+
+    // Same shift, but the calendar day changed, so loadTonight now looks for a report that
+    // does not exist and the earlier draft would otherwise be unreachable.
+    const afterRestart = new ReportService(repository, afterMidnight);
+    expect(await afterRestart.loadTonight()).toBeNull();
+
+    const resumable = await afterRestart.resumableDraft();
+    expect(resumable?.reportDate).toBe("2026-07-28");
+  });
+
+  it("offers nothing to resume while tonight's report already exists", async () => {
+    const repository = new MemoryRepository();
+    const service = new ReportService(repository, beforeMidnight);
+    await service.createTonight("empty");
+
+    expect(await service.resumableDraft()).toBeNull();
+  });
+
+  it("does not offer a finalized report as resumable", async () => {
+    const repository = new MemoryRepository();
+    const service = new ReportService(repository, beforeMidnight);
+    const created = await service.createTonight("empty");
+    await service.finalize(created, created.version);
+
+    expect(await new ReportService(repository, afterMidnight).resumableDraft()).toBeNull();
+  });
+
+  it("does not offer a draft dated later than tonight, which would be a real future report", async () => {
+    const repository = new MemoryRepository();
+    await new ReportService(repository, afterMidnight).createTonight("empty");
+
+    // Clock moved backwards (or the future draft was made deliberately); 2026-07-29 is ahead of
+    // this service's 2026-07-28, so it is not a stranded draft from the current shift.
+    expect(await new ReportService(repository, beforeMidnight).resumableDraft()).toBeNull();
+  });
+});

@@ -18,6 +18,11 @@ export type WindowControl = "minimize" | "maximize" | "close";
 export interface BootstrapData {
   report: NightReport | null;
   latestFinalized: NightReport | null;
+  /**
+   * An unfinalized draft for an earlier date, present only when there is no report for tonight.
+   * Set after the report date rolls over mid-shift so the draft can be resumed rather than stranded.
+   */
+  resumableDraft: NightReport | null;
   layout: LayoutSettings;
   funeralHomes: FuneralHomeOption[];
   backups: BackupSummary[];

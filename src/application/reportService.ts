@@ -28,6 +28,20 @@ export class ReportService {
 
   latestFinalized() { return this.repository.latestFinalized(); }
 
+  /**
+   * A shift runs across midnight, so the "next calendar day" that names the report changes partway
+   * through it. If the app is restarted after midnight, no report exists for the new tonight-date
+   * and the draft built earlier in the same shift would otherwise be unreachable — it stays in the
+   * database but the editor only ever looks up by date. This surfaces that draft so it can be
+   * resumed. Only drafts dated on or before tonight qualify: a later date would be a real future
+   * report rather than a stranded one.
+   */
+  async resumableDraft(): Promise<NightReport | null> {
+    if (await this.loadTonight()) return null;
+    const draft = await this.repository.latestDraft();
+    return draft && draft.reportDate <= this.tonightDate ? draft : null;
+  }
+
   async createTonight(mode: "empty" | "clone"): Promise<NightReport> {
     const report = createEmptyReport(this.tonightDate);
     if (mode === "clone") {

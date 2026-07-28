@@ -13,7 +13,7 @@ import { ToastProvider } from "../ui/Toast";
 function mockApi(initialReport: NightReport): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, layout: DEFAULT_LAYOUT, funeralHomes: [{ id: "fh-1", name: "Bellweather" }], backups: [] }),
+    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [{ id: "fh-1", name: "Bellweather" }], backups: [] }),
     createDraft: async () => current,
     saveReport: async (report, expectedVersion) => { current = { ...report, version: expectedVersion + 1 }; return current; },
     finalizeReport: async (report, expectedVersion) => { current = { ...report, status: "finalized", version: expectedVersion + 1 }; return current; },

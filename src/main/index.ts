@@ -138,10 +138,10 @@ function dateDaysAgo(days: number) {
 async function bootstrap() {
   await repository.purgeOlderThan(dateDaysAgo(90));
   await backups.purge(14);
-  const [report, latestFinalized, layout, funeralHomes, backupItems] = await Promise.all([
-    service.loadTonight(), service.latestFinalized(), repository.loadLayout(), repository.listFuneralHomes(), backups.list(),
+  const [report, latestFinalized, resumableDraft, layout, funeralHomes, backupItems] = await Promise.all([
+    service.loadTonight(), service.latestFinalized(), service.resumableDraft(), repository.loadLayout(), repository.listFuneralHomes(), backups.list(),
   ]);
-  return { report, latestFinalized, layout, funeralHomes, backups: backupItems };
+  return { report, latestFinalized, resumableDraft, layout, funeralHomes, backups: backupItems };
 }
 
 function registerIpc() {

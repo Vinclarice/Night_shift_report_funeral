@@ -34,7 +34,7 @@ const SUMMARIES: ReportSummary[] = PAST.map((report) => ({
 function mockApi(initialReport: NightReport, overrides: Partial<NightShiftApi> = {}): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
+    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
     createDraft: async () => current,
     saveReport: async (report, expectedVersion) => { current = { ...report, version: expectedVersion + 1 }; return current; },
     finalizeReport: async (report, expectedVersion) => { current = { ...report, status: "finalized", version: expectedVersion + 1 }; return current; },

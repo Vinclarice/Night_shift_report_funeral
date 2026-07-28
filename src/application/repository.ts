@@ -9,6 +9,8 @@ export interface RevisionSummary {
 export interface ReportRepository {
   findByDate(date: string): Promise<NightReport | null>;
   latestFinalized(): Promise<NightReport | null>;
+  /** Newest unfinalized report, used to recover a draft stranded by the date rolling over. */
+  latestDraft(): Promise<NightReport | null>;
   create(report: NightReport): Promise<NightReport>;
   save(report: NightReport, expectedVersion: number): Promise<NightReport>;
   finalize(report: NightReport, expectedVersion: number, finalizedAt: Date): Promise<NightReport>;
