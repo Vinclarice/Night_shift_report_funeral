@@ -160,6 +160,17 @@ describe("App", () => {
     expect(screen.getByRole("dialog", { name: "Print setup" })).toBeInTheDocument();
   });
 
+  it("places the inspector between the navigator and the canvas", async () => {
+    const { container } = render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    // Section list and entry form are used on every entry, so they sit adjacent; asserting DOM
+    // order because the grid places these three in source order.
+    const columns = [...container.querySelectorAll(".studio-workspace > *")].map((element) => element.className.split(" ")[0]);
+
+    expect(columns).toEqual(["report-navigator", "studio-inspector", "studio-canvas"]);
+  });
+
   it("switches the inspector to read-only after finalization", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");

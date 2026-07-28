@@ -376,7 +376,9 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .tools-popover small { color: #7e8a85; font-size: 10px; font-weight: 500; }
 @keyframes studio-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
 
-.studio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 216px minmax(0, 1fr) 370px; overflow: hidden; }
+/* Navigator, inspector, then canvas: the two panels used on every entry are adjacent, so choosing
+   a section and typing into it no longer means crossing the full width of the canvas. */
+.studio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 216px 370px minmax(0, 1fr); overflow: hidden; }
 .studio-shell:not(.inspector-visible) .studio-workspace { grid-template-columns: 216px minmax(0, 1fr); }
 .report-navigator { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--studio-border); background: #0b1016; }
 .navigator-brand { display: flex; align-items: center; gap: 10px; height: 72px; padding: 0 16px; border-bottom: 1px solid var(--studio-border); }
@@ -421,8 +423,8 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .section-card.studio-selected { box-shadow: 0 0 0 2px #23b985, 0 0 0 5px rgb(35 185 133 / 16%); }
 .inline-row-button.selected { background: #dff7ea; box-shadow: inset 3px 0 #14a775; }
 
-.studio-inspector { min-width: 0; overflow-x: hidden; overflow-y: auto; border-left: 1px solid var(--studio-border); background: #10161e; color: var(--studio-text); animation: inspector-in var(--duration-base) var(--ease); }
-@keyframes inspector-in { from { opacity: .4; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.studio-inspector { min-width: 0; overflow-x: hidden; overflow-y: auto; border-right: 1px solid var(--studio-border); background: #10161e; color: var(--studio-text); animation: inspector-in var(--duration-base) var(--ease); }
+@keyframes inspector-in { from { opacity: .4; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
 .inspector-header { position: sticky; z-index: 8; top: 0; min-height: 89px; display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 18px 14px; border-bottom: 1px solid var(--studio-border); background: rgb(16 22 30 / 94%); backdrop-filter: blur(18px); }
 .inspector-header h2 { margin: 4px 0 3px; color: white; font-size: 22px; letter-spacing: -.03em; }
 .inspector-header span { color: #707d77; font-size: 10px; }
@@ -524,8 +526,10 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 @media (max-width: 1319px) {
+  /* Too narrow for three columns, so the inspector floats over the canvas — now anchored to the
+     left edge beside the navigator, matching where it sits at full width. */
   .studio-workspace, .studio-shell.inspector-visible .studio-workspace { grid-template-columns: 204px minmax(0, 1fr); }
-  .studio-inspector { position: fixed; z-index: 42; top: 68px; right: 0; bottom: 0; width: 370px; border-left-color: var(--studio-border-strong); box-shadow: -28px 0 70px rgb(0 0 0 / 48%); }
+  .studio-inspector { position: fixed; z-index: 42; top: 68px; left: 204px; bottom: 0; width: 370px; border-right-color: var(--studio-border-strong); box-shadow: 28px 0 70px rgb(0 0 0 / 48%); }
   .studio-save-state { display: none; }
 }
 

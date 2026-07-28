@@ -6,7 +6,7 @@ A local, print-first Windows application for preparing the nightly Human Remains
 
 1. Double-click `Night Shift Report Portable 0.2.0.exe`.
 2. Choose **Start empty**, or clone the latest finalized report when one exists.
-3. Choose a section from the left report navigator. Add or edit entries in the contextual inspector on the right, or click any ruled line in the live canvas to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
+3. Choose a section from the left report navigator, then add or edit entries in the inspector immediately beside it. The live canvas sits to the right; you can also click any ruled line there to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
 4. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
 5. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
 6. Drag an entry onto another entry to reorder it: the row you drop on moves down. Drop onto a blank row past the last entry to **pin** the entry to the bottom of that section — useful for a line that belongs to the section but sits apart from its list, like a road trip in Deliver. A pinned entry stays at the bottom as new entries are added; drag it back up to unpin it. In the Deliver sections Rush entries still hold the top, and your manual order is kept within the Rush and non-Rush groups.

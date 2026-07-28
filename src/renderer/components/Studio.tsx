@@ -208,7 +208,9 @@ export function Studio() {
     <main className={`studio-shell${workspace.inspectorOpen ? " inspector-visible" : ""}`}>
       <CommandBar report={report} />
       {controller.overflow && <div className="overflow-warning no-print">Printing is paused because this report exceeds one page. Adjust card widths, print scale, or entries before printing.</div>}
-      <div className="studio-workspace no-print"><ReportNavigator report={report} /><PreviewCanvas report={report} />{workspace.inspectorOpen && <Inspector report={report} />}</div>
+      {/* Navigator, inspector, canvas. Picking a section and typing into it are the two things done
+          on every entry, so they sit adjacent; the canvas is mostly read and is given the rest. */}
+      <div className="studio-workspace no-print"><ReportNavigator report={report} />{workspace.inspectorOpen && <Inspector report={report} />}<PreviewCanvas report={report} /></div>
       <div className="print-only"><ReportPage report={printTarget} layout={controller.layout!} compactLevel={controller.compactLevel} calibration={controller.calibration} /></div>
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
