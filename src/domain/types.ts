@@ -22,6 +22,12 @@ interface BaseEntry {
   id: string;
   rush: boolean;
   keepSeparate: boolean;
+  /**
+   * Holds this entry at the end of its section regardless of the section's normal ordering, for
+   * lines that belong to a section but sit apart from its list — a road trip in Deliver, say.
+   * Set by dragging an entry below the last row; cleared by dragging it back up.
+   */
+  pinnedBottom: boolean;
   createdAt: string;
 }
 

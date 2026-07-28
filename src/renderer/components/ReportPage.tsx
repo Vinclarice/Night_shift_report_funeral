@@ -13,7 +13,11 @@ interface Props {
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
   onWidthCommit?: (key: ReportSection["key"], width: number) => void;
   onLineCommit?: (key: ReportSection["key"], entryId: string | null, value: string) => void;
-  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string) => void;
+  /**
+   * `beforeEntryId` is the row to land above, `null` means the end of the section (which pins the
+   * entry there), and omitting it means no particular position — used for a drop on the card body.
+   */
+  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null) => void;
   selectedSectionKey?: ReportSection["key"];
   selectedEntryId?: string;
   onSelectSection?: (key: ReportSection["key"]) => void;
@@ -26,6 +30,19 @@ const THREE_FREE_ROW_SECTIONS = new Set<ReportSection["key"]>([
   "human-pending",
   "human-ship-outs",
 ]);
+
+const DRAG_MIME = "application/x-night-shift-entry";
+
+interface DragPayload { sectionKey: ReportSection["key"]; entryId: string }
+
+function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null {
+  try {
+    const payload = JSON.parse(event.dataTransfer.getData(DRAG_MIME)) as DragPayload;
+    return payload?.sectionKey && payload?.entryId ? payload : null;
+  } catch {
+    return null;
+  }
+}
 
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -70,7 +87,7 @@ const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
   return <span className="entry-line-content"><span>{entry.text}</span></span>;
 });
 
-function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"] }) {
+function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
@@ -106,15 +123,72 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
   function beginDrag(event: ReactDragEvent<HTMLButtonElement>) {
     if (!entry || !onEntryMove) return;
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("application/x-night-shift-entry", JSON.stringify({ sectionKey: section.key, entryId: entry.id }));
+    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id } satisfies DragPayload));
+  }
+
+  const nextEntryId = entry
+    ? section.entries[section.entries.findIndex((candidate) => candidate.id === entry.id) + 1]?.id ?? null
+    : null;
+
+  // Dropping onto the top half of a row lands above it; the bottom half lands above the next row.
+  // Without the halves, nudging an entry down by one position would be impossible.
+  function pointerTarget(event: ReactDragEvent<HTMLElement>): string | null {
+    if (!entry) return null;
+    const box = event.currentTarget.getBoundingClientRect();
+    // Insert-before is the safe default when the pointer position is unavailable: it can only be
+    // off by one row, whereas defaulting to the other branch could pin an entry unintentionally.
+    if (!Number.isFinite(event.clientY)) return entry.id;
+    return event.clientY - box.top > box.height / 2 ? nextEntryId : entry.id;
   }
 
   if (editing) {
     return <input ref={inputRef} className="report-row inline-row-input no-print" style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
   }
 
+  // A blank row is the bottom of the section, so a drop there means "put it at the end" — which is
+  // what pins the entry. Rows with entries use the half-height rule above instead.
+  const dragProps = onEntryMove && !entry ? {
+    onDragOver: (event: ReactDragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move" as const;
+      onDropBeforeChange?.("__end__");
+    },
+    onDrop: (event: ReactDragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const payload = readDragPayload(event);
+      onDropBeforeChange?.(null);
+      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, null);
+    },
+  } : onEntryMove && entry ? {
+    onDragOver: (event: ReactDragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move" as const;
+      onDropBeforeChange?.(pointerTarget(event));
+    },
+    onDrop: (event: ReactDragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const payload = readDragPayload(event);
+      const before = pointerTarget(event);
+      onDropBeforeChange?.(null);
+      if (payload && payload.entryId !== entry.id) onEntryMove(payload.sectionKey, section.key, payload.entryId, before);
+    },
+  } : {};
+
   return (
-    <button type="button" draggable={Boolean(entry && onEntryMove)} className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${entry?.rush ? " rush-row" : ""}${selected ? " selected" : ""}`} aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`} onDragStart={beginDrag} onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }} title={entry ? "Click to edit or drag to another section" : "Click to type directly in the report"}>
+    <button
+      type="button"
+      draggable={Boolean(entry && onEntryMove)}
+      className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${entry?.rush ? " rush-row" : ""}${entry?.pinnedBottom ? " pinned-row" : ""}${selected ? " selected" : ""}${dropBefore ? " drop-before" : ""}`}
+      aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`}
+      onDragStart={beginDrag}
+      onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }}
+      title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
+      {...dragProps}
+    >
       {entry ? <EntryLine entry={entry} /> : <>&nbsp;</>}
     </button>
   );
@@ -146,6 +220,7 @@ const SectionCard = memo(function SectionCard({
   onSelectEntry?: Props["onSelectEntry"];
 }) {
   const [dropActive, setDropActive] = useState(false);
+  const [dropBefore, setDropBefore] = useState<string | null>(null);
   const freeRows = THREE_FREE_ROW_SECTIONS.has(section.key) ? 3 : 1;
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -167,14 +242,15 @@ const SectionCard = memo(function SectionCard({
     window.addEventListener("pointerup", finish, { once: true });
   }
 
+  // Fallback for a drop on the card's own padding rather than a row. Position is left unspecified,
+  // so a same-section drop here is a no-op instead of silently pinning the entry to the bottom.
   function receiveDrop(event: ReactDragEvent<HTMLElement>) {
     event.preventDefault();
     setDropActive(false);
+    setDropBefore(null);
     if (!onEntryMove) return;
-    try {
-      const payload = JSON.parse(event.dataTransfer.getData("application/x-night-shift-entry")) as { sectionKey: ReportSection["key"]; entryId: string };
-      if (payload.sectionKey && payload.entryId) onEntryMove(payload.sectionKey, section.key, payload.entryId);
-    } catch { /* Ignore unrelated dragged content. */ }
+    const payload = readDragPayload(event);
+    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId);
   }
 
   return (
@@ -185,18 +261,18 @@ const SectionCard = memo(function SectionCard({
       style={width ? { width: `${width}in` } : undefined}
       onDragEnter={onEntryMove ? (event) => { event.preventDefault(); setDropActive(true); } : undefined}
       onDragOver={onEntryMove ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } : undefined}
-      onDragLeave={onEntryMove ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropActive(false); } : undefined}
+      onDragLeave={onEntryMove ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setDropActive(false); setDropBefore(null); } } : undefined}
       onDrop={onEntryMove ? receiveDrop : undefined}
     >
       <h3>{section.title}</h3>
       {section.entries.map((entry) => (
         onLineCommit
-          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
-          : <div className={`report-row${entry.rush ? " rush-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
+          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
+          : <div className={`report-row${entry.rush ? " rush-row" : ""}${entry.pinnedBottom ? " pinned-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
-          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} autoWidth={!width} freeRowIndex={index} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
+          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} autoWidth={!width} freeRowIndex={index} onEntryMove={index === 0 ? onEntryMove : undefined} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={index === 0 && dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
           : <div className="report-row blank-row" data-testid="free-row" aria-label={`${section.title} free row ${index + 1}`} key={`free-${index}`}>&nbsp;</div>
       ))}
       {interactive && (

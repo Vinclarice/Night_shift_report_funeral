@@ -9,13 +9,14 @@ A local, print-first Windows application for preparing the nightly Human Remains
 3. Choose a section from the left report navigator. Add or edit entries in the contextual inspector on the right, or click any ruled line in the live canvas to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
 4. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
 5. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
-6. Use **Paste** in the inspector to add multiple entries through the required review screen.
-7. Use the canvas Fit and zoom controls to adjust the on-screen view without changing the printed report. Drag a card's small right-edge handle to set its print width.
-8. Press **Ctrl+K** to open the command palette. Type to jump to any section or run a command — undo, redo, print, open a tools panel, or toggle the inspector. Arrow keys move, Enter runs, Escape closes. Finalize and Reopen are intentionally excluded so they can't fire from a fuzzy match.
-9. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
-10. Open **Tools** > **Report archive** to view or reprint any retained report. The archive is read-only; finalized reports stay immutable.
-11. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
-12. Choose **Print report** and select the company printer or Microsoft Print to PDF.
+6. Drag an entry onto another entry to reorder it: the row you drop on moves down. Drop onto a blank row past the last entry to **pin** the entry to the bottom of that section — useful for a line that belongs to the section but sits apart from its list, like a road trip in Deliver. A pinned entry stays at the bottom as new entries are added; drag it back up to unpin it. In the Deliver sections Rush entries still hold the top, and your manual order is kept within the Rush and non-Rush groups.
+7. Use **Paste** in the inspector to add multiple entries through the required review screen.
+8. Use the canvas Fit and zoom controls to adjust the on-screen view without changing the printed report. Drag a card's small right-edge handle to set its print width.
+9. Press **Ctrl+K** to open the command palette. Type to jump to any section or run a command — undo, redo, print, open a tools panel, or toggle the inspector. Arrow keys move, Enter runs, Escape closes. Finalize and Reopen are intentionally excluded so they can't fire from a fuzzy match.
+10. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
+11. Open **Tools** > **Report archive** to view or reprint any retained report. The archive is read-only; finalized reports stay immutable.
+12. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
+13. Choose **Print report** and select the company printer or Microsoft Print to PDF.
 
 Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
 
@@ -38,6 +39,8 @@ Before expanding or deploying the editor further, print and compare these cases 
 - Busy report with automatic compaction.
 - Long funeral-home and deceased names.
 - Multiple merged entries and multiple rush deliveries.
+- A section with an entry pinned to the bottom, to confirm the separating rule reads on paper.
+- A Cremated card at its new narrower default beside one expanded by a deceased name.
 
 In **Print setup**, enable **Show calibration marks**. All four dashed edges must be visible. Adjust page margin and horizontal/vertical offsets for the company printer, then print the cases again. Do not approve the release if text clips, borders look fuzzy, cards move columns, or the result is worse than the Word document.
 
@@ -67,7 +70,7 @@ Renderer state is split into two contexts. `useReportState` carries values that 
 
 ## Release notes
 
-- Unreleased: frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). The stored report format is unchanged; the printed report's visual styling was revised and needs a fresh pass through the physical print-quality gate below.
+- Unreleased: frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, drag-to-reorder with bottom-pinning, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). Adds a `pinnedBottom` column to `Entry`, applied automatically to existing databases on launch. The printed report's visual styling was revised — special requests print darker, Cremated funeral-home names are no longer bold when a row carries no deceased name, and Cremated cards start narrower while still expanding for edge cases — so it needs a fresh pass through the physical print-quality gate below.
 - Version 0.2.0 introduces the dark document-studio interface, contextual inspector, responsive minimum-width layout, fit/manual preview zoom, consolidated Tools menu, and portal-based accessible overlays. The verified print layout and stored report format are unchanged.
 - Email delivery is intentionally deferred from v1. A later version can attach a generated PDF or use a configured email client after company policy and recipient handling are decided.
 - The executable is unsigned. Windows or company policy may warn or block it; test that explicitly on the company computer during the feasibility gate.

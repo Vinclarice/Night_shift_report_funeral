@@ -3,7 +3,8 @@ import { useReducer } from "react";
 import type { ReportEntry } from "@/domain/types";
 
 export type EntryKind = ReportEntry["type"];
-export type EditingTarget = { entryId: string; personId?: string } | null;
+/** `pinnedBottom` rides along so re-saving an edited entry preserves its pinned position. */
+export type EditingTarget = { entryId: string; personId?: string; pinnedBottom: boolean } | null;
 export type TextField = "funeralHome" | "deceasedName" | "locationCode" | "specialRequest" | "text" | "rightText";
 
 export interface EntryFormState {
@@ -46,7 +47,7 @@ type EntryFormAction =
   | { type: "LOAD_ENTRY"; entry: ReportEntry; personId?: string };
 
 export function loadedState(entry: ReportEntry, personId?: string): EntryFormState {
-  const editing: EditingTarget = { entryId: entry.id, personId };
+  const editing: EditingTarget = { entryId: entry.id, personId, pinnedBottom: entry.pinnedBottom };
   if (entry.type === "funeral") {
     const person = entry.deceased.find((candidate) => candidate.id === personId) ?? entry.deceased[0];
     return {

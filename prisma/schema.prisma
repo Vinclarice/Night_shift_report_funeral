@@ -29,6 +29,7 @@ model Entry {
   type                    String
   rush                    Boolean  @default(false)
   keepSeparate            Boolean  @default(false)
+  pinnedBottom            Boolean  @default(false)
   position                Int
   funeralHomeId           String?
   funeralHomeNameSnapshot String?

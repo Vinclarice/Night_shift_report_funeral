@@ -32,7 +32,7 @@ describe("PrismaReportRepository", () => {
       funeralHome: "McGuire",
       deceased: [{ id: crypto.randomUUID(), name: "Smith", locationCode: "13A", specialRequest: "Rush delivery" }],
       rush: true,
-      keepSeparate: false,
+      keepSeparate: false, pinnedBottom: false,
       createdAt: new Date().toISOString(),
     });
     await repository.create(report);

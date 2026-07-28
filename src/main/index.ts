@@ -90,6 +90,8 @@ const baseEntryFields = {
   id: z.string(),
   rush: z.boolean(),
   keepSeparate: z.boolean(),
+  // Defaulted rather than required so a report saved by an older build still validates.
+  pinnedBottom: z.boolean().default(false),
   createdAt: z.string(),
 };
 

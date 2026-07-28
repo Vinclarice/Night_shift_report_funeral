@@ -50,7 +50,7 @@ describe("ReportService", () => {
     const repository = new MemoryRepository();
     const prior = createEmptyReport("2026-07-25");
     prior.status = "finalized";
-    prior.sections[0].entries.push({ id: "old", type: "plain", text: "Carry forward", rush: false, keepSeparate: false, createdAt: clock().toISOString() });
+    prior.sections[0].entries.push({ id: "old", type: "plain", text: "Carry forward", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: clock().toISOString() });
     repository.reports.set(prior.reportDate, prior);
     const created = await new ReportService(repository, clock).createTonight("clone");
     expect(created.sections[0].entries[0]).toMatchObject({ type: "plain", text: "Carry forward" });

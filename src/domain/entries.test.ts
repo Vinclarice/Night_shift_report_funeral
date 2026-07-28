@@ -4,6 +4,7 @@ import {
   moveEntry,
   normalizeFuneralHome,
   parsePastedLines,
+  reorderEntry,
   sortEntriesForSection,
   titleCaseName,
 } from "./entries";
@@ -18,6 +19,7 @@ function funeral(overrides: Partial<FuneralEntry> = {}): FuneralEntry {
     deceased: [{ id: crypto.randomUUID(), name: "Smith", locationCode: "13A", specialRequest: "" }],
     rush: false,
     keepSeparate: false,
+    pinnedBottom: false,
     createdAt: "2026-07-25T12:00:00.000Z",
     ...overrides,
   };
@@ -174,5 +176,128 @@ describe("parses every line format from the reference night shift report", () =>
       expect(line.entry).toMatchObject({ type: "plain", text: source });
       expect(line.warning).toBe("Kept as plain text; review before adding.");
     }
+  });
+});
+
+describe("reorderEntry", () => {
+  function section(key: "human-deliver" | "human-fdp" = "human-deliver") {
+    const report = createEmptyReport("2026-07-26");
+    return report.sections.find((candidate) => candidate.key === key)!;
+  }
+
+  function ids(entries: { id: string }[]) {
+    return entries.map((entry) => entry.id);
+  }
+
+  function named(id: string, overrides: Partial<FuneralEntry> = {}): FuneralEntry {
+    return funeral({ id, funeralHome: id, keepSeparate: true, ...overrides });
+  }
+
+  it("drops an entry above the row it was released on, pushing that row down", () => {
+    const target = section("human-fdp");
+    target.entries.push(named("a"), named("b"), named("c"));
+
+    expect(reorderEntry(target, "c", "b")).toBe(true);
+
+    expect(ids(target.entries)).toEqual(["a", "c", "b"]);
+  });
+
+  it("pins an entry to the end when dropped past the last row", () => {
+    const target = section("human-fdp");
+    target.entries.push(named("a"), named("b"));
+
+    reorderEntry(target, "a", null);
+
+    expect(ids(target.entries)).toEqual(["b", "a"]);
+    expect(target.entries.at(-1)!.pinnedBottom).toBe(true);
+  });
+
+  it("holds a pinned entry at the bottom as later entries are added", () => {
+    const target = section("human-fdp");
+    target.entries.push(named("roadtrip"));
+    reorderEntry(target, "roadtrip", null);
+
+    addEntry(target, named("later"));
+
+    expect(ids(target.entries)).toEqual(["later", "roadtrip"]);
+  });
+
+  it("clears the pin when the entry is moved back up", () => {
+    const target = section("human-fdp");
+    target.entries.push(named("a"), named("b"));
+    reorderEntry(target, "a", null);
+
+    reorderEntry(target, "a", "b");
+
+    expect(ids(target.entries)).toEqual(["a", "b"]);
+    expect(target.entries[0].pinnedBottom).toBe(false);
+  });
+
+  it("keeps rush entries above non-rush ones in Deliver while preserving manual order inside each band", () => {
+    const deliver = section("human-deliver");
+    deliver.entries.push(named("rush-1", { rush: true }), named("plain-1"), named("rush-2", { rush: true }), named("plain-2"));
+    deliver.entries = sortEntriesForSection(deliver.key, deliver.entries);
+    expect(ids(deliver.entries)).toEqual(["rush-1", "rush-2", "plain-1", "plain-2"]);
+
+    // Reordering inside the non-rush band must not promote anything past the rush block.
+    reorderEntry(deliver, "plain-2", "plain-1");
+
+    expect(ids(deliver.entries)).toEqual(["rush-1", "rush-2", "plain-2", "plain-1"]);
+  });
+
+  it("keeps a pinned entry last even when it is also marked rush", () => {
+    const deliver = section("human-deliver");
+    deliver.entries.push(named("rush-1", { rush: true }), named("plain-1"));
+    deliver.entries.push(named("pinned-rush", { rush: true, pinnedBottom: true }));
+
+    deliver.entries = sortEntriesForSection(deliver.key, deliver.entries);
+
+    expect(ids(deliver.entries)).toEqual(["rush-1", "plain-1", "pinned-rush"]);
+  });
+
+  it("does not merge a pinned entry into an identical unpinned one", () => {
+    const target = section("human-fdp");
+    const first = funeral({ id: "first", funeralHome: "McGuire" });
+    target.entries.push(first);
+
+    addEntry(target, funeral({ id: "second", funeralHome: "McGuire", pinnedBottom: true }));
+
+    expect(target.entries).toHaveLength(2);
+    expect(ids(target.entries)).toEqual(["first", "second"]);
+  });
+
+  it("ignores a reorder against an unknown row rather than corrupting the order", () => {
+    const target = section("human-fdp");
+    target.entries.push(named("a"), named("b"));
+
+    expect(reorderEntry(target, "a", "missing")).toBe(false);
+
+    expect(ids(target.entries)).toEqual(["a", "b"]);
+  });
+});
+
+describe("moveEntry positioning", () => {
+  it("inserts above a specific row when moving across sections", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-airport")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    target.entries.push(funeral({ id: "existing", funeralHome: "Greene", keepSeparate: true }));
+    source.entries.push(funeral({ id: "moving", funeralHome: "Inman", keepSeparate: true }));
+
+    expect(moveEntry(report, "human-airport", "human-fdp", "moving", "existing")).toBe(true);
+
+    expect(target.entries.map((entry) => entry.id)).toEqual(["moving", "existing"]);
+    expect(source.entries).toHaveLength(0);
+  });
+
+  it("treats a same-section drop with no target row as a no-op so nothing is pinned by accident", () => {
+    const report = createEmptyReport("2026-07-26");
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    target.entries.push(funeral({ id: "a", keepSeparate: true }), funeral({ id: "b", keepSeparate: true }));
+
+    expect(moveEntry(report, "human-fdp", "human-fdp", "a")).toBe(false);
+
+    expect(target.entries.map((entry) => entry.id)).toEqual(["a", "b"]);
+    expect(target.entries[0].pinnedBottom).toBe(false);
   });
 });

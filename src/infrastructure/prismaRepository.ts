@@ -252,7 +252,7 @@ export class PrismaReportRepository implements ReportRepository {
     report.finalizedAt = loaded.finalizedAt?.toISOString() ?? null;
     for (const section of report.sections) {
       section.entries = loaded.entries.filter((entry) => entry.sectionKey === section.key).map((entry): ReportEntry => {
-        const base = { id: entry.id, rush: entry.rush, keepSeparate: entry.keepSeparate, createdAt: entry.createdAt.toISOString() };
+        const base = { id: entry.id, rush: entry.rush, keepSeparate: entry.keepSeparate, pinnedBottom: entry.pinnedBottom, createdAt: entry.createdAt.toISOString() };
         if (entry.type === "funeral") return { ...base, type: "funeral", funeralHome: entry.funeralHomeNameSnapshot ?? "", deceased: entry.deceased.map((person) => ({ id: person.id, name: person.name, locationCode: person.locationCode ?? "", specialRequest: person.specialRequest ?? "" })) };
         if (entry.type === "funeralHomeOnly") return { ...base, type: "funeralHomeOnly", funeralHome: entry.funeralHomeNameSnapshot ?? "" };
         if (entry.type === "count") return { ...base, type: "count", text: entry.text ?? "", count: entry.count ?? 1 };
@@ -304,6 +304,7 @@ export class PrismaReportRepository implements ReportRepository {
         type: entry.type,
         rush: entry.rush,
         keepSeparate: entry.keepSeparate,
+        pinnedBottom: entry.pinnedBottom,
         position,
         funeralHomeId: funeralHomeNameSnapshot ? idByNormalizedName.get(normalizeFuneralHome(funeralHomeNameSnapshot)) : undefined,
         funeralHomeNameSnapshot,

@@ -62,7 +62,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await page.evaluate(async () => {
       const data = await window.nightShift.bootstrap();
       const report = data.report!;
-      const base = () => ({ id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() });
+      const base = () => ({ id: crypto.randomUUID(), rush: false, keepSeparate: false, pinnedBottom: false, createdAt: new Date().toISOString() });
       const funeral = (home: string, name: string, code = "", special = "", rush = false) => ({ ...base(), type: "funeral" as const, funeralHome: home, rush, deceased: [{ id: crypto.randomUUID(), name, locationCode: code, specialRequest: special }] });
       const section = (key: string) => report.sections.find((item) => item.key === key)!;
       section("human-deliver").entries.push(funeral("McGuire", "Priority Family", "13A", "Rush delivery", true));
@@ -109,7 +109,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await page.evaluate(async () => {
       const data = await window.nightShift.bootstrap();
       const report = data.report!;
-      const base = () => ({ id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() });
+      const base = () => ({ id: crypto.randomUUID(), rush: false, keepSeparate: false, pinnedBottom: false, createdAt: new Date().toISOString() });
       const funeral = (home: string, name: string, code = "") => ({ ...base(), type: "funeral" as const, funeralHome: home, deceased: [{ id: crypto.randomUUID(), name, locationCode: code, specialRequest: "" }] });
       const section = (key: string) => report.sections.find((item) => item.key === key)!;
       section("human-deliver").entries.push(funeral("Metropolitan Memorial Services of Greater Washington", "Alexandria Catherine-Margaret Longsurname", "17B"));
@@ -141,7 +141,7 @@ test("launches portably and renders the exact nine-card page", async () => {
           type: "plain" as const,
           text: `Overflow safety entry ${index}`,
           rush: false,
-          keepSeparate: false,
+          keepSeparate: false, pinnedBottom: false,
           createdAt: new Date().toISOString(),
         });
       }

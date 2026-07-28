@@ -18,7 +18,7 @@ import { EntryForm } from "./EntryForm";
 import { PasteReviewModal } from "./PasteReviewModal";
 
 function baseEntry() {
-  return { id: crypto.randomUUID(), rush: false, keepSeparate: false, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), rush: false, keepSeparate: false, pinnedBottom: false, createdAt: new Date().toISOString() };
 }
 
 function defaultKindFor(section: ReportSection) {
@@ -38,7 +38,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
   const isDeliver = section.key === "human-deliver" || section.key === "cremated-deliver";
 
   function buildEntry(): ReportEntry {
-    const base = { ...baseEntry(), rush: form.rush, keepSeparate: form.keepSeparate };
+    const base = { ...baseEntry(), rush: form.rush, keepSeparate: form.keepSeparate, pinnedBottom: form.editing?.pinnedBottom ?? false };
     if (form.entryKind === "funeral") {
       if (!form.funeralHome.trim() || !form.deceasedName.trim()) throw new Error("Funeral home and deceased name are required.");
       return { ...base, type: "funeral", funeralHome: controller.canonicalFuneralHome(form.funeralHome), deceased: [{ id: crypto.randomUUID(), name: titleCaseName(form.deceasedName), locationCode: form.locationCode.trim(), specialRequest: form.specialRequest.trim() }] };

@@ -15,7 +15,7 @@ function archivedReport(date: string, funeralHome: string): NightReport {
     type: "funeralHomeOnly",
     funeralHome,
     rush: false,
-    keepSeparate: false,
+    keepSeparate: false, pinnedBottom: false,
     createdAt: "2026-07-20T12:00:00.000Z",
   });
   return report;

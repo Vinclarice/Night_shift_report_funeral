@@ -133,10 +133,10 @@ function PreviewCanvas({ report }: { report: NightReport }) {
     if (parseWarning) toast.warning(parseWarning);
   }, [report, controller, dispatch, toast]);
 
-  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string) {
+  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null) {
     if (report.status !== "draft") return;
     const next = structuredClone(report);
-    if (!moveEntry(next, sourceKey, targetKey, entryId)) return;
+    if (!moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId)) return;
     dispatch({ type: "SELECT_SECTION", sectionKey: targetKey, mode: "browse" });
     void controller.persist(next);
   }, [report, controller, dispatch]);

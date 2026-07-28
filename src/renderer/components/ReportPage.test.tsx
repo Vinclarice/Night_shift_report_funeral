@@ -52,7 +52,7 @@ describe("print report", () => {
   it("prints three trailing free rows in the specified HR cards and one for Airport Drops", () => {
     const report = createEmptyReport("2026-07-26");
     report.sections.find((section) => section.key === "human-fdp")!.entries.push({
-      id: "entry-one", type: "plain", text: "Existing entry", rush: false, keepSeparate: false, createdAt: "2026-07-25T12:00:00.000Z",
+      id: "entry-one", type: "plain", text: "Existing entry", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
     });
     const { container } = render(<ReportPage report={report} layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }} />);
 
@@ -71,7 +71,7 @@ describe("print report", () => {
       funeralHome: "McGuire",
       deceased: [{ id: "person-one", name: "Priority Family", locationCode: "13A", specialRequest: "Rush delivery" }],
       rush: true,
-      keepSeparate: false,
+      keepSeparate: false, pinnedBottom: false,
       createdAt: "2026-07-25T12:00:00.000Z",
     });
 
@@ -98,7 +98,7 @@ describe("print report", () => {
   it("reports a dragged entry and its destination card", () => {
     const report = createEmptyReport("2026-07-26");
     report.sections.find((section) => section.key === "human-pending")!.entries.push({
-      id: "move-me", type: "plain", text: "Move this case", rush: false, keepSeparate: false, createdAt: "2026-07-25T12:00:00.000Z",
+      id: "move-me", type: "plain", text: "Move this case", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
     });
     const onEntryMove = vi.fn();
     const { container } = render(<ReportPage report={report} layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
@@ -109,5 +109,122 @@ describe("print report", () => {
     fireEvent.drop(container.querySelector('[data-section-key="human-deliver"]')!, { dataTransfer });
 
     expect(onEntryMove).toHaveBeenCalledWith("human-pending", "human-deliver", "move-me");
+  });
+});
+
+describe("drag to reorder", () => {
+  const LAYOUT = { sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 };
+
+  function reportWithDeliverEntries(names: string[] = ["Alpha", "Beta"]) {
+    const report = createEmptyReport("2026-07-26");
+    const deliver = report.sections.find((section) => section.key === "human-deliver")!;
+    for (const name of names) {
+      deliver.entries.push({
+        id: `entry-${name}`,
+        type: "funeralHomeOnly",
+        funeralHome: name,
+        rush: false,
+        keepSeparate: true,
+        pinnedBottom: false,
+        createdAt: "2026-07-25T12:00:00.000Z",
+      });
+    }
+    return report;
+  }
+
+  /** jsdom has no real DnD, so the payload is carried by a stub dataTransfer. */
+  function dataTransfer(payload: object) {
+    return { getData: () => JSON.stringify(payload), setData: vi.fn(), dropEffect: "", effectAllowed: "" };
+  }
+
+  function stubHeight(element: Element, height = 20, top = 0) {
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({ top, height, bottom: top + height, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) } as DOMRect);
+  }
+
+  /**
+   * jsdom does not implement DragEvent, and Testing Library's fallback event drops clientY, so the
+   * half-height rule cannot be exercised through fireEvent.drop. A MouseEvent does carry clientY,
+   * so the drop is dispatched as one with dataTransfer attached.
+   */
+  function dropAt(element: Element, payload: object, clientY: number) {
+    const event = new MouseEvent("drop", { bubbles: true, cancelable: true, clientY });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer(payload) });
+    fireEvent(element, event);
+  }
+
+  it("drops an entry above the row it was released on", () => {
+    const onEntryMove = vi.fn();
+    render(<ReportPage report={reportWithDeliverEntries()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const rows = screen.getAllByRole("button", { name: "Edit Human Remains DELIVER" });
+    stubHeight(rows[1]);
+    // Released on the top half of "Beta", so the dragged entry lands above it.
+    dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 4);
+
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", "entry-Beta");
+  });
+
+  it("targets the following row when released on the bottom half", () => {
+    const onEntryMove = vi.fn();
+    render(<ReportPage report={reportWithDeliverEntries(["Alpha", "Beta", "Gamma"])} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const rows = screen.getAllByRole("button", { name: "Edit Human Remains DELIVER" });
+    stubHeight(rows[0]);
+    dropAt(rows[0], { sectionKey: "human-deliver", entryId: "entry-Gamma" }, 16);
+
+    // Below the midpoint of "Alpha" means "after Alpha", which is above the next row, "Beta".
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Gamma", "entry-Beta");
+  });
+
+  it("pins when released on the bottom half of the last row, matching the drag-to-bottom rule", () => {
+    const onEntryMove = vi.fn();
+    render(<ReportPage report={reportWithDeliverEntries()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const rows = screen.getAllByRole("button", { name: "Edit Human Remains DELIVER" });
+    stubHeight(rows[1]);
+    dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 16);
+
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null);
+  });
+
+  it("requests a pin when an entry is dropped on the blank row past the end", () => {
+    const onEntryMove = vi.fn();
+    render(<ReportPage report={reportWithDeliverEntries()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const blank = screen.getByRole("button", { name: "Type in Human Remains DELIVER" });
+    fireEvent.drop(blank, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
+
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null);
+  });
+
+  it("leaves position unspecified for a drop on the card body so nothing is pinned by accident", () => {
+    const onEntryMove = vi.fn();
+    const { container } = render(<ReportPage report={reportWithDeliverEntries()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const card = container.querySelector('[data-section-key="human-fdp"]')!;
+    fireEvent.drop(card, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
+
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "entry-Alpha");
+  });
+
+  it("ignores a drop of the entry onto itself", () => {
+    const onEntryMove = vi.fn();
+    render(<ReportPage report={reportWithDeliverEntries()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const rows = screen.getAllByRole("button", { name: "Edit Human Remains DELIVER" });
+    stubHeight(rows[0]);
+    dropAt(rows[0], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 4);
+
+    expect(onEntryMove).not.toHaveBeenCalled();
+  });
+
+  it("marks a pinned entry so it is distinguishable in the printed report", () => {
+    const report = reportWithDeliverEntries();
+    report.sections.find((section) => section.key === "human-deliver")!.entries[1].pinnedBottom = true;
+    const { container } = render(<ReportPage report={report} layout={LAYOUT} />);
+
+    const rows = container.querySelectorAll('[data-section-key="human-deliver"] .report-row');
+    expect(rows[0]).not.toHaveClass("pinned-row");
+    expect(rows[1]).toHaveClass("pinned-row");
   });
 });

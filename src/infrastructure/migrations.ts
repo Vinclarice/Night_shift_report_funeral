@@ -26,6 +26,7 @@ const statements = [
     "type" TEXT NOT NULL,
     "rush" BOOLEAN NOT NULL DEFAULT false,
     "keepSeparate" BOOLEAN NOT NULL DEFAULT false,
+    "pinnedBottom" BOOLEAN NOT NULL DEFAULT false,
     "position" INTEGER NOT NULL,
     "funeralHomeId" TEXT,
     "funeralHomeNameSnapshot" TEXT,
@@ -67,8 +68,27 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS "AppSetting" ("key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL)`,
 ];
 
+/**
+ * Columns added after the first release. The CREATE TABLE statements above only run on a fresh
+ * database, so an existing one needs the column added explicitly. SQLite has no
+ * "ADD COLUMN IF NOT EXISTS", hence the pragma check — running ALTER blindly and swallowing the
+ * error would also hide genuine failures.
+ */
+const addedColumns: Array<{ table: string; column: string; definition: string }> = [
+  { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
+];
+
+async function applyAddedColumns(client: PrismaClient): Promise<void> {
+  for (const { table, column, definition } of addedColumns) {
+    const columns = await client.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info("${table}")`);
+    if (columns.some((existing) => existing.name === column)) continue;
+    await client.$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
+  }
+}
+
 export async function migrate(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe("PRAGMA foreign_keys = ON");
   for (const statement of statements) await client.$executeRawUnsafe(statement);
+  await applyAddedColumns(client);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 }

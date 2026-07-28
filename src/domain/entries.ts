@@ -18,6 +18,7 @@ function baseEntry() {
     id: crypto.randomUUID(),
     rush: false,
     keepSeparate: false,
+    pinnedBottom: false,
     createdAt: new Date().toISOString(),
   };
 }
@@ -60,11 +61,14 @@ export function isExactDuplicate(entry: FuneralEntry, person: DeceasedPerson): b
 
 export function addEntry(section: ReportSection, entry: ReportEntry): void {
   if (entry.type === "funeral" && !entry.keepSeparate) {
+    // A pinned entry never merges into an unpinned one (or vice versa): pinning exists precisely to
+    // hold a line apart from the section's main list, so folding them together would undo it.
     const existing = section.entries.find(
       (candidate): candidate is FuneralEntry =>
         candidate.type === "funeral" &&
         !candidate.keepSeparate &&
         candidate.rush === entry.rush &&
+        candidate.pinnedBottom === entry.pinnedBottom &&
         normalizeFuneralHome(candidate.funeralHome) === normalizeFuneralHome(entry.funeralHome),
     );
     if (existing) {
@@ -81,6 +85,7 @@ export function addEntry(section: ReportSection, entry: ReportEntry): void {
         candidate.type === "funeralHomeOnly" &&
         !candidate.keepSeparate &&
         candidate.rush === entry.rush &&
+        candidate.pinnedBottom === entry.pinnedBottom &&
         normalizeFuneralHome(candidate.funeralHome) === normalizeFuneralHome(entry.funeralHome),
     );
     if (exists) return;
@@ -90,24 +95,84 @@ export function addEntry(section: ReportSection, entry: ReportEntry): void {
   section.entries = sortEntriesForSection(section.key, section.entries);
 }
 
-export function moveEntry(report: NightReport, sourceKey: SectionKey, targetKey: SectionKey, entryId: string): boolean {
-  if (sourceKey === targetKey) return false;
+/**
+ * Moves an entry between sections, or reorders it inside one when source and target match.
+ * `beforeEntryId` is the row the entry should land above; null means the end of the section.
+ */
+export function moveEntry(report: NightReport, sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null): boolean {
   const source = report.sections.find((section) => section.key === sourceKey);
   const target = report.sections.find((section) => section.key === targetKey);
   if (!source || !target) return false;
+
+  if (sourceKey === targetKey) {
+    // A drop with no explicit target row inside the same section is a no-op rather than a move to
+    // the end, so releasing on the card's padding never silently pins an entry.
+    if (beforeEntryId === undefined) return false;
+    return reorderEntry(source, entryId, beforeEntryId);
+  }
+
   const index = source.entries.findIndex((entry) => entry.id === entryId);
   if (index < 0) return false;
   const [entry] = source.entries.splice(index, 1);
+
+  if (beforeEntryId) {
+    entry.pinnedBottom = false;
+    const at = target.entries.findIndex((candidate) => candidate.id === beforeEntryId);
+    if (at >= 0) {
+      target.entries.splice(at, 0, entry);
+      target.entries = sortEntriesForSection(target.key, target.entries);
+      return true;
+    }
+  }
   addEntry(target, entry);
   return true;
 }
 
+/**
+ * Ordering has three bands, applied as a stable sort so manual drag order survives inside each:
+ *
+ *   1. rush entries (Deliver sections only — elsewhere rush does not reorder anything)
+ *   2. everything else
+ *   3. entries pinned to the bottom
+ *
+ * Pinning wins over rush: a pinned rush entry still sits last, because pinning is an explicit
+ * instruction from the operator and rush-first is an automatic convenience.
+ */
+function orderBand(key: SectionKey, entry: ReportEntry): number {
+  if (entry.pinnedBottom) return 2;
+  if (DELIVER_SECTIONS.includes(key) && entry.rush) return 0;
+  return 1;
+}
+
 export function sortEntriesForSection(key: SectionKey, entries: ReportEntry[]): ReportEntry[] {
-  if (!DELIVER_SECTIONS.includes(key)) return [...entries];
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => Number(b.entry.rush) - Number(a.entry.rush) || a.index - b.index)
+    .sort((a, b) => orderBand(key, a.entry) - orderBand(key, b.entry) || a.index - b.index)
     .map(({ entry }) => entry);
+}
+
+/**
+ * Moves an entry to sit immediately before `beforeEntryId`, or to the very end when that is null.
+ * Dropping onto a row therefore pushes that row down, which is what dragging a line onto another
+ * line looks like it should do. Landing at the end pins the entry there so later additions do not
+ * jump above it; moving it anywhere else clears the pin.
+ */
+export function reorderEntry(section: ReportSection, entryId: string, beforeEntryId: string | null): boolean {
+  const from = section.entries.findIndex((entry) => entry.id === entryId);
+  if (from < 0 || entryId === beforeEntryId) return false;
+
+  const [entry] = section.entries.splice(from, 1);
+  const target = beforeEntryId ? section.entries.findIndex((candidate) => candidate.id === beforeEntryId) : -1;
+  if (beforeEntryId && target < 0) {
+    section.entries.splice(from, 0, entry);
+    return false;
+  }
+
+  entry.pinnedBottom = beforeEntryId === null;
+  if (target < 0) section.entries.push(entry);
+  else section.entries.splice(target, 0, entry);
+  section.entries = sortEntriesForSection(section.key, section.entries);
+  return true;
 }
 
 function parsePerson(value: string): DeceasedPerson {
