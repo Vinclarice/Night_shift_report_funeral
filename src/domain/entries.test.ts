@@ -6,6 +6,7 @@ import {
   parsePastedLines,
   removeEntry,
   reorderEntry,
+  replaceEntryInPlace,
   sortEntriesForSection,
   titleCaseName,
   toggleEntryRush,
@@ -129,6 +130,45 @@ describe("removeEntry", () => {
   });
 });
 
+describe("replaceEntryInPlace", () => {
+  it("keeps the edited entry at its existing position instead of moving it to the end", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const first = funeral({ id: "first", funeralHome: "Alpha", keepSeparate: true });
+    const middle = funeral({ id: "middle", funeralHome: "Beta", keepSeparate: true });
+    const last = funeral({ id: "last", funeralHome: "Gamma", keepSeparate: true });
+    section.entries.push(first, middle, last);
+
+    const edited = funeral({ id: "middle", funeralHome: "Beta Edited", keepSeparate: true });
+    expect(replaceEntryInPlace(section, "middle", edited)).toBe(true);
+
+    expect(section.entries.map((entry) => entry.id)).toEqual(["first", "middle", "last"]);
+    expect((section.entries[1] as FuneralEntry).funeralHome).toBe("Beta Edited");
+  });
+
+  it("still moves the entry when the edit changes which ordering band it belongs in", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const first = funeral({ id: "first", funeralHome: "Alpha", keepSeparate: true });
+    const second = funeral({ id: "second", funeralHome: "Beta", keepSeparate: true });
+    section.entries.push(first, second);
+
+    const rushed = funeral({ id: "second", funeralHome: "Beta", keepSeparate: true, rush: true });
+    replaceEntryInPlace(section, "second", rushed);
+
+    expect(section.entries.map((entry) => entry.id)).toEqual(["second", "first"]);
+  });
+
+  it("adds the entry instead when the id being replaced doesn't exist", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const entry = funeral({ id: "new" });
+
+    expect(replaceEntryInPlace(section, "missing", entry)).toBe(false);
+    expect(section.entries).toEqual([entry]);
+  });
+});
+
 describe("toggleEntryRush", () => {
   it("flips the flag and re-sorts a Deliver section so the entry jumps to the rush band", () => {
     const report = createEmptyReport("2026-07-26");
@@ -184,6 +224,24 @@ describe("paste parsing", () => {
         { id: "two", name: "Jones", locationCode: "17B", specialRequest: "Call Ron" },
       ],
     }))).toBe("McGuire \u2013 Smith (13A) + Jones (17B) (Call Ron)");
+  });
+
+  it("prints a special request shared by every deceased person once, at the end, instead of once per person", () => {
+    expect(formatEntryLine(funeral({
+      deceased: [
+        { id: "one", name: "Deceased One", locationCode: "", specialRequest: "FH will call" },
+        { id: "two", name: "Deceased Two", locationCode: "", specialRequest: "FH will call" },
+      ],
+    }))).toBe("McGuire \u2013 Deceased One + Deceased Two (FH will call)");
+  });
+
+  it("still prints per-person when the special requests differ or only some people have one", () => {
+    expect(formatEntryLine(funeral({
+      deceased: [
+        { id: "one", name: "Deceased One", locationCode: "", specialRequest: "FH will call" },
+        { id: "two", name: "Deceased Two", locationCode: "", specialRequest: "" },
+      ],
+    }))).toBe("McGuire \u2013 Deceased One (FH will call) + Deceased Two");
   });
 
   it("capitalizes each word of lower-case funeral-home and deceased names", () => {

@@ -47,9 +47,14 @@ type EntryFormAction =
   | { type: "LOAD_ENTRY"; entry: ReportEntry; personId?: string };
 
 export function loadedState(entry: ReportEntry, personId?: string): EntryFormState {
-  const editing: EditingTarget = { entryId: entry.id, personId, pinnedBottom: entry.pinnedBottom };
   if (entry.type === "funeral") {
+    // Falls back to the first person when nothing more specific was picked (e.g. the operator
+    // clicked the printed row itself rather than one person's row in the inspector list). The
+    // fallback person's id is what gets tracked as the edit target below — without this, editing.
+    // personId stayed undefined even though the form was showing that person's details, so
+    // submitting treated the edit as "the whole entry" and wiped every other deceased person on it.
     const person = entry.deceased.find((candidate) => candidate.id === personId) ?? entry.deceased[0];
+    const editing: EditingTarget = { entryId: entry.id, personId: person.id, pinnedBottom: entry.pinnedBottom };
     return {
       ...emptyState("funeral"),
       funeralHome: entry.funeralHome,
@@ -61,6 +66,7 @@ export function loadedState(entry: ReportEntry, personId?: string): EntryFormSta
       editing,
     };
   }
+  const editing: EditingTarget = { entryId: entry.id, personId, pinnedBottom: entry.pinnedBottom };
   if (entry.type === "funeralHomeOnly") {
     return { ...emptyState("funeralHomeOnly"), funeralHome: entry.funeralHome, rush: entry.rush, keepSeparate: entry.keepSeparate, editing };
   }

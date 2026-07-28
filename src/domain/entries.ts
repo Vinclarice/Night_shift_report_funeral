@@ -34,14 +34,30 @@ export function titleCaseName(value: string): string {
     .replace(/(^|[\s\-/'\u2019(])([a-z])/g, (_match, boundary: string, letter: string) => `${boundary}${letter.toUpperCase()}`);
 }
 
+/**
+ * Finds a special request shared by every deceased person on a funeral entry, so it can be printed
+ * once instead of once per person \u2014 two people both marked "FH will call" should read
+ * "Deceased 1 + Deceased 2 (FH will call)", not repeat the note on each name. Only collapses when
+ * *every* person has the exact same non-empty request; a mix of requests (or some blank) still
+ * prints per person so no detail is silently dropped.
+ */
+export function sharedSpecialRequest(deceased: DeceasedPerson[]): string | null {
+  if (deceased.length < 2) return null;
+  const [first, ...rest] = deceased.map((person) => person.specialRequest.trim());
+  if (!first) return null;
+  return rest.every((value) => value.toLocaleLowerCase() === first.toLocaleLowerCase()) ? first : null;
+}
+
 export function formatEntryLine(entry: ReportEntry): string {
   if (entry.type === "funeral") {
+    const shared = sharedSpecialRequest(entry.deceased);
     const deceased = entry.deceased.map((person) => {
       const location = person.locationCode ? ` (${person.locationCode})` : "";
-      const special = person.specialRequest ? ` (${person.specialRequest})` : "";
+      const special = !shared && person.specialRequest ? ` (${person.specialRequest})` : "";
       return `${person.name}${location}${special}`;
     }).join(" + ");
-    return `${entry.funeralHome} \u2013 ${deceased}`;
+    const trailing = shared ? ` (${shared})` : "";
+    return `${entry.funeralHome} \u2013 ${deceased}${trailing}`;
   }
   if (entry.type === "funeralHomeOnly") return entry.funeralHome;
   if (entry.type === "count") return `${entry.text} x ${entry.count}`;
@@ -185,6 +201,26 @@ export function sortEntriesForSection(key: SectionKey, entries: ReportEntry[]): 
     .map((entry, index) => ({ entry, index }))
     .sort((a, b) => orderBand(key, a.entry) - orderBand(key, b.entry) || a.index - b.index)
     .map(({ entry }) => entry);
+}
+
+/**
+ * Replaces the entry at `entryId` with `replacement`, in place at its existing array position,
+ * instead of removing it and letting `addEntry` push it back onto the end of the section. That
+ * remove-then-append pattern is what used to bump a freshly edited line to a new position: the
+ * `sortEntriesForSection` call below is stable and keyed off each entry's current position, so it
+ * only moves the edited entry if the edit itself changed which ordering band (rush/pinned) it
+ * belongs in — every other row, and the edited one when its band didn't change, keeps its place.
+ * Falls back to `addEntry` if the entry isn't found, so a caller can use this unconditionally.
+ */
+export function replaceEntryInPlace(section: ReportSection, entryId: string, replacement: ReportEntry): boolean {
+  const index = section.entries.findIndex((entry) => entry.id === entryId);
+  if (index < 0) {
+    addEntry(section, replacement);
+    return false;
+  }
+  section.entries[index] = replacement;
+  section.entries = sortEntriesForSection(section.key, section.entries);
+  return true;
 }
 
 /**

@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CSSProperties } from "react";
 
-import { formatEntryLine } from "@/domain/entries";
+import { formatEntryLine, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 
@@ -48,6 +48,7 @@ function displayDate(value: string): string {
 const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
   if (entry.type === "funeral") {
     const hasVisibleRush = entry.deceased.some((person) => /rush/i.test(person.specialRequest));
+    const shared = sharedSpecialRequest(entry.deceased);
     return (
       <span className="entry-line-content">
         <strong className="entry-primary">{entry.funeralHome}</strong>
@@ -57,9 +58,10 @@ const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
             {index > 0 && <span className="entry-separator" aria-hidden="true"> + </span>}
             <span className="deceased-name">{person.name}</span>
             {person.locationCode && <span className="location-code">{person.locationCode}</span>}
-            {person.specialRequest && <strong className={`special-request${/rush/i.test(person.specialRequest) ? " rush-request" : ""}`}>{person.specialRequest.toUpperCase()}</strong>}
+            {!shared && person.specialRequest && <strong className={`special-request${/rush/i.test(person.specialRequest) ? " rush-request" : ""}`}>{person.specialRequest.toUpperCase()}</strong>}
           </span>
         ))}
+        {shared && <strong className={`special-request${/rush/i.test(shared) ? " rush-request" : ""}`}>{shared.toUpperCase()}</strong>}
         {entry.rush && !hasVisibleRush && <strong className="special-request rush-request">RUSH</strong>}
       </span>
     );

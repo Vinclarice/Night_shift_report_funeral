@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { addEntry, parsePastedLines, removeEntry, titleCaseName } from "@/domain/entries";
+import { addEntry, parsePastedLines, removeEntry, replaceEntryInPlace, sortEntriesForSection, titleCaseName } from "@/domain/entries";
 import type { NightReport, ParsedLine, ReportEntry, ReportSection } from "@/domain/types";
 import { entrySummary } from "../entrySummary";
 import { useEntryForm } from "../hooks/useEntryForm";
@@ -61,12 +61,32 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
     return { ...base, type: "plain", text: form.text.trim() };
   }
 
-  function removeEditingTarget(next: NightReport) {
+  /**
+   * Applies a submitted edit in place, at the entry's existing position, instead of removing the
+   * old entry and adding the new one back (which is what used to bump an edited line to the end of
+   * its section — see EntryLine/ReportPage's ordering). For a funeral entry, only the targeted
+   * person is touched, so editing one deceased person on a multi-person entry never drops the
+   * others the way replacing the whole entry did.
+   */
+  function applyEdit(target: ReportSection, entry: ReportEntry) {
     if (!form.editing) return;
-    // Entry ids are unique across the whole report, so at most one section's removeEntry call
-    // ever does anything — stopping there just avoids scanning sections that can't match.
-    for (const candidate of next.sections) {
-      if (removeEntry(candidate, form.editing.entryId, form.editing.personId)) return;
+    const index = target.entries.findIndex((candidate) => candidate.id === form.editing!.entryId);
+    const existing = index >= 0 ? target.entries[index] : null;
+    if (existing?.type === "funeral" && entry.type === "funeral" && form.editing.personId) {
+      const personIndex = existing.deceased.findIndex((person) => person.id === form.editing!.personId);
+      if (personIndex >= 0) existing.deceased[personIndex] = entry.deceased[0];
+      else existing.deceased.push(entry.deceased[0]);
+      existing.funeralHome = entry.funeralHome;
+      existing.rush = entry.rush;
+      existing.keepSeparate = entry.keepSeparate;
+      // Re-sorting after an in-place edit is a no-op unless the edit actually changed which band
+      // the entry belongs in (e.g. toggling rush) — every other entry keeps its current array
+      // position as the tiebreaker, so this only ever moves the edited entry itself.
+      target.entries = sortEntriesForSection(target.key, target.entries);
+    } else if (existing) {
+      replaceEntryInPlace(target, existing.id, { ...entry, id: existing.id, createdAt: existing.createdAt });
+    } else {
+      addEntry(target, entry);
     }
   }
 
@@ -75,8 +95,9 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
     try {
       const entry = buildEntry();
       const next = structuredClone(report);
-      removeEditingTarget(next);
-      addEntry(next.sections.find((candidate) => candidate.key === section.key)!, entry);
+      const target = next.sections.find((candidate) => candidate.key === section.key)!;
+      if (form.editing) applyEdit(target, entry);
+      else addEntry(target, entry);
       void controller.persist(next);
       reset(section.key === "cremated-deliver" ? "funeralHomeOnly" : form.entryKind);
       dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" });
@@ -120,6 +141,10 @@ export function Inspector({ report }: { report: NightReport }) {
     const target = next.sections.find((candidate) => candidate.key === section.key)!;
     if (!removeEntry(target, entryId, personId)) return;
     void controller.persist(next);
+    // A manually widened card was made that way to fit content that may just have been the thing
+    // removed — let it re-measure against what's actually left rather than staying stuck at the old
+    // width.
+    void controller.resetSectionWidth(section.key);
     dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" });
   }
 

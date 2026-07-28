@@ -1,13 +1,14 @@
 import { useMemo } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
-import type { LayoutSettings } from "@/domain/types";
+import type { LayoutSettings, SectionKey } from "@/domain/types";
 import { useToast } from "../ui/Toast";
 
 export interface LayoutActions {
   saveLayout: (next: LayoutSettings) => Promise<void>;
   previewLayout: (next: LayoutSettings) => void;
   setCalibration: (value: boolean) => void;
+  resetSectionWidth: (key: SectionKey) => Promise<void>;
 }
 
 /**
@@ -23,8 +24,8 @@ export function useLayoutActions(params: {
   const { layoutRef, setLayout, setCalibration } = params;
   const toast = useToast();
 
-  return useMemo<LayoutActions>(() => ({
-    async saveLayout(next) {
+  return useMemo<LayoutActions>(() => {
+    async function saveLayout(next: LayoutSettings) {
       setLayout(next);
       layoutRef.current = next;
       try {
@@ -34,11 +35,26 @@ export function useLayoutActions(params: {
       } catch (error) {
         toast.warning((error as Error).message);
       }
-    },
-    previewLayout(next) {
-      layoutRef.current = next;
-      setLayout(next);
-    },
-    setCalibration,
-  }), [layoutRef, setLayout, setCalibration, toast]);
+    }
+
+    return {
+      saveLayout,
+      previewLayout(next) {
+        layoutRef.current = next;
+        setLayout(next);
+      },
+      setCalibration,
+      /**
+       * Clears a manually set section width back to auto-fit. A manual width exists to make room
+       * for a specific line; once that line is gone (deleted, or trimmed down to fewer deceased),
+       * keeping the old width just leaves the card wider than the remaining content needs. Also
+       * backs the explicit "Reset to Auto" control in Print Settings.
+       */
+      async resetSectionWidth(key) {
+        const current = layoutRef.current;
+        if (!current || current.sectionWidths[key] === undefined) return;
+        await saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: undefined } });
+      },
+    };
+  }, [layoutRef, setLayout, setCalibration, toast]);
 }

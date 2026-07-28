@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-import { addEntry, moveEntry, parsePastedLines, removeEntry, toggleEntryRush } from "@/domain/entries";
+import { addEntry, moveEntry, parsePastedLines, removeEntry, replaceEntryInPlace, toggleEntryRush } from "@/domain/entries";
 import type { NightReport, SectionKey } from "@/domain/types";
 import { IconFlag, IconMinus, IconPencil, IconPlus, IconTrash } from "../icons";
 import { useReportController } from "../state/ReportController";
@@ -54,20 +54,33 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     const section = next.sections.find((item) => item.key === sectionKey)!;
     const existingIndex = entryId ? section.entries.findIndex((entry) => entry.id === entryId) : -1;
     const existing = existingIndex >= 0 ? section.entries[existingIndex] : null;
-    if (existingIndex >= 0) section.entries.splice(existingIndex, 1);
     const clean = value.trim();
     let parseWarning: string | undefined;
-    if (clean) {
+    let removedExisting = false;
+    if (!clean) {
+      // Cleared back to blank: this is a genuine delete, not an edit, so there's no position to
+      // preserve.
+      if (existingIndex >= 0) {
+        section.entries.splice(existingIndex, 1);
+        removedExisting = true;
+      }
+    } else {
       const parsedLine = parsePastedLines(clean)[0];
       let parsed = parsedLine.entry;
       if (parsed.type === "plain" && (sectionKey === "cremated-deliver" || existing?.type === "funeralHomeOnly")) parsed = { ...parsed, type: "funeralHomeOnly", funeralHome: controller.canonicalFuneralHome(parsed.text) };
       if (parsed.type === "funeral" || parsed.type === "funeralHomeOnly") parsed.funeralHome = controller.canonicalFuneralHome(parsed.funeralHome);
       if (parsed.type === "plain") parseWarning = parsedLine.warning;
-      if (existing) parsed = { ...parsed, id: existing.id, createdAt: existing.createdAt, rush: existing.rush || parsed.rush, keepSeparate: existing.keepSeparate };
-      addEntry(section, parsed);
+      if (existing) {
+        parsed = { ...parsed, id: existing.id, createdAt: existing.createdAt, rush: existing.rush || parsed.rush, keepSeparate: existing.keepSeparate };
+        // Editing an existing line stays at its current position instead of moving to the end.
+        replaceEntryInPlace(section, existing.id, parsed);
+      } else {
+        addEntry(section, parsed);
+      }
     }
     dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" });
     void controller.persist(next);
+    if (removedExisting) void controller.resetSectionWidth(sectionKey);
     if (parseWarning) toast.warning(parseWarning);
   }, [report, controller, dispatch, toast]);
 
@@ -99,6 +112,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     const next = structuredClone(report);
     if (!removeEntry(next.sections.find((item) => item.key === sectionKey)!, entryId)) return;
     void controller.persist(next);
+    void controller.resetSectionWidth(sectionKey);
   }, [report, controller]);
 
   const contextMenuEntry = contextMenu
