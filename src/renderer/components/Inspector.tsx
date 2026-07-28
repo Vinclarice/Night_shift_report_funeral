@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { addEntry, parsePastedLines, titleCaseName } from "@/domain/entries";
+import { addEntry, parsePastedLines, removeEntry, titleCaseName } from "@/domain/entries";
 import type { NightReport, ParsedLine, ReportEntry, ReportSection } from "@/domain/types";
 import { entrySummary } from "../entrySummary";
 import { useEntryForm } from "../hooks/useEntryForm";
@@ -63,14 +63,10 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
 
   function removeEditingTarget(next: NightReport) {
     if (!form.editing) return;
+    // Entry ids are unique across the whole report, so at most one section's removeEntry call
+    // ever does anything — stopping there just avoids scanning sections that can't match.
     for (const candidate of next.sections) {
-      const index = candidate.entries.findIndex((entry) => entry.id === form.editing!.entryId);
-      if (index < 0) continue;
-      const entry = candidate.entries[index];
-      if (entry.type === "funeral" && form.editing.personId) {
-        entry.deceased = entry.deceased.filter((person) => person.id !== form.editing!.personId);
-        if (!entry.deceased.length) candidate.entries.splice(index, 1);
-      } else candidate.entries.splice(index, 1);
+      if (removeEntry(candidate, form.editing.entryId, form.editing.personId)) return;
     }
   }
 
@@ -122,13 +118,7 @@ export function Inspector({ report }: { report: NightReport }) {
   function deleteEntry(entryId: string, personId?: string) {
     const next = structuredClone(report);
     const target = next.sections.find((candidate) => candidate.key === section.key)!;
-    const index = target.entries.findIndex((entry) => entry.id === entryId);
-    if (index < 0) return;
-    const entry = target.entries[index];
-    if (entry.type === "funeral" && personId) {
-      entry.deceased = entry.deceased.filter((person) => person.id !== personId);
-      if (!entry.deceased.length) target.entries.splice(index, 1);
-    } else target.entries.splice(index, 1);
+    if (!removeEntry(target, entryId, personId)) return;
     void controller.persist(next);
     dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" });
   }

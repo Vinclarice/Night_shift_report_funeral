@@ -2,11 +2,16 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { ReactNode } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
-import { normalizeFuneralHome, titleCaseName } from "@/domain/entries";
 import type { LayoutSettings, NightReport } from "@/domain/types";
 import type { BootstrapData, ReportSummary } from "@/shared/contracts";
 import { useOverflowCompaction } from "../hooks/useOverflowCompaction";
 import { useToast } from "../ui/Toast";
+import type { ArchiveActions } from "./useArchiveActions";
+import { useArchiveActions } from "./useArchiveActions";
+import type { DraftActions } from "./useDraftActions";
+import { useDraftActions } from "./useDraftActions";
+import type { LayoutActions } from "./useLayoutActions";
+import { useLayoutActions } from "./useLayoutActions";
 
 export type SaveStatus = "loading" | "saved" | "saving" | "error";
 export type RevisionSummary = { id: string; revisionNumber: number; finalizedAt: string };
@@ -32,31 +37,15 @@ export interface ReportState {
   archiveReport: NightReport | null;
 }
 
-export interface ReportActions {
-  createDraft: (mode: "empty" | "clone") => Promise<void>;
-  resumeDraft: () => void;
-  persist: (next: NightReport) => Promise<NightReport | null>;
-  undo: () => void;
-  redo: () => void;
-  finalize: () => Promise<void>;
-  reopen: () => Promise<void>;
-  saveLayout: (next: LayoutSettings) => Promise<void>;
-  previewLayout: (next: LayoutSettings) => void;
-  setCalibration: (value: boolean) => void;
-  setRevisions: React.Dispatch<React.SetStateAction<RevisionSummary[]>>;
-  updateFuneralHomes: (homes: BootstrapData["funeralHomes"]) => void;
-  refreshSupportingData: () => Promise<void>;
-  restoreRevision: (revisionId: string) => Promise<void>;
-  canonicalFuneralHome: (value: string) => string;
-  loadArchive: () => Promise<void>;
-  openArchiveReport: (id: string) => Promise<void>;
-  closeArchiveReport: () => void;
-  printArchiveReport: (id: string) => Promise<void>;
-}
+/**
+ * The full action surface, composed from three focused hooks below — draft persistence/undo,
+ * layout, and archive browsing. Consumers only ever see this combined interface; which hook
+ * actually owns a given action is an implementation detail of the provider.
+ */
+export type ReportActions = DraftActions & LayoutActions & ArchiveActions;
 
 const ReportStateContext = createContext<ReportState | null>(null);
 const ReportActionsContext = createContext<ReportActions | null>(null);
-const UNDO_HISTORY_LIMIT = 15;
 
 export function ReportControllerProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
@@ -81,198 +70,22 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const { compactLevel, overflow } = useOverflowCompaction(report, layout);
 
   // Every action below reads live values through refs rather than closing over state, which is what
-  // lets the actions object be built exactly once. Keeping bootstrap mirrored here is what allows
-  // canonicalFuneralHome to stay identity-stable despite depending on the funeral-home directory.
+  // lets each action hook's returned object be built exactly once. Keeping bootstrap mirrored here
+  // is what allows canonicalFuneralHome to stay identity-stable despite depending on the
+  // funeral-home directory.
   useEffect(() => { bootstrapRef.current = bootstrap; }, [bootstrap]);
 
-  const actions = useMemo<ReportActions>(() => {
-    function resetUndoHistory() {
-      undoStackRef.current = [];
-      redoStackRef.current = [];
-      setUndoAvailable(false);
-      setRedoAvailable(false);
-    }
+  const draftActions = useDraftActions({
+    queue, versionRef, reportRef, bootstrapRef, undoStackRef, redoStackRef,
+    setBootstrap, setReport, setStatus, setLastSavedAt, setUndoAvailable, setRedoAvailable, setRevisions,
+  });
+  const layoutActions = useLayoutActions({ layoutRef, setLayout, setCalibration });
+  const archiveActions = useArchiveActions({ setArchive, setArchiveReport });
 
-    async function refreshSupportingData() {
-      const data = await window.nightShift.bootstrap();
-      setBootstrap((current) => current ? { ...current, funeralHomes: data.funeralHomes, backups: data.backups } : data);
-    }
-
-    function applyReport(next: NightReport) {
-      reportRef.current = next;
-      setReport(next);
-      setStatus("saving");
-      return queue.enqueue(async () => {
-        const saved = await window.nightShift.saveReport(next, versionRef.current);
-        versionRef.current = saved.version;
-        reportRef.current = { ...saved };
-        setReport(saved);
-        setStatus("saved");
-        setLastSavedAt(new Date());
-        await refreshSupportingData();
-        return saved;
-      }).catch((error: Error) => {
-        setStatus("error");
-        toast.error(error.message);
-        return null;
-      });
-    }
-
-    function undo() {
-      const current = reportRef.current;
-      if (!current || current.status !== "draft" || !undoStackRef.current.length) return;
-      const previous = undoStackRef.current.at(-1)!;
-      undoStackRef.current = undoStackRef.current.slice(0, -1);
-      redoStackRef.current = [...redoStackRef.current, structuredClone(current)].slice(-UNDO_HISTORY_LIMIT);
-      setUndoAvailable(undoStackRef.current.length > 0);
-      setRedoAvailable(true);
-      void applyReport(previous);
-    }
-
-    function redo() {
-      const current = reportRef.current;
-      if (!current || current.status !== "draft" || !redoStackRef.current.length) return;
-      const next = redoStackRef.current.at(-1)!;
-      redoStackRef.current = redoStackRef.current.slice(0, -1);
-      undoStackRef.current = [...undoStackRef.current, structuredClone(current)].slice(-UNDO_HISTORY_LIMIT);
-      setRedoAvailable(redoStackRef.current.length > 0);
-      setUndoAvailable(true);
-      void applyReport(next);
-    }
-
-    return {
-      persist(next: NightReport) {
-        if (reportRef.current) {
-          undoStackRef.current = [...undoStackRef.current, structuredClone(reportRef.current)].slice(-UNDO_HISTORY_LIMIT);
-          setUndoAvailable(true);
-        }
-        redoStackRef.current = [];
-        setRedoAvailable(false);
-        return applyReport(next);
-      },
-      undo,
-      redo,
-      refreshSupportingData,
-      async createDraft(mode: "empty" | "clone") {
-        setStatus("saving");
-        const created = await window.nightShift.createDraft(mode);
-        reportRef.current = created;
-        versionRef.current = created.version;
-        setReport(created);
-        resetUndoHistory();
-        setStatus("saved");
-      },
-      // Opens the stranded draft that bootstrap already loaded. Nothing is written here: the report
-      // is unchanged until the next edit, so resuming and then closing leaves it exactly as it was.
-      resumeDraft() {
-        const draft = bootstrapRef.current?.resumableDraft;
-        if (!draft) return;
-        reportRef.current = draft;
-        versionRef.current = draft.version;
-        setReport(draft);
-        resetUndoHistory();
-        setStatus("saved");
-      },
-      async finalize() {
-        await queue.drain();
-        const current = reportRef.current;
-        if (!current) return;
-        setStatus("saving");
-        try {
-          const saved = await window.nightShift.finalizeReport(current, versionRef.current);
-          reportRef.current = saved;
-          versionRef.current = saved.version;
-          setReport(saved);
-          setStatus("saved");
-          resetUndoHistory();
-          setRevisions(await window.nightShift.listRevisions(saved.id));
-          await refreshSupportingData();
-        } catch (error) {
-          setStatus("error");
-          toast.error((error as Error).message);
-        }
-      },
-      async reopen() {
-        const current = reportRef.current;
-        if (!current) return;
-        setStatus("saving");
-        try {
-          const saved = await window.nightShift.reopenReport(current, versionRef.current);
-          reportRef.current = saved;
-          versionRef.current = saved.version;
-          setReport(saved);
-          setStatus("saved");
-          resetUndoHistory();
-          setRevisions(await window.nightShift.listRevisions(saved.id));
-        } catch (error) {
-          setStatus("error");
-          toast.error((error as Error).message);
-        }
-      },
-      async saveLayout(next: LayoutSettings) {
-        setLayout(next);
-        layoutRef.current = next;
-        try {
-          const saved = await window.nightShift.saveLayout(next);
-          layoutRef.current = saved;
-          setLayout(saved);
-        } catch (error) {
-          toast.warning((error as Error).message);
-        }
-      },
-      previewLayout(next: LayoutSettings) {
-        layoutRef.current = next;
-        setLayout(next);
-      },
-      setCalibration,
-      setRevisions,
-      updateFuneralHomes: (homes) => setBootstrap((current) => current ? { ...current, funeralHomes: homes } : current),
-      async restoreRevision(revisionId: string) {
-        const current = reportRef.current;
-        if (!current) return;
-        const restored = await window.nightShift.restoreRevision(current.id, revisionId, versionRef.current);
-        reportRef.current = restored;
-        versionRef.current = restored.version;
-        setReport(restored);
-        resetUndoHistory();
-      },
-      canonicalFuneralHome(value: string) {
-        const clean = titleCaseName(value);
-        return bootstrapRef.current?.funeralHomes.find((home) => normalizeFuneralHome(home.name) === normalizeFuneralHome(clean))?.name ?? clean;
-      },
-      async loadArchive() {
-        try {
-          setArchive(await window.nightShift.listReports());
-        } catch (error) {
-          toast.error((error as Error).message);
-        }
-      },
-      async openArchiveReport(id: string) {
-        try {
-          setArchiveReport(await window.nightShift.loadReport(id));
-        } catch (error) {
-          toast.error((error as Error).message);
-        }
-      },
-      closeArchiveReport() {
-        setArchiveReport(null);
-      },
-      // Printing targets whatever currently occupies the hidden .print-only element, so an archived
-      // report has to be staged there first and cleared afterwards. Without the restore in `finally`
-      // an archive reprint would leave the wrong report staged for the next Print button press.
-      async printArchiveReport(id: string) {
-        try {
-          const staged = await window.nightShift.loadReport(id);
-          if (!staged) return;
-          setArchiveReport(staged);
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          await window.nightShift.printReport();
-        } catch (error) {
-          toast.error((error as Error).message);
-        }
-      },
-    };
-  }, [queue, toast]);
+  const actions = useMemo<ReportActions>(
+    () => ({ ...draftActions, ...layoutActions, ...archiveActions }),
+    [draftActions, layoutActions, archiveActions],
+  );
 
   useEffect(() => {
     let active = true;

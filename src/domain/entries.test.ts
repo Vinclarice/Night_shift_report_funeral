@@ -4,9 +4,11 @@ import {
   moveEntry,
   normalizeFuneralHome,
   parsePastedLines,
+  removeEntry,
   reorderEntry,
   sortEntriesForSection,
   titleCaseName,
+  toggleEntryRush,
 } from "./entries";
 import { createEmptyReport } from "./report";
 import type { FuneralEntry } from "./types";
@@ -80,6 +82,89 @@ describe("funeral-home rules", () => {
     expect(moveEntry(report, "human-pending", "human-deliver", entry.id)).toBe(true);
     expect(pending.entries).toHaveLength(0);
     expect(deliver.entries).toEqual([entry]);
+  });
+});
+
+describe("removeEntry", () => {
+  it("drops the whole entry when it has no personId to narrow to", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const entry = funeral();
+    section.entries.push(entry);
+
+    expect(removeEntry(section, entry.id)).toBe(true);
+    expect(section.entries).toHaveLength(0);
+  });
+
+  it("removes just one deceased person from a multi-person entry, keeping the rest", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const entry = funeral({
+      deceased: [
+        { id: "one", name: "Smith", locationCode: "13A", specialRequest: "" },
+        { id: "two", name: "Jones", locationCode: "17B", specialRequest: "" },
+      ],
+    });
+    section.entries.push(entry);
+
+    expect(removeEntry(section, entry.id, "one")).toBe(true);
+    expect(section.entries).toHaveLength(1);
+    expect((section.entries[0] as FuneralEntry).deceased.map((person) => person.id)).toEqual(["two"]);
+  });
+
+  it("drops the entry once its last deceased person is removed", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const entry = funeral({ deceased: [{ id: "only", name: "Smith", locationCode: "13A", specialRequest: "" }] });
+    section.entries.push(entry);
+
+    expect(removeEntry(section, entry.id, "only")).toBe(true);
+    expect(section.entries).toHaveLength(0);
+  });
+
+  it("reports failure rather than throwing when the entry id is not found", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    expect(removeEntry(section, "missing")).toBe(false);
+  });
+});
+
+describe("toggleEntryRush", () => {
+  it("flips the flag and re-sorts a Deliver section so the entry jumps to the rush band", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const first = funeral({ id: "first", funeralHome: "Normal", keepSeparate: true });
+    const second = funeral({ id: "second", funeralHome: "ToRush", keepSeparate: true });
+    section.entries.push(first, second);
+
+    expect(toggleEntryRush(section, "second")).toBe(true);
+
+    expect(section.entries.map((entry) => entry.id)).toEqual(["second", "first"]);
+    expect(section.entries[0].rush).toBe(true);
+  });
+
+  it("flips the flag back off without erroring, though the entry keeps its new position", () => {
+    // sortEntriesForSection is stable relative to the *current* array order at the time it runs,
+    // not the original insertion order — so toggling rush on and back off doesn't bounce the
+    // entry back to where it started. That's existing, intentional behavior; this just pins it
+    // down so a future change to the sort doesn't silently alter it.
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    const first = funeral({ id: "first", funeralHome: "Normal", keepSeparate: true });
+    const second = funeral({ id: "second", funeralHome: "ToRush", keepSeparate: true });
+    section.entries.push(first, second);
+
+    toggleEntryRush(section, "second");
+    toggleEntryRush(section, "second");
+
+    expect(section.entries.map((entry) => entry.id)).toEqual(["second", "first"]);
+    expect(section.entries.every((entry) => !entry.rush)).toBe(true);
+  });
+
+  it("reports failure rather than throwing when the entry id is not found", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    expect(toggleEntryRush(section, "missing")).toBe(false);
   });
 });
 

@@ -96,6 +96,36 @@ export function addEntry(section: ReportSection, entry: ReportEntry): void {
 }
 
 /**
+ * Removes an entry from a section, or — for a funeral entry with more than one deceased person —
+ * just the one person named by `personId`. The entry itself is only dropped once its last person
+ * is gone, mirroring how it was built up by `addEntry` merging people together in the first place.
+ */
+export function removeEntry(section: ReportSection, entryId: string, personId?: string): boolean {
+  const index = section.entries.findIndex((entry) => entry.id === entryId);
+  if (index < 0) return false;
+  const entry = section.entries[index];
+  if (entry.type === "funeral" && personId) {
+    entry.deceased = entry.deceased.filter((person) => person.id !== personId);
+    if (entry.deceased.length) return true;
+  }
+  section.entries.splice(index, 1);
+  return true;
+}
+
+/**
+ * Flips an entry's rush flag and re-sorts the section, since rush status changes which ordering
+ * band the entry belongs in (see `orderBand` below) — skipping the re-sort would leave the row
+ * visually in its old position until some unrelated edit happened to trigger one.
+ */
+export function toggleEntryRush(section: ReportSection, entryId: string): boolean {
+  const entry = section.entries.find((candidate) => candidate.id === entryId);
+  if (!entry) return false;
+  entry.rush = !entry.rush;
+  section.entries = sortEntriesForSection(section.key, section.entries);
+  return true;
+}
+
+/**
  * Moves an entry between sections, or reorders it inside one when source and target match.
  * `beforeEntryId` is the row the entry should land above; null means the end of the section.
  */

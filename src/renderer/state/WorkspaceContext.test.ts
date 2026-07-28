@@ -10,6 +10,7 @@ const initial: WorkspaceState = {
   inspectorOpen: false,
   zoomMode: "fit",
   zoom: 0.72,
+  viewingStart: false,
 };
 
 describe("workspaceReducer", () => {
@@ -30,5 +31,11 @@ describe("workspaceReducer", () => {
     const zoomed = workspaceReducer(initial, { type: "SET_ZOOM", zoom: 1.5 });
     expect(zoomed).toMatchObject({ zoomMode: "manual", zoom: 0.95 });
     expect(workspaceReducer(zoomed, { type: "FIT_ZOOM" }).zoomMode).toBe("fit");
+  });
+
+  it("toggles the welcome-screen peek independently of the rest of the workspace", () => {
+    const peeking = workspaceReducer(initial, { type: "SET_VIEWING_START", viewing: true });
+    expect(peeking.viewingStart).toBe(true);
+    expect(workspaceReducer(peeking, { type: "SET_VIEWING_START", viewing: false }).viewingStart).toBe(false);
   });
 });

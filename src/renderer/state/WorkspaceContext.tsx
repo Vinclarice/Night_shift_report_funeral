@@ -19,6 +19,12 @@ export interface WorkspaceState extends WorkspacePreferences {
   selection: WorkspaceSelection;
   inspectorMode: InspectorMode;
   utility: UtilityKey;
+  /**
+   * Lets the studio "peek" back at the welcome screen without losing the open report — the report
+   * itself is untouched, this just swaps what App renders. Deliberately absent from
+   * WorkspacePreferences: it should reset to false on every launch rather than persist.
+   */
+  viewingStart: boolean;
 }
 
 export type WorkspaceAction =
@@ -28,7 +34,8 @@ export type WorkspaceAction =
   | { type: "SET_INSPECTOR_OPEN"; open: boolean }
   | { type: "SET_UTILITY"; utility: UtilityKey }
   | { type: "SET_ZOOM"; zoom: number }
-  | { type: "FIT_ZOOM" };
+  | { type: "FIT_ZOOM" }
+  | { type: "SET_VIEWING_START"; viewing: boolean };
 
 const PREFERENCES_KEY = "night-shift-workspace-v1";
 
@@ -74,6 +81,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, zoomMode: "manual", zoom: Math.min(0.95, Math.max(0.5, action.zoom)) };
     case "FIT_ZOOM":
       return { ...state, zoomMode: "fit" };
+    case "SET_VIEWING_START":
+      return { ...state, viewingStart: action.viewing };
     default:
       return state;
   }
@@ -89,6 +98,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     selection: { kind: "section", sectionKey: "human-deliver" },
     inspectorMode: "create",
     utility: null,
+    viewingStart: false,
   });
 
   useEffect(() => {

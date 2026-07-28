@@ -170,6 +170,25 @@ export function IconSearch(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function IconHome(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="m4 11 8-7 8 7" />
+      <path d="M6 9.5V20h12V9.5" />
+      <path d="M10 20v-6h4v6" />
+    </Icon>
+  );
+}
+
+export function IconFlag(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M5 3v18" />
+      <path d="M5 4h13l-3 4.5L18 13H5" />
+    </Icon>
+  );
+}
+
 export function IconArrowLeft(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

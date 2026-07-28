@@ -26,7 +26,7 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
   const compactLevel = compaction.key === compactionKey ? compaction.level : 0;
 
   useEffect(() => {
-    const page = document.querySelector<HTMLElement>(".page-stage .report-page");
+    const page = document.querySelector<HTMLElement>('[data-role="live-report-page"]');
     const content = page?.querySelector<HTMLElement>(".report-content");
     const columns = page ? [...page.querySelectorAll<HTMLElement>(".report-column")] : [];
     if (!page || !content) return;

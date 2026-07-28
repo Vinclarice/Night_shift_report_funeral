@@ -379,6 +379,15 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .tools-popover small { color: #7e8a85; font-size: 10px; font-weight: 500; }
 @keyframes studio-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
 
+/* Right-click menu for entry rows in the preview canvas. Fixed rather than absolute since it's
+   anchored to a click point in the viewport, not to a chrome element it sits under. */
+.row-context-menu { position: fixed; z-index: 80; width: 190px; padding: 6px; border: 1px solid var(--studio-border-strong); border-radius: 12px; background: #151c25; box-shadow: 0 24px 65px rgb(0 0 0 / 48%); animation: studio-pop-in var(--duration-fast) var(--ease); }
+.row-context-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 8px; color: #c9d2ce; background: transparent; text-align: left; font-size: 12px; font-weight: 600; }
+.row-context-menu button:hover { color: white; background: rgb(255 255 255 / 7%); }
+.row-context-menu button > .icon { color: var(--studio-emerald); flex: none; }
+.row-context-menu button.danger > .icon { color: #ff8f80; }
+.row-context-menu button.danger:hover { color: #ffd5d0; background: rgb(255 111 90 / 12%); }
+
 /* Navigator, inspector, then canvas: the two panels used on every entry are adjacent, so choosing
    a section and typing into it no longer means crossing the full width of the canvas. */
 .studio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 216px 370px minmax(0, 1fr); overflow: hidden; }

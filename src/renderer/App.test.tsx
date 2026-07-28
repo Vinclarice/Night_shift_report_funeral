@@ -211,6 +211,24 @@ describe("App", () => {
     expect(columns).toEqual(["report-navigator", "studio-inspector", "studio-canvas"]);
   });
 
+  it("peeks back at the welcome screen without losing the open report", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    await addEntry("Greene", "Johnson");
+    fireEvent.click(screen.getByRole("button", { name: "Back to welcome screen" }));
+
+    // The welcome screen shows again, but as a peek rather than the initial create-draft flow —
+    // no start actions, just a way back to the report already in progress.
+    await screen.findByText("Local-first");
+    expect(screen.queryByRole("button", { name: "Start empty" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to report" }));
+
+    // The entry added before peeking away is still there.
+    await screen.findByRole("heading", { name: "1" });
+  });
+
   it("switches the inspector to read-only after finalization", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");

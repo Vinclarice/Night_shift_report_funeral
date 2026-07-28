@@ -1,8 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react";
-import type { CSSProperties, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties } from "react";
 
 import { formatEntryLine } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
+import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 
 interface Props {
   report: NightReport;
@@ -22,6 +24,7 @@ interface Props {
   selectedEntryId?: string;
   onSelectSection?: (key: ReportSection["key"]) => void;
   onSelectEntry?: (key: ReportSection["key"], entryId: string) => void;
+  onEntryContextMenu?: (key: ReportSection["key"], entryId: string, x: number, y: number) => void;
 }
 
 const THREE_FREE_ROW_SECTIONS = new Set<ReportSection["key"]>([
@@ -30,19 +33,6 @@ const THREE_FREE_ROW_SECTIONS = new Set<ReportSection["key"]>([
   "human-pending",
   "human-ship-outs",
 ]);
-
-const DRAG_MIME = "application/x-night-shift-entry";
-
-interface DragPayload { sectionKey: ReportSection["key"]; entryId: string }
-
-function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null {
-  try {
-    const payload = JSON.parse(event.dataTransfer.getData(DRAG_MIME)) as DragPayload;
-    return payload?.sectionKey && payload?.entryId ? payload : null;
-  } catch {
-    return null;
-  }
-}
 
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -87,7 +77,7 @@ const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
   return <span className="entry-line-content"><span>{entry.text}</span></span>;
 });
 
-function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
+function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
@@ -120,63 +110,20 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
     }
   }
 
-  function beginDrag(event: ReactDragEvent<HTMLButtonElement>) {
-    if (!entry || !onEntryMove) return;
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id } satisfies DragPayload));
-  }
+  const { beginDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange);
 
-  const nextEntryId = entry
-    ? section.entries[section.entries.findIndex((candidate) => candidate.id === entry.id) + 1]?.id ?? null
-    : null;
-
-  // Dropping onto the top half of a row lands above it; the bottom half lands above the next row.
-  // Without the halves, nudging an entry down by one position would be impossible.
-  function pointerTarget(event: ReactDragEvent<HTMLElement>): string | null {
-    if (!entry) return null;
-    const box = event.currentTarget.getBoundingClientRect();
-    // Insert-before is the safe default when the pointer position is unavailable: it can only be
-    // off by one row, whereas defaulting to the other branch could pin an entry unintentionally.
-    if (!Number.isFinite(event.clientY)) return entry.id;
-    return event.clientY - box.top > box.height / 2 ? nextEntryId : entry.id;
+  function handleContextMenu(event: ReactMouseEvent<HTMLButtonElement>) {
+    // Blank/free rows have nothing to act on, so the browser's default menu is left alone there.
+    // Selection is left untouched until a menu item is actually chosen, so opening the menu to
+    // look at the options doesn't itself jump the inspector to this entry.
+    if (!entry || !onEntryContextMenu) return;
+    event.preventDefault();
+    onEntryContextMenu(section.key, entry.id, event.clientX, event.clientY);
   }
 
   if (editing) {
     return <input ref={inputRef} className="report-row inline-row-input no-print" style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
   }
-
-  // A blank row is the bottom of the section, so a drop there means "put it at the end" — which is
-  // what pins the entry. Rows with entries use the half-height rule above instead.
-  const dragProps = onEntryMove && !entry ? {
-    onDragOver: (event: ReactDragEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move" as const;
-      onDropBeforeChange?.("__end__");
-    },
-    onDrop: (event: ReactDragEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const payload = readDragPayload(event);
-      onDropBeforeChange?.(null);
-      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, null);
-    },
-  } : onEntryMove && entry ? {
-    onDragOver: (event: ReactDragEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move" as const;
-      onDropBeforeChange?.(pointerTarget(event));
-    },
-    onDrop: (event: ReactDragEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const payload = readDragPayload(event);
-      const before = pointerTarget(event);
-      onDropBeforeChange?.(null);
-      if (payload && payload.entryId !== entry.id) onEntryMove(payload.sectionKey, section.key, payload.entryId, before);
-    },
-  } : {};
 
   return (
     <button
@@ -186,6 +133,7 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
       aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`}
       onDragStart={beginDrag}
       onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }}
+      onContextMenu={handleContextMenu}
       title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
       {...dragProps}
     >
@@ -206,6 +154,7 @@ const SectionCard = memo(function SectionCard({
   selectedEntryId,
   onSelectSection,
   onSelectEntry,
+  onEntryContextMenu,
 }: {
   section: ReportSection;
   width?: number;
@@ -218,9 +167,9 @@ const SectionCard = memo(function SectionCard({
   selectedEntryId?: string;
   onSelectSection?: Props["onSelectSection"];
   onSelectEntry?: Props["onSelectEntry"];
+  onEntryContextMenu?: Props["onEntryContextMenu"];
 }) {
-  const [dropActive, setDropActive] = useState(false);
-  const [dropBefore, setDropBefore] = useState<string | null>(null);
+  const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const freeRows = THREE_FREE_ROW_SECTIONS.has(section.key) ? 3 : 1;
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -242,32 +191,18 @@ const SectionCard = memo(function SectionCard({
     window.addEventListener("pointerup", finish, { once: true });
   }
 
-  // Fallback for a drop on the card's own padding rather than a row. Position is left unspecified,
-  // so a same-section drop here is a no-op instead of silently pinning the entry to the bottom.
-  function receiveDrop(event: ReactDragEvent<HTMLElement>) {
-    event.preventDefault();
-    setDropActive(false);
-    setDropBefore(null);
-    if (!onEntryMove) return;
-    const payload = readDragPayload(event);
-    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId);
-  }
-
   return (
     <section
       className={`section-card${dropActive ? " drop-active" : ""}${selected ? " studio-selected" : ""}`}
       data-testid="section-card"
       data-section-key={section.key}
       style={width ? { width: `${width}in` } : undefined}
-      onDragEnter={onEntryMove ? (event) => { event.preventDefault(); setDropActive(true); } : undefined}
-      onDragOver={onEntryMove ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } : undefined}
-      onDragLeave={onEntryMove ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setDropActive(false); setDropBefore(null); } } : undefined}
-      onDrop={onEntryMove ? receiveDrop : undefined}
+      {...cardDragProps}
     >
       <h3>{section.title}</h3>
       {section.entries.map((entry) => (
         onLineCommit
-          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
+          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
           : <div className={`report-row${entry.rush ? " rush-row" : ""}${entry.pinnedBottom ? " pinned-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
@@ -287,7 +222,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -298,7 +233,16 @@ export const ReportPage = memo(function ReportPage({ report, layout, compactLeve
   const cremated = report.sections.filter((section) => section.category === "cremated");
 
   return (
-    <article className={`report-page compact-${compactLevel}`} style={pageStyle} data-calibration={calibration || undefined}>
+    <article
+      className={`report-page compact-${compactLevel}`}
+      style={pageStyle}
+      data-calibration={calibration || undefined}
+      // Marks the one instance meant to be measured for page overflow — the interactive canvas
+      // copy, never the hidden print-only one. useOverflowCompaction looks for this attribute
+      // directly instead of relying on an ancestor's layout class, so renaming that class can't
+      // silently break overflow detection.
+      data-role={interactive ? "live-report-page" : undefined}
+    >
       {report.status === "draft" && <div className="draft-watermark">DRAFT</div>}
       <div className="report-content">
         <header className="report-header">
@@ -309,13 +253,13 @@ export const ReportPage = memo(function ReportPage({ report, layout, compactLeve
           <div className="report-column human-column">
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
           <div className="report-column cremated-column">
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
         </div>
