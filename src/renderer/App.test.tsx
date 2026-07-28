@@ -190,6 +190,39 @@ describe("App", () => {
     expect(inspector).toHaveTextContent("No entries yet");
   });
 
+  it("splits one person into a new funeral-home group without reassigning the others", async () => {
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "grouped", type: "funeral", funeralHome: "McGuire",
+      deceased: [
+        { id: "smith", name: "Smith", locationCode: "13A", specialRequest: "" },
+        { id: "jones", name: "Jones", locationCode: "17B", specialRequest: "" },
+      ],
+      rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    const api = mockApi(report);
+    let saved: NightReport | null = null;
+    const saveReport = api.saveReport;
+    api.saveReport = async (next, expectedVersion) => {
+      saved = structuredClone(next);
+      return saveReport(next, expectedVersion);
+    };
+    window.nightShift = api;
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Jones" }));
+    fireEvent.change(screen.getByLabelText("Funeral home"), { target: { value: "Brown" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("heading", { name: "2" });
+
+    const entries = saved!.sections.find((section) => section.key === "human-deliver")!.entries;
+    expect(entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "funeral", funeralHome: "McGuire", deceased: [expect.objectContaining({ name: "Smith" })] }),
+      expect.objectContaining({ type: "funeral", funeralHome: "Brown", deceased: [expect.objectContaining({ name: "Jones" })] }),
+    ]));
+  });
+
   it("opens secondary tools in an accessible utility sheet", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");

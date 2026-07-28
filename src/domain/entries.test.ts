@@ -223,16 +223,20 @@ describe("paste parsing", () => {
         { id: "one", name: "Smith", locationCode: "13A", specialRequest: "" },
         { id: "two", name: "Jones", locationCode: "17B", specialRequest: "Call Ron" },
       ],
-    }))).toBe("McGuire \u2013 Smith (13A) + Jones (17B) (Call Ron)");
+    }))).toBe("McGuire \u2013 Smith (13A) + Jones (17B) [Call Ron]");
   });
 
-  it("prints a special request shared by every deceased person once, at the end, instead of once per person", () => {
-    expect(formatEntryLine(funeral({
+  it("keeps shared requests attached to every person so inline edits round-trip without data loss", () => {
+    const formatted = formatEntryLine(funeral({
       deceased: [
         { id: "one", name: "Deceased One", locationCode: "", specialRequest: "FH will call" },
         { id: "two", name: "Deceased Two", locationCode: "", specialRequest: "FH will call" },
       ],
-    }))).toBe("McGuire \u2013 Deceased One + Deceased Two (FH will call)");
+    }));
+
+    expect(formatted).toBe("McGuire \u2013 Deceased One [FH will call] + Deceased Two [FH will call]");
+    const reparsed = parsePastedLines(formatted)[0].entry as FuneralEntry;
+    expect(reparsed.deceased.map((person) => person.specialRequest)).toEqual(["FH will call", "FH will call"]);
   });
 
   it("still prints per-person when the special requests differ or only some people have one", () => {
@@ -241,7 +245,7 @@ describe("paste parsing", () => {
         { id: "one", name: "Deceased One", locationCode: "", specialRequest: "FH will call" },
         { id: "two", name: "Deceased Two", locationCode: "", specialRequest: "" },
       ],
-    }))).toBe("McGuire \u2013 Deceased One (FH will call) + Deceased Two");
+    }))).toBe("McGuire \u2013 Deceased One [FH will call] + Deceased Two");
   });
 
   it("capitalizes each word of lower-case funeral-home and deceased names", () => {

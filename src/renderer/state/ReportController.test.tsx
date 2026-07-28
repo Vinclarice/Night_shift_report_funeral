@@ -116,6 +116,26 @@ describe("ReportController contexts", () => {
     expect(seenActions[0].canonicalFuneralHome("mcguire")).toBe("Mcguire");
   });
 
+  it("removes a reset section width from the saved payload instead of sending undefined", async () => {
+    const report = createEmptyReport("2026-07-26");
+    const api = mockApi(report);
+    let savedLayout: Parameters<NightShiftApi["saveLayout"]>[0] | null = null;
+    api.bootstrap = async () => ({
+      report, latestFinalized: null, resumableDraft: null,
+      layout: { ...DEFAULT_LAYOUT, sectionWidths: { "human-deliver": 2.75 } },
+      funeralHomes: [], backups: [],
+    });
+    api.saveLayout = async (layout) => { savedLayout = layout; return layout; };
+    window.nightShift = api;
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
+
+    await seenActions[0].resetSectionWidth("human-deliver");
+
+    expect(savedLayout).not.toBeNull();
+    expect(savedLayout!.sectionWidths).not.toHaveProperty("human-deliver");
+  });
+
   it("throws a clear error when the hooks are used outside the provider", () => {
     function Orphan() {
       useReportActions();

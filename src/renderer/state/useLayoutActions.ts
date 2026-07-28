@@ -53,7 +53,9 @@ export function useLayoutActions(params: {
       async resetSectionWidth(key) {
         const current = layoutRef.current;
         if (!current || current.sectionWidths[key] === undefined) return;
-        await saveLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: undefined } });
+        const sectionWidths = { ...current.sectionWidths };
+        delete sectionWidths[key];
+        await saveLayout({ ...current, sectionWidths });
       },
     };
   }, [layoutRef, setLayout, setCalibration, toast]);

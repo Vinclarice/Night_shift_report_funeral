@@ -50,14 +50,15 @@ export function sharedSpecialRequest(deceased: DeceasedPerson[]): string | null 
 
 export function formatEntryLine(entry: ReportEntry): string {
   if (entry.type === "funeral") {
-    const shared = sharedSpecialRequest(entry.deceased);
     const deceased = entry.deceased.map((person) => {
       const location = person.locationCode ? ` (${person.locationCode})` : "";
-      const special = !shared && person.specialRequest ? ` (${person.specialRequest})` : "";
+      // Keep the editable representation parser-safe by attaching every request to its person.
+      // The printed EntryLine may collapse a shared request visually, but text placed into the
+      // inline editor must round-trip through parsePastedLines without losing anyone's request.
+      const special = person.specialRequest ? ` [${person.specialRequest}]` : "";
       return `${person.name}${location}${special}`;
     }).join(" + ");
-    const trailing = shared ? ` (${shared})` : "";
-    return `${entry.funeralHome} \u2013 ${deceased}${trailing}`;
+    return `${entry.funeralHome} \u2013 ${deceased}`;
   }
   if (entry.type === "funeralHomeOnly") return entry.funeralHome;
   if (entry.type === "count") return `${entry.text} x ${entry.count}`;
@@ -249,9 +250,10 @@ export function reorderEntry(section: ReportSection, entryId: string, beforeEntr
 
 function parsePerson(value: string): DeceasedPerson {
   const matches = [...value.trim().matchAll(/\(([^)]+)\)/g)].map((match) => match[1].trim());
-  const name = titleCaseName(value.replace(/\s*\([^)]+\)/g, ""));
+  const explicitRequests = [...value.trim().matchAll(/\[([^\]]+)\]/g)].map((match) => match[1].trim());
+  const name = titleCaseName(value.replace(/\s*\([^)]+\)/g, "").replace(/\s*\[[^\]]+\]/g, ""));
   const rushIndex = matches.findIndex((detail) => /rush/i.test(detail));
-  const specialRequest = rushIndex >= 0 ? matches[rushIndex] : matches[1] ?? "";
+  const specialRequest = explicitRequests[0] ?? (rushIndex >= 0 ? matches[rushIndex] : matches[1] ?? "");
   const locationCode = matches.find((_, index) => index !== rushIndex) ?? "";
   return { id: crypto.randomUUID(), name, locationCode, specialRequest };
 }

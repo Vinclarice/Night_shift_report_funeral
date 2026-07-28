@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { addEntry, parsePastedLines, removeEntry, replaceEntryInPlace, sortEntriesForSection, titleCaseName } from "@/domain/entries";
+import { addEntry, normalizeFuneralHome, parsePastedLines, removeEntry, replaceEntryInPlace, sortEntriesForSection, titleCaseName } from "@/domain/entries";
 import type { NightReport, ParsedLine, ReportEntry, ReportSection } from "@/domain/types";
 import { entrySummary } from "../entrySummary";
 import { useEntryForm } from "../hooks/useEntryForm";
@@ -74,11 +74,23 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
     const existing = index >= 0 ? target.entries[index] : null;
     if (existing?.type === "funeral" && entry.type === "funeral" && form.editing.personId) {
       const personIndex = existing.deceased.findIndex((person) => person.id === form.editing!.personId);
-      if (personIndex >= 0) existing.deceased[personIndex] = entry.deceased[0];
-      else existing.deceased.push(entry.deceased[0]);
-      existing.funeralHome = entry.funeralHome;
-      existing.rush = entry.rush;
-      existing.keepSeparate = entry.keepSeparate;
+      const groupingChanged =
+        normalizeFuneralHome(existing.funeralHome) !== normalizeFuneralHome(entry.funeralHome) ||
+        existing.rush !== entry.rush ||
+        existing.keepSeparate !== entry.keepSeparate;
+      if (personIndex < 0) {
+        addEntry(target, entry);
+      } else if (existing.deceased.length > 1 && groupingChanged) {
+        // Funeral home, rush, and keep-separate belong to the entry as a whole. When just one
+        // person in a merged entry changes one of them, split that person into the appropriate
+        // group rather than reassigning every other person alongside them.
+        removeEntry(target, existing.id, existing.deceased[personIndex].id);
+        addEntry(target, entry);
+      } else if (existing.deceased.length === 1) {
+        replaceEntryInPlace(target, existing.id, { ...entry, id: existing.id, createdAt: existing.createdAt });
+      } else {
+        existing.deceased[personIndex] = { ...entry.deceased[0], id: existing.deceased[personIndex].id };
+      }
       // Re-sorting after an in-place edit is a no-op unless the edit actually changed which band
       // the entry belongs in (e.g. toggling rush) — every other entry keeps its current array
       // position as the tiebreaker, so this only ever moves the edited entry itself.
