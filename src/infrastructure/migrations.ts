@@ -66,6 +66,40 @@ const statements = [
     "offsetYInches" REAL NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS "AppSetting" ("key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS "FirstCallFuneralHome" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "normalizedName" TEXT NOT NULL,
+    "address" TEXT NOT NULL DEFAULT '',
+    "phone" TEXT NOT NULL DEFAULT '',
+    "fax" TEXT NOT NULL DEFAULT '',
+    "email" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL,
+    "updatedAt" DATETIME NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "FirstCallFuneralHome_normalizedName_key" ON "FirstCallFuneralHome"("normalizedName")`,
+  `CREATE TABLE IF NOT EXISTS "FirstCallFacility" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "normalizedName" TEXT NOT NULL,
+    "address" TEXT NOT NULL DEFAULT '',
+    "phone" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL,
+    "updatedAt" DATETIME NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "FirstCallFacility_normalizedName_key" ON "FirstCallFacility"("normalizedName")`,
+  `CREATE TABLE IF NOT EXISTS "FirstCallLookupCache" (
+    "queryKey" TEXT NOT NULL PRIMARY KEY,
+    "kind" TEXT NOT NULL,
+    "responseJson" TEXT NOT NULL,
+    "fetchedAt" DATETIME NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "FirstCallPrintPreference" (
+    "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+    "scale" REAL NOT NULL DEFAULT 1,
+    "offsetXInches" REAL NOT NULL DEFAULT 0,
+    "offsetYInches" REAL NOT NULL DEFAULT 0
+  )`,
 ];
 
 /**
@@ -91,4 +125,5 @@ export async function migrate(client: PrismaClient): Promise<void> {
   for (const statement of statements) await client.$executeRawUnsafe(statement);
   await applyAddedColumns(client);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  await client.firstCallPrintPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 }

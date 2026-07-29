@@ -8,9 +8,11 @@ import { VersionConflictError } from "@/application/reportService";
 import type { ReportRepository, RevisionSummary } from "@/application/repository";
 import { normalizeFuneralHome } from "@/domain/entries";
 import { createEmptyReport } from "@/domain/report";
+import { DEFAULT_FIRST_CALL_PRINT_PREFERENCE, normalizeFirstCallDirectoryName } from "@/domain/firstCall";
+import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallPrintPreference } from "@/domain/firstCall";
 import type { LayoutSettings, NightReport, ReportEntry } from "@/domain/types";
 import { DEFAULT_LAYOUT } from "@/shared/contracts";
-import type { BackupSummary, FuneralHomeOption } from "@/shared/contracts";
+import type { BackupSummary, FirstCallFacilityInput, FirstCallFuneralHomeInput, FuneralHomeOption } from "@/shared/contracts";
 import { migrate } from "./migrations";
 
 type LoadedReport = Prisma.ReportGetPayload<{
@@ -210,6 +212,105 @@ export class PrismaReportRepository implements ReportRepository {
   async deleteFuneralHome(id: string) {
     await this.client.funeralHome.delete({ where: { id } });
     return this.listFuneralHomes();
+  }
+
+  async listFirstCallDirectories() {
+    const [funeralHomes, facilities] = await Promise.all([
+      this.client.firstCallFuneralHome.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, address: true, phone: true, fax: true, email: true } }),
+      this.client.firstCallFacility.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, address: true, phone: true } }),
+    ]);
+    return { funeralHomes, facilities };
+  }
+
+  async saveFirstCallFuneralHome(input: FirstCallFuneralHomeInput) {
+    const name = input.name.trim().replace(/\s+/g, " ");
+    const data = {
+      name,
+      normalizedName: normalizeFirstCallDirectoryName(name),
+      address: input.address.trim(),
+      phone: input.phone.trim(),
+      fax: input.fax.trim(),
+      email: input.email.trim(),
+    };
+    if (input.id) await this.client.firstCallFuneralHome.update({ where: { id: input.id }, data });
+    else await this.client.firstCallFuneralHome.upsert({ where: { normalizedName: data.normalizedName }, update: data, create: data });
+    return this.listFirstCallDirectories();
+  }
+
+  async deleteFirstCallFuneralHome(id: string) {
+    await this.client.firstCallFuneralHome.delete({ where: { id } });
+    return this.listFirstCallDirectories();
+  }
+
+  async saveFirstCallFacility(input: FirstCallFacilityInput) {
+    const name = input.name.trim().replace(/\s+/g, " ");
+    if (normalizeFirstCallDirectoryName(name) === "residence") throw new Error("Residence information is never saved.");
+    const data = {
+      name,
+      normalizedName: normalizeFirstCallDirectoryName(name),
+      address: input.address.trim(),
+      phone: input.phone.trim(),
+    };
+    if (input.id) await this.client.firstCallFacility.update({ where: { id: input.id }, data });
+    else await this.client.firstCallFacility.upsert({ where: { normalizedName: data.normalizedName }, update: data, create: data });
+    return this.listFirstCallDirectories();
+  }
+
+  async deleteFirstCallFacility(id: string) {
+    await this.client.firstCallFacility.delete({ where: { id } });
+    return this.listFirstCallDirectories();
+  }
+
+  async loadFirstCallPrintPreference(): Promise<FirstCallPrintPreference> {
+    const saved = await this.client.firstCallPrintPreference.findUnique({ where: { id: 1 } });
+    return saved
+      ? { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches }
+      : DEFAULT_FIRST_CALL_PRINT_PREFERENCE;
+  }
+
+  async saveFirstCallPrintPreference(preference: FirstCallPrintPreference) {
+    const saved = await this.client.firstCallPrintPreference.upsert({
+      where: { id: 1 },
+      create: { id: 1, ...preference },
+      update: preference,
+    });
+    return { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches };
+  }
+
+  async readFirstCallLookupCache(kind: FirstCallLookupKind, queryKey: string): Promise<FirstCallLookupCandidate[] | null> {
+    const cached = await this.client.firstCallLookupCache.findUnique({ where: { queryKey } });
+    if (!cached || cached.kind !== kind || Date.now() - cached.fetchedAt.getTime() > 30 * 86_400_000) return null;
+    try { return JSON.parse(cached.responseJson) as FirstCallLookupCandidate[]; } catch { return null; }
+  }
+
+  async writeFirstCallLookupCache(kind: FirstCallLookupKind, queryKey: string, results: FirstCallLookupCandidate[]) {
+    await this.client.firstCallLookupCache.upsert({
+      where: { queryKey },
+      create: { queryKey, kind, responseJson: JSON.stringify(results), fetchedAt: new Date() },
+      update: { kind, responseJson: JSON.stringify(results), fetchedAt: new Date() },
+    });
+    await this.client.firstCallLookupCache.deleteMany({ where: { fetchedAt: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
+  }
+
+  async readAppSetting(key: string): Promise<string | null> {
+    const rows = await this.client.$queryRawUnsafe<Array<{ value: string }>>(
+      `SELECT "value" FROM "AppSetting" WHERE "key" = ?`,
+      key,
+    );
+    return rows[0]?.value ?? null;
+  }
+
+  async writeAppSetting(key: string, value: string): Promise<void> {
+    await this.client.$executeRawUnsafe(
+      `INSERT INTO "AppSetting" ("key", "value") VALUES (?, ?)
+       ON CONFLICT("key") DO UPDATE SET "value" = excluded."value"`,
+      key,
+      value,
+    );
+  }
+
+  async deleteAppSetting(key: string): Promise<void> {
+    await this.client.$executeRawUnsafe(`DELETE FROM "AppSetting" WHERE "key" = ?`, key);
   }
 
   async loadLayout(): Promise<LayoutSettings> {

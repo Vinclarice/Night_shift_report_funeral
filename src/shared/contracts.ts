@@ -1,8 +1,24 @@
 import type { LayoutSettings, NightReport, SectionKey } from "@/domain/types";
+import type {
+  FirstCallDirectories,
+  FirstCallFacility,
+  FirstCallFuneralHome,
+  FirstCallLookupCandidate,
+  FirstCallLookupKind,
+  FirstCallPrintPreference,
+  FirstCallSearchSettings,
+} from "@/domain/firstCall";
 import type { RevisionSummary } from "@/application/repository";
 
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
+
+export type FirstCallFuneralHomeInput = Omit<FirstCallFuneralHome, "id"> & { id?: string };
+export type FirstCallFacilityInput = Omit<FirstCallFacility, "id"> & { id?: string };
+export interface FirstCallWorkspaceData extends FirstCallDirectories {
+  printPreference: FirstCallPrintPreference;
+  searchSettings: FirstCallSearchSettings;
+}
 
 /** A past report as listed in the read-only archive. Deliberately does not carry entries. */
 export interface ReportSummary {
@@ -43,6 +59,15 @@ export interface NightShiftApi {
   listBackups(): Promise<BackupSummary[]>;
   restoreBackup(name: string): Promise<void>;
   printReport(): Promise<{ success: boolean; failureReason?: string }>;
+  loadFirstCallWorkspace(): Promise<FirstCallWorkspaceData>;
+  saveFirstCallFuneralHome(input: FirstCallFuneralHomeInput): Promise<FirstCallDirectories>;
+  deleteFirstCallFuneralHome(id: string): Promise<FirstCallDirectories>;
+  saveFirstCallFacility(input: FirstCallFacilityInput): Promise<FirstCallDirectories>;
+  deleteFirstCallFacility(id: string): Promise<FirstCallDirectories>;
+  searchFirstCallPlaces(kind: FirstCallLookupKind, query: string): Promise<FirstCallLookupCandidate[]>;
+  saveFirstCallTomTomApiKey(apiKey: string): Promise<FirstCallSearchSettings>;
+  saveFirstCallPrintPreference(preference: FirstCallPrintPreference): Promise<FirstCallPrintPreference>;
+  printFirstCall(): Promise<{ success: boolean; failureReason?: string }>;
   listReports(): Promise<ReportSummary[]>;
   loadReport(id: string): Promise<NightReport | null>;
   windowControl(action: WindowControl): Promise<void>;
@@ -57,4 +82,3 @@ export const DEFAULT_LAYOUT: LayoutSettings = {
   offsetXInches: 0,
   offsetYInches: 0,
 };
-

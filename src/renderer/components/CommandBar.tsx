@@ -19,7 +19,7 @@ function formatReportDate(value: string) {
  * (undo/redo, inspector toggle, secondary-tools menu, finalize/print) on the right, with the empty
  * space between doubling as the frameless window's drag handle.
  */
-export function CommandBar({ report }: { report: NightReport }) {
+export function CommandBar({ report, onOpenFirstCall }: { report: NightReport; onOpenFirstCall: () => void }) {
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -55,6 +55,7 @@ export function CommandBar({ report }: { report: NightReport }) {
         </Badge>
         {report.status === "draft" && <div className="command-group"><IconButton icon={<IconUndo />} aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!controller.undoAvailable} onClick={controller.undo} /><IconButton icon={<IconRedo />} aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!controller.redoAvailable} onClick={controller.redo} /></div>}
         {!workspace.inspectorOpen && <Button variant="quiet" icon={<IconSidebar />} onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: true })}>Inspector</Button>}
+        <Button variant="quiet" icon={<IconBuilding />} onClick={onOpenFirstCall}>First Call</Button>
         <div className="tools-menu" ref={toolsRef}>
           <Button variant="quiet" icon={<IconWand />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>
           {toolsOpen && (

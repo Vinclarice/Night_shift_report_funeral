@@ -2,6 +2,8 @@
 
 A local, print-first Windows application for preparing the nightly Human Remains and Cremated Remains report. The report date is always the next local calendar day, data stays on the computer, and every finalized report is retained as an immutable revision.
 
+The same executable also includes a separate **First Call Sheet** workspace. It reproduces the supplied paper form, defaults the call date and Taken By fields, derives the deceased last name, and can remember verified funeral-home and facility details. First Call sheets are temporary and are never archived. When Place of Death is set to **Residence**, its name, address, and phone remain only in the current in-memory sheet and are never searched, saved, backed up, or recovered.
+
 ## Use the portable app
 
 1. Double-click `Night Shift Report Portable 1.0.1.exe`.
@@ -17,6 +19,8 @@ A local, print-first Windows application for preparing the nightly Human Remains
 11. Open **Tools** > **Report archive** to view or reprint any retained report. The archive is read-only; finalized reports stay immutable.
 12. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
 13. Choose **Print report** and select the company printer or Microsoft Print to PDF.
+
+For a First Call Sheet, choose **First Call Sheet** on the start screen or **First Call** in the report toolbar. Choose Facility to use the saved directory and optional confirmed TomTom lookup, or Residence to keep all location details temporary. Paste a free TomTom API key once in the Online search panel; Windows protects the saved key. The preview toolbar can fit or zoom the canvas without changing physical print size. Select printed wording to apply one of five temporary highlight colors; checked options can highlight their matching labels automatically. Fill directly on the page, use the separate First Call calibration controls for the company printer, and choose **Print sheet**. Printing leaves the sheet open; **New sheet** clears it after confirmation.
 
 Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
 

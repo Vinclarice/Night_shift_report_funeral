@@ -86,3 +86,39 @@ model PrintPreference {
   offsetXInches  Float @default(0)
   offsetYInches  Float @default(0)
 }
+
+model FirstCallFuneralHome {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  address        String   @default("")
+  phone          String   @default("")
+  fax            String   @default("")
+  email          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model FirstCallFacility {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  address        String   @default("")
+  phone          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model FirstCallLookupCache {
+  queryKey    String   @id
+  kind        String
+  responseJson String
+  fetchedAt   DateTime @default(now())
+}
+
+model FirstCallPrintPreference {
+  id             Int   @id @default(1)
+  scale          Float @default(1)
+  offsetXInches  Float @default(0)
+  offsetYInches  Float @default(0)
+}

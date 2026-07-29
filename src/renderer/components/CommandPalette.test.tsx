@@ -25,6 +25,15 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     listBackups: async () => [],
     restoreBackup: async () => {},
     printReport: vi.fn(async () => ({ success: true })),
+    loadFirstCallWorkspace: async () => ({ funeralHomes: [], facilities: [], printPreference: { scale: 1, offsetXInches: 0, offsetYInches: 0 }, searchSettings: { provider: "tomtom", configured: false, source: "none" } }),
+    saveFirstCallFuneralHome: async () => ({ funeralHomes: [], facilities: [] }),
+    deleteFirstCallFuneralHome: async () => ({ funeralHomes: [], facilities: [] }),
+    saveFirstCallFacility: async () => ({ funeralHomes: [], facilities: [] }),
+    deleteFirstCallFacility: async () => ({ funeralHomes: [], facilities: [] }),
+    searchFirstCallPlaces: async () => [],
+    saveFirstCallTomTomApiKey: async () => ({ provider: "tomtom", configured: true, source: "saved" }),
+    saveFirstCallPrintPreference: async (preference) => preference,
+    printFirstCall: async () => ({ success: true }),
     listReports: async () => [],
     loadReport: async () => current,
     windowControl: async () => {},
@@ -33,9 +42,9 @@ function mockApi(initialReport: NightReport): NightShiftApi {
   };
 }
 
-function openPalette() {
+async function openPalette() {
   fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-  return screen.getByRole("dialog", { name: "Command palette" });
+  return screen.findByRole("dialog", { name: "Command palette" });
 }
 
 /** The entry form also renders a combobox, so palette queries are always scoped to the dialog. */
@@ -75,7 +84,7 @@ describe("CommandPalette", () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
 
-    expect(openPalette()).toBeInTheDocument();
+    expect(await openPalette()).toBeInTheDocument();
 
     fireEvent.keyDown(paletteInput(), { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
@@ -84,7 +93,7 @@ describe("CommandPalette", () => {
   it("filters commands by a fuzzy query", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    openPalette();
+    await openPalette();
 
     fireEvent.change(paletteInput(), { target: { value: "archive" } });
 
@@ -96,7 +105,7 @@ describe("CommandPalette", () => {
   it("runs the selected command on Enter and closes", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    openPalette();
+    await openPalette();
 
     fireEvent.change(paletteInput(), { target: { value: "archive" } });
     fireEvent.keyDown(paletteInput(), { key: "Enter" });
@@ -108,7 +117,7 @@ describe("CommandPalette", () => {
   it("moves the active option with the arrow keys", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    openPalette();
+    await openPalette();
 
     const input = paletteInput();
     const first = paletteOptions()[0];
@@ -123,7 +132,7 @@ describe("CommandPalette", () => {
   it("jumps to a section, which drives the inspector to that section", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    openPalette();
+    await openPalette();
 
     fireEvent.change(paletteInput(), { target: { value: "FDP" } });
     fireEvent.click(paletteOptions()[0]);
@@ -135,7 +144,7 @@ describe("CommandPalette", () => {
   it("disables a command that is unavailable rather than hiding it", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    openPalette();
+    await openPalette();
 
     fireEvent.change(paletteInput(), { target: { value: "undo" } });
 
@@ -157,7 +166,7 @@ describe("CommandPalette", () => {
   it("groups commands under headings so the list stays scannable", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
-    const palette = openPalette();
+    const palette = await openPalette();
 
     expect(within(palette).getByText("Tools")).toBeInTheDocument();
     expect(within(palette).getByText("Go to section")).toBeInTheDocument();

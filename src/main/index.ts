@@ -2,13 +2,16 @@ import { access, appendFile, copyFile, mkdir, readFile, writeFile } from "node:f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, Menu, screen, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, shell } from "electron";
 import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
 import type { LayoutSettings, NightReport } from "../domain/types";
+import { normalizeFirstCallDirectoryName } from "../domain/firstCall";
+import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
 import { nextReportDate } from "../domain/report";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
+import { searchTomTom } from "../infrastructure/tomTomSearch";
 
 const hasLock = process.env.NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE === "1" || app.requestSingleInstanceLock();
 if (!hasLock) app.quit();
@@ -124,6 +127,67 @@ const reportSectionSchema = z.object({
 
 const reportSchema = z.object({ id: z.string(), reportDate: z.string(), status: z.enum(["draft", "finalized"]), version: z.number().int(), finalizedAt: z.string().nullable(), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
+const firstCallFuneralHomeSchema = z.object({
+  id: z.string().optional(), name: z.string().trim().min(1).max(160), address: z.string().max(300),
+  phone: z.string().max(80), fax: z.string().max(80), email: z.string().max(160),
+});
+const firstCallFacilitySchema = z.object({
+  id: z.string().optional(), name: z.string().trim().min(1).max(160).refine((name) => normalizeFirstCallDirectoryName(name) !== "residence", "Residence information is never saved."),
+  address: z.string().max(300), phone: z.string().max(80),
+});
+const firstCallPrintPreferenceSchema = z.object({
+  scale: z.number().min(0.9).max(1.1), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5),
+});
+const firstCallLookupKindSchema = z.enum(["funeralHome", "facility"]);
+const TOMTOM_KEY_SETTING = "firstCallTomTomApiKey";
+
+async function readSavedTomTomApiKey(): Promise<string> {
+  const encrypted = await repository.readAppSetting(TOMTOM_KEY_SETTING);
+  if (!encrypted) return "";
+  if (!safeStorage.isEncryptionAvailable()) return "";
+  try { return safeStorage.decryptString(Buffer.from(encrypted, "base64")); }
+  catch { return ""; }
+}
+
+async function tomTomSearchSettings(): Promise<FirstCallSearchSettings> {
+  if (process.env.NIGHT_SHIFT_REPORT_TOMTOM_API_KEY?.trim()) return { provider: "tomtom", configured: true, source: "environment" };
+  const savedKey = await readSavedTomTomApiKey();
+  return { provider: "tomtom", configured: Boolean(savedKey), source: savedKey ? "saved" : "none" };
+}
+
+async function saveTomTomApiKey(rawKey: string): Promise<FirstCallSearchSettings> {
+  const apiKey = z.string().trim().max(200).parse(rawKey);
+  if (!apiKey) {
+    await repository.deleteAppSetting(TOMTOM_KEY_SETTING);
+    return tomTomSearchSettings();
+  }
+  if (!safeStorage.isEncryptionAvailable()) throw new Error("Windows secure storage is unavailable, so the TomTom key was not saved.");
+  await repository.writeAppSetting(TOMTOM_KEY_SETTING, safeStorage.encryptString(apiKey).toString("base64"));
+  return { provider: "tomtom", configured: true, source: "saved" };
+}
+
+async function searchFirstCallPlaces(kind: FirstCallLookupKind, rawQuery: string): Promise<FirstCallLookupCandidate[]> {
+  const query = z.string().trim().min(2).max(160).parse(rawQuery);
+  if (normalizeFirstCallDirectoryName(query) === "residence") throw new Error("Residence information is never sent to online lookup.");
+  const queryKey = `tomtom:${kind}:${normalizeFirstCallDirectoryName(query)}`;
+  const cached = await repository.readFirstCallLookupCache(kind, queryKey);
+  if (cached) return cached;
+
+  const apiKey = process.env.NIGHT_SHIFT_REPORT_TOMTOM_API_KEY?.trim() || await readSavedTomTomApiKey();
+  if (!apiKey) throw new Error("TomTom search is not set up. Save a free TomTom API key in Online search first.");
+
+  const endpoint = process.env.NIGHT_SHIFT_REPORT_TOMTOM_SEARCH_URL ?? "https://api.tomtom.com/search/2/search";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const results = await searchTomTom(query, apiKey, endpoint, controller.signal);
+    await repository.writeFirstCallLookupCache(kind, queryKey, results);
+    return results;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {
   if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Untrusted application request.");
@@ -177,6 +241,24 @@ function registerIpc() {
   handle("backup:restore", async (_event, name: string) => { await backups.restore(z.string().parse(name)); app.relaunch(); app.exit(0); });
   handle("report:print", async () => {
     if (!mainWindow) return { success: false, failureReason: "The report window is unavailable." };
+    return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
+      mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
+    });
+  });
+  handle("first-call:load", async () => ({
+    ...(await repository.listFirstCallDirectories()),
+    printPreference: await repository.loadFirstCallPrintPreference(),
+    searchSettings: await tomTomSearchSettings(),
+  }));
+  handle("first-call:funeral-home:save", (_event, input: unknown) => repository.saveFirstCallFuneralHome(firstCallFuneralHomeSchema.parse(input)));
+  handle("first-call:funeral-home:delete", (_event, id: string) => repository.deleteFirstCallFuneralHome(z.string().min(1).parse(id)));
+  handle("first-call:facility:save", (_event, input: unknown) => repository.saveFirstCallFacility(firstCallFacilitySchema.parse(input)));
+  handle("first-call:facility:delete", (_event, id: string) => repository.deleteFirstCallFacility(z.string().min(1).parse(id)));
+  handle("first-call:search", (_event, kind: unknown, query: string) => searchFirstCallPlaces(firstCallLookupKindSchema.parse(kind), query));
+  handle("first-call:tomtom-key:save", (_event, apiKey: unknown) => saveTomTomApiKey(z.string().parse(apiKey)));
+  handle("first-call:print-preference:save", (_event, preference: unknown) => repository.saveFirstCallPrintPreference(firstCallPrintPreferenceSchema.parse(preference)));
+  handle("first-call:print", async () => {
+    if (!mainWindow) return { success: false, failureReason: "The First Call window is unavailable." };
     return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
       mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });

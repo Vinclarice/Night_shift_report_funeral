@@ -17,6 +17,15 @@ const api: NightShiftApi = {
   listBackups: () => ipcRenderer.invoke("backup:list"),
   restoreBackup: (name) => ipcRenderer.invoke("backup:restore", name),
   printReport: () => ipcRenderer.invoke("report:print"),
+  loadFirstCallWorkspace: () => ipcRenderer.invoke("first-call:load"),
+  saveFirstCallFuneralHome: (input) => ipcRenderer.invoke("first-call:funeral-home:save", input),
+  deleteFirstCallFuneralHome: (id) => ipcRenderer.invoke("first-call:funeral-home:delete", id),
+  saveFirstCallFacility: (input) => ipcRenderer.invoke("first-call:facility:save", input),
+  deleteFirstCallFacility: (id) => ipcRenderer.invoke("first-call:facility:delete", id),
+  searchFirstCallPlaces: (kind, query) => ipcRenderer.invoke("first-call:search", kind, query),
+  saveFirstCallTomTomApiKey: (apiKey) => ipcRenderer.invoke("first-call:tomtom-key:save", apiKey),
+  saveFirstCallPrintPreference: (preference) => ipcRenderer.invoke("first-call:print-preference:save", preference),
+  printFirstCall: () => ipcRenderer.invoke("first-call:print"),
   listReports: () => ipcRenderer.invoke("report:list"),
   loadReport: (id) => ipcRenderer.invoke("report:load", id),
   windowControl: (action) => ipcRenderer.invoke("window:control", action),
@@ -31,4 +40,3 @@ const api: NightShiftApi = {
 };
 
 contextBridge.exposeInMainWorld("nightShift", api);
-

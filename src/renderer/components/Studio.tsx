@@ -25,7 +25,7 @@ const UTILITY_TITLES: Record<string, string> = {
  * drawer/palette overlays. CommandBar and PreviewCanvas hold the actual interaction logic — this
  * file is just layout and wiring between them.
  */
-export function Studio() {
+export function Studio({ onOpenFirstCall }: { onOpenFirstCall: () => void }) {
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -38,7 +38,7 @@ export function Studio() {
 
   return (
     <main className={`studio-shell${workspace.inspectorOpen ? " inspector-visible" : ""}`}>
-      <CommandBar report={report} />
+      <CommandBar report={report} onOpenFirstCall={onOpenFirstCall} />
       {controller.overflow && <div className="overflow-warning no-print">Printing is paused because this report exceeds one page. Adjust card widths, print scale, or entries before printing.</div>}
       {/* Navigator, inspector, canvas. Picking a section and typing into it are the two things done
           on every entry, so they sit adjacent; the canvas is mostly read and is given the rest. */}

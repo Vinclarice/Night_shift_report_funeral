@@ -57,4 +57,33 @@ describe("PrismaReportRepository", () => {
     expect(homes.map((home) => home.name)).toContain("McGuire");
     expect(homes.map((home) => home.name)).toContain("NMS");
   });
+
+  it("stores First Call directories separately from Night Shift funeral homes", async () => {
+    await repository.saveFirstCallFuneralHome({ name: "Example Funeral", address: "1 Main St", phone: "202-555-0100", fax: "", email: "" });
+    await repository.saveFirstCallFacility({ name: "Example Hospital", address: "2 Health Way", phone: "202-555-0200" });
+
+    const firstCall = await repository.listFirstCallDirectories();
+    expect(firstCall.funeralHomes).toEqual([expect.objectContaining({ name: "Example Funeral", address: "1 Main St" })]);
+    expect(firstCall.facilities).toEqual([expect.objectContaining({ name: "Example Hospital", address: "2 Health Way" })]);
+    expect((await repository.listFuneralHomes()).map((home) => home.name)).not.toContain("Example Funeral");
+  });
+
+  it("rejects Residence at the persistence boundary", async () => {
+    await expect(repository.saveFirstCallFacility({ name: "  residence ", address: "Private address", phone: "Private phone" }))
+      .rejects.toThrow(/never saved/i);
+    expect((await repository.listFirstCallDirectories()).facilities).toEqual([]);
+  });
+
+  it("persists First Call calibration without creating a sheet record", async () => {
+    await repository.saveFirstCallPrintPreference({ scale: 1.025, offsetXInches: 0.03, offsetYInches: -0.02 });
+    await expect(repository.loadFirstCallPrintPreference()).resolves.toEqual({ scale: 1.025, offsetXInches: 0.03, offsetYInches: -0.02 });
+    expect(await repository.listReports()).toEqual([]);
+  });
+
+  it("caches only explicit non-residential place lookup results", async () => {
+    const candidate = { sourceId: "tomtom-1", name: "Example Hospital", address: "2 Health Way", phone: "202-555-0200", fax: "", email: "", attribution: "TomTom" as const };
+    await repository.writeFirstCallLookupCache("facility", "facility:example hospital", [candidate]);
+    await expect(repository.readFirstCallLookupCache("facility", "facility:example hospital")).resolves.toEqual([candidate]);
+    await expect(repository.readFirstCallLookupCache("funeralHome", "facility:example hospital")).resolves.toBeNull();
+  });
 });

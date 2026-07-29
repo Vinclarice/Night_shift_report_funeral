@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -156,7 +157,112 @@ test("launches portably and renders the exact nine-card page", async () => {
   }
 });
 
-const packagedExecutable = join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
+test("opens the temporary First Call workspace and keeps Residence out of persistence", async () => {
+  test.setTimeout(60_000);
+  const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-e2e-"));
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
+  });
+  try {
+    const page = await electronApp.firstWindow();
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1200));
+    await page.getByRole("button", { name: "First Call Sheet" }).click();
+    await expect(page.getByLabel("First Call Sheet canvas")).toBeVisible();
+    await page.getByRole("button", { name: "100%" }).click();
+    await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    expect(await page.getByLabel("First Call preview page").evaluate((element) => Number.parseFloat((element as HTMLElement).style.width))).toBeCloseTo(897.6, 1);
+    expect(await page.locator(".first-call-print-only .first-call-letter").evaluate((element) => (element as HTMLElement).style.getPropertyValue("--first-call-scale"))).toBe("1");
+    await page.emulateMedia({ media: "print" });
+    await page.locator(".first-call-print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
+    await page.screenshot({ path: "test-results/first-call-empty-page.png", clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    await page.emulateMedia({ media: "screen" });
+    await page.getByRole("button", { name: "100%" }).click();
+    const semanticLabel = page.locator(".first-call-semantic-layer > span").filter({ hasText: "Name of Decedent:" });
+    const semanticBox = await semanticLabel.boundingBox();
+    if (!semanticBox) throw new Error("Selectable form text was not laid out.");
+    await page.mouse.move(semanticBox.x + 3, semanticBox.y + semanticBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(semanticBox.x + semanticBox.width - 3, semanticBox.y + semanticBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: "Apply" })).toBeEnabled();
+    await page.getByRole("button", { name: "Pink highlight" }).click();
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator(".first-call-interactive .first-call-highlight-manual")).toHaveCount(1);
+    await expect(page.locator(".first-call-print-only .first-call-highlight-manual")).toHaveCount(1);
+    await page.getByLabel("Removal only").check();
+    await expect(page.locator(".first-call-interactive .first-call-highlight-auto")).toHaveCount(1);
+    await expect(page.locator(".first-call-print-only .first-call-highlight-auto")).toHaveCount(1);
+    await page.screenshot({ path: "test-results/first-call-highlights.png" });
+    await page.getByLabel("Name of decedent").fill("Smith, Mary A.");
+    await expect(page.getByLabel("Deceased last name")).toHaveValue("SMITH");
+    await page.getByRole("button", { name: "Residence" }).click();
+    await page.getByLabel("Place of death address").fill("Private residence address");
+    await page.getByLabel("Place of death phone").fill("Private phone");
+    await expect(page.getByText(/not sent online, stored, backed up/)).toBeVisible();
+    expect(await page.evaluate(async () => (await window.nightShift.loadFirstCallWorkspace()).facilities)).toEqual([]);
+    await page.screenshot({ path: "test-results/first-call-workspace.png" });
+
+    await page.emulateMedia({ media: "print" });
+    await page.locator(".first-call-print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
+    await page.evaluate(() => { document.documentElement.style.overflow = "hidden"; document.body.style.overflow = "hidden"; window.scrollTo(0, 0); });
+    await page.screenshot({ path: "test-results/first-call-residence-page.png", clip: { x: 0, y: 0, width: 816, height: 1056 } });
+  } finally {
+    await electronApp.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("uses an explicit TomTom search and formats the selected result simply", async () => {
+  test.setTimeout(60_000);
+  let requestedUrl = "";
+  const server = createServer((request, response) => {
+    requestedUrl = request.url ?? "";
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ results: [{
+      id: "tomtom-place-1",
+      poi: { name: "Example Medical Center", phone: "+1 703-555-0199" },
+      address: { streetNumber: "3300", streetName: "Gallows Road", municipality: "Falls Church", countrySubdivision: "VA", postalCode: "22042" },
+    }] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Mock TomTom server did not start.");
+
+  const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-tomtom-e2e-"));
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: {
+      ...process.env,
+      NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory,
+      NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1",
+      NIGHT_SHIFT_REPORT_TOMTOM_API_KEY: "test-key",
+      NIGHT_SHIFT_REPORT_TOMTOM_SEARCH_URL: `http://127.0.0.1:${address.port}/search/2/search`,
+    },
+  });
+  try {
+    const page = await electronApp.firstWindow();
+    await page.getByRole("button", { name: "First Call Sheet" }).click();
+    await page.getByLabel("Funeral home", { exact: true }).fill("Example Medical");
+    await page.getByRole("button", { name: "Search online" }).first().click();
+    await page.getByRole("button", { name: /Example Medical Center/ }).click();
+
+    await expect(page.getByLabel("Funeral home address")).toHaveValue("3300 Gallows Road, Falls Church, VA 22042");
+    await expect(page.getByLabel("Funeral home telephone number")).toHaveValue("+1 703-555-0199");
+    await expect(page.getByLabel("Funeral home fax number")).toHaveValue("");
+    const request = new URL(requestedUrl, "http://localhost");
+    expect(decodeURIComponent(request.pathname)).toContain("Example Medical.json");
+    expect(request.searchParams.get("countrySet")).toBe("US");
+    expect(request.searchParams.get("lat")).toBe("38.9072");
+  } finally {
+    await electronApp.close();
+    server.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
 test("the packaged Windows application starts with clean local data", async () => {
   test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run the packaged-app verification after building the portable release.");
   const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-packaged-"));
@@ -167,6 +273,18 @@ test("the packaged Windows application starts with clean local data", async () =
   try {
     const page = await electronApp.firstWindow();
     await expect(page.getByRole("heading", { name: /Build tonight/ })).toBeVisible();
+    await page.getByRole("button", { name: "First Call Sheet" }).click();
+    await expect(page.getByText("Online search - TomTom")).toBeVisible();
+    await expect(page.getByLabel("TomTom API key")).toBeVisible();
+    await page.getByRole("button", { name: "100%" }).click();
+    await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
+    await expect(page.getByLabel("Selectable printed form text")).toBeVisible();
+    await page.getByLabel("Removal only").check();
+    await expect(page.locator(".first-call-interactive .first-call-highlight-auto")).toHaveCount(1);
+    await expect(page.locator(".first-call-print-only .first-call-highlight-auto")).toHaveCount(1);
+    expect(await page.locator(".first-call-source-page > img").first().evaluate((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
+    await page.getByRole("button", { name: "Night Shift Report" }).click();
+    await page.getByRole("button", { name: "Leave sheet" }).click();
     await page.getByRole("button", { name: "Start empty" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
     expect(existsSync(join(dataDirectory, "night-shift-report.db"))).toBe(true);

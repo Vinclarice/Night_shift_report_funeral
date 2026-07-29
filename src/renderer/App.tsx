@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Studio } from "./components/Studio";
+import { FirstCallWorkspace } from "./components/FirstCallWorkspace";
 import { ReportControllerProvider, useReportController } from "./state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState, WorkspaceProvider } from "./state/WorkspaceContext";
 import { Button } from "./ui/Button";
@@ -35,6 +37,7 @@ function WelcomeScreen({
   onContinueFromLast,
   onStartEmpty,
   onBack,
+  onOpenFirstCall,
 }: {
   resumable?: { reportDate: string; entryCount: number };
   latestFinalized?: boolean;
@@ -42,6 +45,7 @@ function WelcomeScreen({
   onContinueFromLast?: () => void;
   onStartEmpty?: () => void;
   onBack?: () => void;
+  onOpenFirstCall: () => void;
 }) {
   return (
     <main className="start-screen">
@@ -64,6 +68,7 @@ function WelcomeScreen({
           {!onBack && resumable && <Button variant="primary" onClick={onResume}>Resume that report</Button>}
           {!onBack && latestFinalized && <Button variant={resumable ? "secondary" : "primary"} onClick={onContinueFromLast}>Continue from last report</Button>}
           {!onBack && <Button variant={latestFinalized || resumable ? "secondary" : "primary"} onClick={onStartEmpty}>Start empty</Button>}
+          <Button variant="secondary" onClick={onOpenFirstCall}>First Call Sheet</Button>
         </div>
         <div className="start-assurance"><span>Local-first</span><span>Autosaved</span><span>Print-ready</span></div>
       </section>
@@ -72,6 +77,7 @@ function WelcomeScreen({
 }
 
 function AppContent() {
+  const [mode, setMode] = useState<"report" | "firstCall">("report");
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -85,6 +91,8 @@ function AppContent() {
     );
   }
 
+  if (mode === "firstCall") return <FirstCallWorkspace onBack={() => setMode("report")} />;
+
   if (!controller.report) {
     const resumable = controller.bootstrap.resumableDraft;
     const entryCount = resumable?.sections.reduce((total, section) => total + section.entries.length, 0) ?? 0;
@@ -95,13 +103,14 @@ function AppContent() {
         onResume={controller.resumeDraft}
         onContinueFromLast={() => void controller.createDraft("clone").catch((error: Error) => toast.error(error.message))}
         onStartEmpty={() => void controller.createDraft("empty").catch((error: Error) => toast.error(error.message))}
+        onOpenFirstCall={() => setMode("firstCall")}
       />
     );
   }
 
   if (workspace.viewingStart) {
-    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} />;
+    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} onOpenFirstCall={() => setMode("firstCall")} />;
   }
 
-  return <Studio />;
+  return <Studio onOpenFirstCall={() => setMode("firstCall")} />;
 }
