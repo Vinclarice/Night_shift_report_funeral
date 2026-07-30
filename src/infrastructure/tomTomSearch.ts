@@ -28,13 +28,17 @@ export function formatTomTomAddress(address: TomTomAddress): string {
   return formatted || address.freeformAddress || "";
 }
 
-export function parseTomTomResults(payload: unknown): FirstCallLookupCandidate[] {
+export function formatTomTomPhone(phone: string): string {
+  return phone.trim().replace(/^\+1(?:[\s.-]+)?/, "");
+}
+
+export function parseTomTomResults(payload: unknown, includeAddressOnly = false): FirstCallLookupCandidate[] {
   const parsed = tomTomResponseSchema.parse(payload);
-  return parsed.results.filter((item) => item.poi?.name).map((item) => ({
+  return parsed.results.filter((item) => item.poi?.name || includeAddressOnly).map((item) => ({
     sourceId: item.id,
-    name: item.poi!.name,
+    name: item.poi?.name ?? formatTomTomAddress(item.address),
     address: formatTomTomAddress(item.address),
-    phone: item.poi!.phone ?? "",
+    phone: formatTomTomPhone(item.poi?.phone ?? ""),
     fax: "",
     email: "",
     attribution: "TomTom",
@@ -46,6 +50,7 @@ export async function searchTomTom(
   apiKey: string,
   endpoint: string,
   signal: AbortSignal,
+  includeAddressOnly = false,
 ): Promise<FirstCallLookupCandidate[]> {
   const base = endpoint.replace(/\/$/, "");
   const url = new URL(`${base}/${encodeURIComponent(query)}.json`);
@@ -59,5 +64,5 @@ export async function searchTomTom(
 
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`Online lookup failed (${response.status}).`);
-  return parseTomTomResults(await response.json());
+  return parseTomTomResults(await response.json(), includeAddressOnly);
 }

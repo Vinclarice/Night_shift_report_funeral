@@ -2,7 +2,7 @@ import { access, appendFile, copyFile, mkdir, readFile, writeFile } from "node:f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell } from "electron";
 import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
@@ -11,6 +11,7 @@ import { normalizeFirstCallDirectoryName } from "../domain/firstCall";
 import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
 import { nextReportDate } from "../domain/report";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
+import { formatFirstCallDirectoryCsv, parseFirstCallDirectoryCsv } from "../infrastructure/firstCallDirectoryCsv";
 import { searchTomTom } from "../infrastructure/tomTomSearch";
 
 const hasLock = process.env.NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE === "1" || app.requestSingleInstanceLock();
@@ -130,15 +131,18 @@ const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).
 const firstCallFuneralHomeSchema = z.object({
   id: z.string().optional(), name: z.string().trim().min(1).max(160), address: z.string().max(300),
   phone: z.string().max(80), fax: z.string().max(80), email: z.string().max(160),
+  aliases: z.array(z.string().trim().min(1).max(160)).max(20).optional(), favorite: z.boolean().optional(),
 });
 const firstCallFacilitySchema = z.object({
   id: z.string().optional(), name: z.string().trim().min(1).max(160).refine((name) => normalizeFirstCallDirectoryName(name) !== "residence", "Residence information is never saved."),
   address: z.string().max(300), phone: z.string().max(80),
+  aliases: z.array(z.string().trim().min(1).max(160)).max(20).optional(), favorite: z.boolean().optional(),
 });
 const firstCallPrintPreferenceSchema = z.object({
   scale: z.number().min(0.9).max(1.1), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5),
 });
-const firstCallLookupKindSchema = z.enum(["funeralHome", "facility"]);
+const firstCallDirectoryKindSchema = z.enum(["funeralHome", "facility"]);
+const firstCallLookupKindSchema = z.enum(["funeralHome", "facility", "residence"]);
 const TOMTOM_KEY_SETTING = "firstCallTomTomApiKey";
 
 async function readSavedTomTomApiKey(): Promise<string> {
@@ -167,11 +171,12 @@ async function saveTomTomApiKey(rawKey: string): Promise<FirstCallSearchSettings
 }
 
 async function searchFirstCallPlaces(kind: FirstCallLookupKind, rawQuery: string): Promise<FirstCallLookupCandidate[]> {
-  const query = z.string().trim().min(2).max(160).parse(rawQuery);
-  if (normalizeFirstCallDirectoryName(query) === "residence") throw new Error("Residence information is never sent to online lookup.");
-  const queryKey = `tomtom:${kind}:${normalizeFirstCallDirectoryName(query)}`;
-  const cached = await repository.readFirstCallLookupCache(kind, queryKey);
-  if (cached) return cached;
+  const query = z.string().trim().min(2).max(kind === "residence" ? 300 : 160).parse(rawQuery);
+  const queryKey = kind === "residence" ? "" : `tomtom:${kind}:${normalizeFirstCallDirectoryName(query)}`;
+  if (kind !== "residence") {
+    const cached = await repository.readFirstCallLookupCache(kind, queryKey);
+    if (cached) return cached;
+  }
 
   const apiKey = process.env.NIGHT_SHIFT_REPORT_TOMTOM_API_KEY?.trim() || await readSavedTomTomApiKey();
   if (!apiKey) throw new Error("TomTom search is not set up. Save a free TomTom API key in Online search first.");
@@ -181,8 +186,8 @@ async function searchFirstCallPlaces(kind: FirstCallLookupKind, rawQuery: string
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
-    const results = await searchTomTom(query, apiKey, endpoint, controller.signal);
-    await repository.writeFirstCallLookupCache(kind, queryKey, results);
+    const results = await searchTomTom(query, apiKey, endpoint, controller.signal, kind === "residence");
+    if (kind !== "residence") await repository.writeFirstCallLookupCache(kind, queryKey, results);
     return results;
   } finally {
     clearTimeout(timeout);
@@ -254,6 +259,28 @@ function registerIpc() {
   handle("first-call:funeral-home:delete", (_event, id: string) => repository.deleteFirstCallFuneralHome(z.string().min(1).parse(id)));
   handle("first-call:facility:save", (_event, input: unknown) => repository.saveFirstCallFacility(firstCallFacilitySchema.parse(input)));
   handle("first-call:facility:delete", (_event, id: string) => repository.deleteFirstCallFacility(z.string().min(1).parse(id)));
+  handle("first-call:directory:use", (_event, kind: unknown, id: unknown) => repository.useFirstCallDirectory(firstCallDirectoryKindSchema.parse(kind), z.string().min(1).parse(id)));
+  handle("first-call:directory:merge", (_event, kind: unknown, sourceId: unknown, targetId: unknown) => repository.mergeFirstCallDirectory(firstCallDirectoryKindSchema.parse(kind), z.string().min(1).parse(sourceId), z.string().min(1).parse(targetId)));
+  handle("first-call:directory:export", async () => {
+    if (!mainWindow) return { canceled: true };
+    const chosen = await dialog.showSaveDialog(mainWindow, { title: "Export First Call directories", defaultPath: join(app.getPath("documents"), "First Call Directories.csv"), filters: [{ name: "CSV files", extensions: ["csv"] }] });
+    if (chosen.canceled || !chosen.filePath) return { canceled: true };
+    await writeFile(chosen.filePath, formatFirstCallDirectoryCsv(await repository.listFirstCallDirectories()), "utf8");
+    return { canceled: false, path: chosen.filePath };
+  });
+  handle("first-call:directory:import", async () => {
+    if (!mainWindow) return { ...(await repository.listFirstCallDirectories()), canceled: true, imported: 0 };
+    const chosen = await dialog.showOpenDialog(mainWindow, { title: "Import First Call directories", properties: ["openFile"], filters: [{ name: "CSV files", extensions: ["csv"] }] });
+    if (chosen.canceled || !chosen.filePaths[0]) return { ...(await repository.listFirstCallDirectories()), canceled: true, imported: 0 };
+    const contents = await readFile(chosen.filePaths[0], "utf8");
+    if (Buffer.byteLength(contents, "utf8") > 2_000_000) throw new Error("The directory CSV is too large to import.");
+    const rows = parseFirstCallDirectoryCsv(contents);
+    for (const row of rows) {
+      if (row.kind === "funeralHome") await repository.saveFirstCallFuneralHome(row);
+      else await repository.saveFirstCallFacility(row);
+    }
+    return { ...(await repository.listFirstCallDirectories()), canceled: false, imported: rows.length };
+  });
   handle("first-call:search", (_event, kind: unknown, query: string) => searchFirstCallPlaces(firstCallLookupKindSchema.parse(kind), query));
   handle("first-call:tomtom-key:save", (_event, apiKey: unknown) => saveTomTomApiKey(z.string().parse(apiKey)));
   handle("first-call:print-preference:save", (_event, preference: unknown) => repository.saveFirstCallPrintPreference(firstCallPrintPreferenceSchema.parse(preference)));

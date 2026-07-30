@@ -5,6 +5,7 @@ import type {
   FirstCallFuneralHome,
   FirstCallLookupCandidate,
   FirstCallLookupKind,
+  FirstCallDirectoryKind,
   FirstCallPrintPreference,
   FirstCallSearchSettings,
 } from "@/domain/firstCall";
@@ -13,8 +14,10 @@ import type { RevisionSummary } from "@/application/repository";
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
 
-export type FirstCallFuneralHomeInput = Omit<FirstCallFuneralHome, "id"> & { id?: string };
-export type FirstCallFacilityInput = Omit<FirstCallFacility, "id"> & { id?: string };
+export type FirstCallFuneralHomeInput = Pick<FirstCallFuneralHome, "name" | "address" | "phone" | "fax" | "email"> & Partial<Pick<FirstCallFuneralHome, "aliases" | "favorite">> & { id?: string };
+export type FirstCallFacilityInput = Pick<FirstCallFacility, "name" | "address" | "phone"> & Partial<Pick<FirstCallFacility, "aliases" | "favorite">> & { id?: string };
+export interface FirstCallDirectoryImportResult extends FirstCallDirectories { canceled: boolean; imported: number }
+export interface FirstCallDirectoryExportResult { canceled: boolean; path?: string }
 export interface FirstCallWorkspaceData extends FirstCallDirectories {
   printPreference: FirstCallPrintPreference;
   searchSettings: FirstCallSearchSettings;
@@ -64,6 +67,10 @@ export interface NightShiftApi {
   deleteFirstCallFuneralHome(id: string): Promise<FirstCallDirectories>;
   saveFirstCallFacility(input: FirstCallFacilityInput): Promise<FirstCallDirectories>;
   deleteFirstCallFacility(id: string): Promise<FirstCallDirectories>;
+  useFirstCallDirectory(kind: FirstCallDirectoryKind, id: string): Promise<FirstCallDirectories>;
+  mergeFirstCallDirectory(kind: FirstCallDirectoryKind, sourceId: string, targetId: string): Promise<FirstCallDirectories>;
+  exportFirstCallDirectories(): Promise<FirstCallDirectoryExportResult>;
+  importFirstCallDirectories(): Promise<FirstCallDirectoryImportResult>;
   searchFirstCallPlaces(kind: FirstCallLookupKind, query: string): Promise<FirstCallLookupCandidate[]>;
   saveFirstCallTomTomApiKey(apiKey: string): Promise<FirstCallSearchSettings>;
   saveFirstCallPrintPreference(preference: FirstCallPrintPreference): Promise<FirstCallPrintPreference>;

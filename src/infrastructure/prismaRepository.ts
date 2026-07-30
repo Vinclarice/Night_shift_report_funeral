@@ -35,6 +35,20 @@ const STARTER_FUNERAL_HOMES = [
   "Nova Jewish",
 ];
 
+function cleanFirstCallAliases(aliases: string[] | undefined, name: string) {
+  const ownName = normalizeFirstCallDirectoryName(name);
+  return [...new Map((aliases ?? []).map((alias) => alias.trim().replace(/\s+/g, " ")).filter(Boolean)
+    .filter((alias) => normalizeFirstCallDirectoryName(alias) !== ownName)
+    .map((alias) => [normalizeFirstCallDirectoryName(alias), alias])).values()].slice(0, 20);
+}
+
+function parseFirstCallAliases(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch { return []; }
+}
+
 export class PrismaReportRepository implements ReportRepository {
   private client: PrismaClient;
 
@@ -216,10 +230,13 @@ export class PrismaReportRepository implements ReportRepository {
 
   async listFirstCallDirectories() {
     const [funeralHomes, facilities] = await Promise.all([
-      this.client.firstCallFuneralHome.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, address: true, phone: true, fax: true, email: true } }),
-      this.client.firstCallFacility.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, address: true, phone: true } }),
+      this.client.firstCallFuneralHome.findMany({ orderBy: [{ favorite: "desc" }, { lastUsedAt: "desc" }, { name: "asc" }], select: { id: true, name: true, address: true, phone: true, fax: true, email: true, aliasesJson: true, favorite: true, useCount: true, lastUsedAt: true } }),
+      this.client.firstCallFacility.findMany({ orderBy: [{ favorite: "desc" }, { lastUsedAt: "desc" }, { name: "asc" }], select: { id: true, name: true, address: true, phone: true, aliasesJson: true, favorite: true, useCount: true, lastUsedAt: true } }),
     ]);
-    return { funeralHomes, facilities };
+    return {
+      funeralHomes: funeralHomes.map(({ aliasesJson, lastUsedAt, ...item }) => ({ ...item, aliases: parseFirstCallAliases(aliasesJson), lastUsedAt: lastUsedAt?.toISOString() ?? null })),
+      facilities: facilities.map(({ aliasesJson, lastUsedAt, ...item }) => ({ ...item, aliases: parseFirstCallAliases(aliasesJson), lastUsedAt: lastUsedAt?.toISOString() ?? null })),
+    };
   }
 
   async saveFirstCallFuneralHome(input: FirstCallFuneralHomeInput) {
@@ -231,6 +248,8 @@ export class PrismaReportRepository implements ReportRepository {
       phone: input.phone.trim(),
       fax: input.fax.trim(),
       email: input.email.trim(),
+      aliasesJson: JSON.stringify(cleanFirstCallAliases(input.aliases, name)),
+      favorite: input.favorite ?? false,
     };
     if (input.id) await this.client.firstCallFuneralHome.update({ where: { id: input.id }, data });
     else await this.client.firstCallFuneralHome.upsert({ where: { normalizedName: data.normalizedName }, update: data, create: data });
@@ -250,6 +269,8 @@ export class PrismaReportRepository implements ReportRepository {
       normalizedName: normalizeFirstCallDirectoryName(name),
       address: input.address.trim(),
       phone: input.phone.trim(),
+      aliasesJson: JSON.stringify(cleanFirstCallAliases(input.aliases, name)),
+      favorite: input.favorite ?? false,
     };
     if (input.id) await this.client.firstCallFacility.update({ where: { id: input.id }, data });
     else await this.client.firstCallFacility.upsert({ where: { normalizedName: data.normalizedName }, update: data, create: data });
@@ -258,6 +279,47 @@ export class PrismaReportRepository implements ReportRepository {
 
   async deleteFirstCallFacility(id: string) {
     await this.client.firstCallFacility.delete({ where: { id } });
+    return this.listFirstCallDirectories();
+  }
+
+  async useFirstCallDirectory(kind: "funeralHome" | "facility", id: string) {
+    const data = { useCount: { increment: 1 }, lastUsedAt: new Date() };
+    if (kind === "funeralHome") await this.client.firstCallFuneralHome.update({ where: { id }, data });
+    else await this.client.firstCallFacility.update({ where: { id }, data });
+    return this.listFirstCallDirectories();
+  }
+
+  async mergeFirstCallDirectory(kind: "funeralHome" | "facility", sourceId: string, targetId: string) {
+    if (sourceId === targetId) throw new Error("Choose two different directory records to merge.");
+    if (kind === "funeralHome") {
+      await this.client.$transaction(async (tx) => {
+        const [source, target] = await Promise.all([
+          tx.firstCallFuneralHome.findUniqueOrThrow({ where: { id: sourceId } }),
+          tx.firstCallFuneralHome.findUniqueOrThrow({ where: { id: targetId } }),
+        ]);
+        const aliases = cleanFirstCallAliases([...parseFirstCallAliases(target.aliasesJson), source.name, ...parseFirstCallAliases(source.aliasesJson)], target.name);
+        await tx.firstCallFuneralHome.update({ where: { id: targetId }, data: {
+          address: target.address || source.address, phone: target.phone || source.phone, fax: target.fax || source.fax, email: target.email || source.email,
+          aliasesJson: JSON.stringify(aliases), favorite: target.favorite || source.favorite, useCount: target.useCount + source.useCount,
+          lastUsedAt: !target.lastUsedAt || (source.lastUsedAt && source.lastUsedAt > target.lastUsedAt) ? source.lastUsedAt : target.lastUsedAt,
+        } });
+        await tx.firstCallFuneralHome.delete({ where: { id: sourceId } });
+      });
+    } else {
+      await this.client.$transaction(async (tx) => {
+        const [source, target] = await Promise.all([
+          tx.firstCallFacility.findUniqueOrThrow({ where: { id: sourceId } }),
+          tx.firstCallFacility.findUniqueOrThrow({ where: { id: targetId } }),
+        ]);
+        const aliases = cleanFirstCallAliases([...parseFirstCallAliases(target.aliasesJson), source.name, ...parseFirstCallAliases(source.aliasesJson)], target.name);
+        await tx.firstCallFacility.update({ where: { id: targetId }, data: {
+          address: target.address || source.address, phone: target.phone || source.phone, aliasesJson: JSON.stringify(aliases),
+          favorite: target.favorite || source.favorite, useCount: target.useCount + source.useCount,
+          lastUsedAt: !target.lastUsedAt || (source.lastUsedAt && source.lastUsedAt > target.lastUsedAt) ? source.lastUsedAt : target.lastUsedAt,
+        } });
+        await tx.firstCallFacility.delete({ where: { id: sourceId } });
+      });
+    }
     return this.listFirstCallDirectories();
   }
 
@@ -351,6 +413,16 @@ export class PrismaReportRepository implements ReportRepository {
     await rm(targetPath, { force: true });
     const escaped = targetPath.replace(/'/g, "''").replace(/\\/g, "/");
     await this.client.$executeRawUnsafe(`VACUUM INTO '${escaped}'`);
+  }
+
+  async verifyDatabaseFile(path: string) {
+    const verifier = new PrismaClient({ datasources: { db: { url: `file:${path.replace(/\\/g, "/")}` } } });
+    try {
+      const result = await verifier.$queryRawUnsafe<Array<{ integrity_check: string }>>("PRAGMA integrity_check");
+      if (result.length !== 1 || result[0].integrity_check !== "ok") throw new Error("Database integrity verification failed.");
+    } finally {
+      await verifier.$disconnect();
+    }
   }
 
   private toDomain(loaded: LoadedReport): NightReport {
@@ -449,6 +521,8 @@ export class BackupManager {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const path = join(this.backupDirectory, `${stamp}-${label}.db`);
     await this.repository.backupTo(path);
+    try { await this.repository.verifyDatabaseFile(path); }
+    catch (error) { await rm(path, { force: true }); throw error; }
     return path;
   }
 

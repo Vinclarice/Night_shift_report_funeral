@@ -2,12 +2,12 @@
 
 A local, print-first Windows application for preparing the nightly Human Remains and Cremated Remains report. The report date is always the next local calendar day, data stays on the computer, and every finalized report is retained as an immutable revision.
 
-The same executable also includes a separate **First Call Sheet** workspace. It reproduces the supplied paper form, defaults the call date and Taken By fields, derives the deceased last name, and can remember verified funeral-home and facility details. First Call sheets are temporary and are never archived. When Place of Death is set to **Residence**, its name, address, and phone remain only in the current in-memory sheet and are never searched, saved, backed up, or recovered.
+The same executable also includes a separate **First Call Sheet** workspace. It reproduces the supplied paper form, defaults the call date and Taken By fields, derives the deceased last name, and can remember verified funeral-home and facility details. First Call sheets are temporary and are never archived. When Place of Death is set to **Residence**, only an explicitly submitted address search is sent to TomTom; the app never saves, caches, recommends, logs, backs up, or recovers the residence query or result.
 
 ## Use the portable app
 
-1. Double-click `Night Shift Report Portable 1.0.1.exe`.
-2. Choose **Start empty**, or clone the latest finalized report when one exists.
+1. Double-click `Night Shift Report Portable 2.0.0.exe`.
+2. Choose **Open Night Shift Report**, resume an unfinished report, or continue from the latest finalized report when one exists.
 3. Choose a section from the left report navigator, then add or edit entries in the inspector immediately beside it. The live canvas sits to the right; you can also click any ruled line there to type directly. Press **Enter** or click away to save; press **Escape** to cancel.
 4. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
 5. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
@@ -20,11 +20,11 @@ The same executable also includes a separate **First Call Sheet** workspace. It 
 12. Finalize the report when it is ready. Draft prints intentionally carry a watermark.
 13. Choose **Print report** and select the company printer or Microsoft Print to PDF.
 
-For a First Call Sheet, choose **First Call Sheet** on the start screen or **First Call** in the report toolbar. Choose Facility to use the saved directory and optional confirmed TomTom lookup, or Residence to keep all location details temporary. Paste a free TomTom API key once in the Online search panel; Windows protects the saved key. The preview toolbar can fit or zoom the canvas without changing physical print size. Select printed wording to apply one of five temporary highlight colors; checked options can highlight their matching labels automatically. Fill directly on the page, use the separate First Call calibration controls for the company printer, and choose **Print sheet**. Printing leaves the sheet open; **New sheet** clears it after confirmation.
+For a First Call Sheet, choose **New First Call Sheet** on the start screen or **First Call** in the report toolbar. Saved funeral homes and facilities appear as ranked suggestions while typing, including aliases and abbreviations; favorites and recently used locations appear first. Use **Search TomTom** only when a saved match does not fit, then review the result before applying or saving it. A Residence address may also be searched explicitly, but it remains temporary and never enters the directory or lookup cache. Use **Manage directories** for editing, favorites, aliases, merging, deletion, and CSV import/export. Paste a free TomTom API key once; Windows protects it and the key controls then collapse into the TomTom settings menu. The preview toolbar can fit or zoom the canvas without changing physical print size. Select printed wording to apply one of five temporary highlight colors; checked options can highlight their matching labels automatically. Fill directly on the page, use the separate First Call calibration controls for the company printer, and choose **Print sheet**. Printing leaves the sheet open; **New sheet** clears it after confirmation.
 
 Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
 
-A report is named for the next calendar day, so that name changes at midnight — partway through a shift. If the app is restarted after midnight there is no report yet for the new date, and the start screen offers **Resume that report** for the draft begun earlier in the same shift rather than leaving it stranded. Resuming opens it unchanged; nothing is written until the next edit.
+A report is named for the next calendar day, so that name changes at midnight — partway through a shift. If the app is restarted after midnight there is no report yet for the new date, and the start screen offers **Resume unfinished report** for the draft begun earlier in the same shift rather than leaving it stranded. Resuming opens it unchanged; nothing is written until the next edit.
 
 The app stores its database, backups, logs, and window state in `%LOCALAPPDATA%\Night Shift Report`. Reports are retained for 90 days; database backups are retained for 14 days. **Recovery** can restore finalized revisions or retained backups. Main-process errors are written to `logs\main-<date>.log`, which is the first place to look if something fails overnight.
 
@@ -76,9 +76,10 @@ Renderer state is split into two contexts. `useReportState` carries values that 
 
 ## Release notes
 
+- Version 2.0.0 simplifies the launch screen and expands First Call directory tools with saved-location type-ahead, favorites, recency ranking, aliases, duplicate review and merging, searchable maintenance, and CSV import/export. TomTom remains an explicit fallback, removes the US `+1` phone prefix, and now supports address-only Residence lookup without saving, caching, logging, backing up, or recommending any residence information. First Call sheets remain entirely temporary.
 - Version 1.0.1 adds the canvas context menu and welcome-screen return added after 1.0.0, preserves merged-person grouping during edits, keeps shared special requests round-trip safe, and reliably resets manually widened cards after content is removed.
 - Version 1.0.0 adds a frameless window with an integrated title bar and app icon, restored window state, main-process file logging, a Ctrl+K command palette, a read-only report archive, drag-to-reorder with bottom-pinning, and a React architecture pass (split state/actions contexts, memoized preview, deferred canvas rendering). It also recovers drafts stranded when the report date rolls over after midnight. The `pinnedBottom` column is applied automatically to existing databases on launch. The printed report's visual styling was revised — special requests print darker, Cremated funeral-home names are no longer bold when a row carries no deceased name, and Cremated cards start narrower while still expanding for edge cases — so it needs a fresh pass through the physical print-quality gate below.
 - Version 0.2.0 introduces the dark document-studio interface, contextual inspector, responsive minimum-width layout, fit/manual preview zoom, consolidated Tools menu, and portal-based accessible overlays. The verified print layout and stored report format are unchanged.
 - Email delivery is intentionally deferred from v1. A later version can attach a generated PDF or use a configured email client after company policy and recipient handling are decided.
 - The executable is unsigned. Windows or company policy may warn or block it; test that explicitly on the company computer during the feasibility gate.
-- There is no cloud sync, authentication, archive browser, auto-update system, or separate PDF export library in v1.
+- There is no cloud sync, authentication, auto-update system, paid code signing, or separate PDF export library in version 2.0.

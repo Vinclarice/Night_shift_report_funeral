@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { VersionConflictError } from "@/application/reportService";
 import { createEmptyReport } from "@/domain/report";
+import { PrismaClient } from "@/generated/prisma-client";
 import { PrismaReportRepository } from "./prismaRepository";
 
 describe("PrismaReportRepository", () => {
@@ -59,13 +60,32 @@ describe("PrismaReportRepository", () => {
   });
 
   it("stores First Call directories separately from Night Shift funeral homes", async () => {
-    await repository.saveFirstCallFuneralHome({ name: "Example Funeral", address: "1 Main St", phone: "202-555-0100", fax: "", email: "" });
-    await repository.saveFirstCallFacility({ name: "Example Hospital", address: "2 Health Way", phone: "202-555-0200" });
+    await repository.saveFirstCallFuneralHome({ name: "Example Funeral", address: "1 Main St", phone: "202-555-0100", fax: "", email: "", aliases: ["EFH"], favorite: true });
+    await repository.saveFirstCallFacility({ name: "Example Hospital", address: "2 Health Way", phone: "202-555-0200", aliases: ["EH"] });
 
     const firstCall = await repository.listFirstCallDirectories();
-    expect(firstCall.funeralHomes).toEqual([expect.objectContaining({ name: "Example Funeral", address: "1 Main St" })]);
-    expect(firstCall.facilities).toEqual([expect.objectContaining({ name: "Example Hospital", address: "2 Health Way" })]);
+    expect(firstCall.funeralHomes).toEqual([expect.objectContaining({ name: "Example Funeral", address: "1 Main St", aliases: ["EFH"], favorite: true, useCount: 0 })]);
+    expect(firstCall.facilities).toEqual([expect.objectContaining({ name: "Example Hospital", address: "2 Health Way", aliases: ["EH"], favorite: false })]);
     expect((await repository.listFuneralHomes()).map((home) => home.name)).not.toContain("Example Funeral");
+  });
+
+  it("tracks non-residential usage and merges reusable directory records", async () => {
+    await repository.saveFirstCallFacility({ name: "Washington Hospital Center", address: "10 Health Way", phone: "202-555-0100", aliases: ["WHC"], favorite: false });
+    await repository.saveFirstCallFacility({ name: "MedStar Washington", address: "", phone: "", favorite: true });
+    let facilities = (await repository.listFirstCallDirectories()).facilities;
+    const source = facilities.find((item) => item.name === "Washington Hospital Center")!;
+    const target = facilities.find((item) => item.name === "MedStar Washington")!;
+
+    await repository.useFirstCallDirectory("facility", source.id);
+    await repository.mergeFirstCallDirectory("facility", source.id, target.id);
+    facilities = (await repository.listFirstCallDirectories()).facilities;
+
+    expect(facilities).toHaveLength(1);
+    expect(facilities[0]).toEqual(expect.objectContaining({
+      name: "MedStar Washington", address: "10 Health Way", phone: "202-555-0100", favorite: true, useCount: 1,
+      aliases: expect.arrayContaining(["Washington Hospital Center", "WHC"]),
+    }));
+    expect(facilities[0].lastUsedAt).not.toBeNull();
   });
 
   it("rejects Residence at the persistence boundary", async () => {
@@ -78,6 +98,30 @@ describe("PrismaReportRepository", () => {
     await repository.saveFirstCallPrintPreference({ scale: 1.025, offsetXInches: 0.03, offsetYInches: -0.02 });
     await expect(repository.loadFirstCallPrintPreference()).resolves.toEqual({ scale: 1.025, offsetXInches: 0.03, offsetYInches: -0.02 });
     expect(await repository.listReports()).toEqual([]);
+  });
+
+  it("creates a backup that passes SQLite integrity verification", async () => {
+    const backupPath = join(directory, "verified-backup.db");
+    await repository.backupTo(backupPath);
+    await expect(repository.verifyDatabaseFile(backupPath)).resolves.toBeUndefined();
+  });
+
+  it("migrates an existing First Call directory without losing its records", async () => {
+    await repository.saveFirstCallFuneralHome({ name: "Legacy Funeral", address: "9 Old Road", phone: "202-555-0199", fax: "", email: "" });
+    await repository.close();
+    const databasePath = join(directory, "test.db");
+    const legacyClient = new PrismaClient({ datasources: { db: { url: `file:${databasePath.replace(/\\/g, "/")}` } } });
+    for (const column of ["aliasesJson", "favorite", "useCount", "lastUsedAt"]) {
+      await legacyClient.$executeRawUnsafe(`ALTER TABLE "FirstCallFuneralHome" DROP COLUMN "${column}"`);
+      await legacyClient.$executeRawUnsafe(`ALTER TABLE "FirstCallFacility" DROP COLUMN "${column}"`);
+    }
+    await legacyClient.$disconnect();
+
+    repository = new PrismaReportRepository(databasePath);
+    await repository.initialize();
+    expect((await repository.listFirstCallDirectories()).funeralHomes).toEqual([expect.objectContaining({
+      name: "Legacy Funeral", address: "9 Old Road", aliases: [], favorite: false, useCount: 0, lastUsedAt: null,
+    })]);
   });
 
   it("caches only explicit non-residential place lookup results", async () => {

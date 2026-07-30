@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createFirstCallDraft, deriveDeceasedLastName, hasFirstCallContent } from "./firstCall";
+import { createFirstCallDraft, deriveDeceasedLastName, hasFirstCallContent, rankFirstCallDirectoryMatches } from "./firstCall";
 
 describe("First Call defaults and surname derivation", () => {
   it("defaults the date and taken-by value without treating them as user content", () => {
@@ -25,5 +25,23 @@ describe("First Call defaults and surname derivation", () => {
     ["Jordan Smith-Jones III", "SMITH-JONES"],
   ])("derives %s as %s", (name, expected) => {
     expect(deriveDeceasedLastName(name)).toBe(expected);
+  });
+});
+
+describe("First Call saved-directory matching", () => {
+  const facilities = [
+    { id: "1", name: "MedStar Washington Hospital Center", address: "10 Irving St", phone: "", aliases: ["WHC"], favorite: false, useCount: 5, lastUsedAt: null },
+    { id: "2", name: "Virginia Hospital Center", address: "1701 George Mason Dr", phone: "", aliases: ["VHC"], favorite: true, useCount: 1, lastUsedAt: null },
+    { id: "3", name: "Sibley Memorial Hospital", address: "5255 Loughboro Rd", phone: "", aliases: [], favorite: false, useCount: 0, lastUsedAt: null },
+  ];
+
+  it("matches partial names, aliases, and abbreviations", () => {
+    expect(rankFirstCallDirectoryMatches(facilities, "Sibley").map((item) => item.id)).toEqual(["3"]);
+    expect(rankFirstCallDirectoryMatches(facilities, "WHC").map((item) => item.id)).toEqual(["1"]);
+    expect(rankFirstCallDirectoryMatches(facilities, "VHC").map((item) => item.id)).toEqual(["2"]);
+  });
+
+  it("shows favorites and used locations first when the field is empty", () => {
+    expect(rankFirstCallDirectoryMatches(facilities, "").map((item) => item.id)).toEqual(["2", "1"]);
   });
 });

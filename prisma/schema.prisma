@@ -95,6 +95,10 @@ model FirstCallFuneralHome {
   phone          String   @default("")
   fax            String   @default("")
   email          String   @default("")
+  aliasesJson    String   @default("[]")
+  favorite       Boolean  @default(false)
+  useCount       Int      @default(0)
+  lastUsedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -105,6 +109,10 @@ model FirstCallFacility {
   normalizedName String   @unique
   address        String   @default("")
   phone          String   @default("")
+  aliasesJson    String   @default("[]")
+  favorite       Boolean  @default(false)
+  useCount       Int      @default(0)
+  lastUsedAt     DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

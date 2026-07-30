@@ -38,6 +38,10 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     deleteFirstCallFuneralHome: async () => ({ funeralHomes: [], facilities: [] }),
     saveFirstCallFacility: async () => ({ funeralHomes: [], facilities: [] }),
     deleteFirstCallFacility: async () => ({ funeralHomes: [], facilities: [] }),
+    useFirstCallDirectory: async () => ({ funeralHomes: [], facilities: [] }),
+    mergeFirstCallDirectory: async () => ({ funeralHomes: [], facilities: [] }),
+    exportFirstCallDirectories: async () => ({ canceled: true }),
+    importFirstCallDirectories: async () => ({ funeralHomes: [], facilities: [], canceled: true, imported: 0 }),
     searchFirstCallPlaces: async () => [],
     saveFirstCallTomTomApiKey: async () => ({ provider: "tomtom", configured: true, source: "saved" }),
     saveFirstCallPrintPreference: async (preference) => preference,
@@ -69,13 +73,15 @@ describe("resuming a draft stranded by the date rollover", () => {
   it("surfaces the stranded draft on the start screen with its date and size", async () => {
     render(<App />);
 
+    expect(await screen.findByRole("heading", { name: "Night Shift Report" })).toBeVisible();
+    expect(screen.queryByText(/Build tonight|focused workspace|Local-first/i)).not.toBeInTheDocument();
     expect(await screen.findByText(/Unfinished report for/)).toHaveTextContent("Tuesday, Jul 28");
     expect(screen.getByText(/1 entry/)).toBeInTheDocument();
   });
 
   it("opens that draft rather than creating a new report", async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Resume that report" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Resume unfinished report" }));
 
     // The editor opens on the resumed draft, with the entry made earlier in the shift intact.
     await screen.findByText("Night Shift Report");
@@ -84,9 +90,9 @@ describe("resuming a draft stranded by the date rollover", () => {
 
   it("still allows starting fresh instead", async () => {
     render(<App />);
-    await screen.findByRole("button", { name: "Resume that report" });
+    await screen.findByRole("button", { name: "Resume unfinished report" });
 
-    expect(screen.getByRole("button", { name: "Start empty" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Open Night Shift Report" })).toBeEnabled();
   });
 });
 
@@ -262,8 +268,8 @@ describe("App", () => {
 
     // The welcome screen shows again, but as a peek rather than the initial create-draft flow —
     // no start actions, just a way back to the report already in progress.
-    await screen.findByText("Local-first");
-    expect(screen.queryByRole("button", { name: "Start empty" })).not.toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Night Shift Report" });
+    expect(screen.queryByRole("button", { name: "Open Night Shift Report" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Back to report" }));
 

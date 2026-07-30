@@ -50,11 +50,8 @@ function WelcomeScreen({
   return (
     <main className="start-screen">
       <section className="start-card">
-        <div className="start-aurora" aria-hidden="true" />
         <div className="brand-mark">NS</div>
-        <p className="studio-kicker">Night operations · Report studio</p>
-        <h1>{onBack ? "Night Shift Report" : "Build tonight’s report with confidence."}</h1>
-        <p>A focused workspace for preparing, reviewing, and printing the next shift report. Your data stays on this computer.</p>
+        <h1>Night Shift Report</h1>
         {/* Shown when the date rolled over mid-shift: the draft started earlier tonight is for an
             earlier date, so it would otherwise be invisible here. */}
         {resumable && (
@@ -65,12 +62,11 @@ function WelcomeScreen({
         )}
         <div className="start-actions">
           {onBack && <Button variant="primary" onClick={onBack}>Back to report</Button>}
-          {!onBack && resumable && <Button variant="primary" onClick={onResume}>Resume that report</Button>}
-          {!onBack && latestFinalized && <Button variant={resumable ? "secondary" : "primary"} onClick={onContinueFromLast}>Continue from last report</Button>}
-          {!onBack && <Button variant={latestFinalized || resumable ? "secondary" : "primary"} onClick={onStartEmpty}>Start empty</Button>}
-          <Button variant="secondary" onClick={onOpenFirstCall}>First Call Sheet</Button>
+          {!onBack && resumable && <Button variant="primary" onClick={onResume}>Resume unfinished report</Button>}
+          {!onBack && <Button variant={resumable ? "secondary" : "primary"} onClick={onStartEmpty}>Open Night Shift Report</Button>}
+          <Button variant="secondary" onClick={onOpenFirstCall}>New First Call Sheet</Button>
+          {!onBack && latestFinalized && <Button variant="quiet" onClick={onContinueFromLast}>Continue from last report</Button>}
         </div>
-        <div className="start-assurance"><span>Local-first</span><span>Autosaved</span><span>Print-ready</span></div>
       </section>
     </main>
   );

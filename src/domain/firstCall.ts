@@ -50,6 +50,10 @@ export interface FirstCallFuneralHome {
   phone: string;
   fax: string;
   email: string;
+  aliases: string[];
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
 }
 
 export interface FirstCallFacility {
@@ -57,6 +61,10 @@ export interface FirstCallFacility {
   name: string;
   address: string;
   phone: string;
+  aliases: string[];
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
 }
 
 export interface FirstCallDirectories {
@@ -80,7 +88,8 @@ export interface FirstCallLookupCandidate {
   attribution: "TomTom";
 }
 
-export type FirstCallLookupKind = "funeralHome" | "facility";
+export type FirstCallDirectoryKind = "funeralHome" | "facility";
+export type FirstCallLookupKind = FirstCallDirectoryKind | "residence";
 
 export interface FirstCallSearchSettings {
   provider: "tomtom";
@@ -124,6 +133,30 @@ export function deriveDeceasedLastName(value: string): string {
 
 export function normalizeFirstCallDirectoryName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+}
+
+type SearchableDirectory = FirstCallFuneralHome | FirstCallFacility;
+
+function initials(value: string) {
+  return normalizeFirstCallDirectoryName(value).split(/[^a-z0-9]+/).filter(Boolean).map((part) => part[0]).join("");
+}
+
+export function rankFirstCallDirectoryMatches<T extends SearchableDirectory>(items: T[], query: string, limit = 5): T[] {
+  const normalized = normalizeFirstCallDirectoryName(query);
+  return items.map((item) => {
+    const terms = [item.name, ...item.aliases];
+    let match = -1;
+    for (const term of terms) {
+      const candidate = normalizeFirstCallDirectoryName(term);
+      if (!normalized) match = Math.max(match, item.favorite || item.lastUsedAt || item.useCount ? 1 : -1);
+      else if (candidate === normalized) match = Math.max(match, 80);
+      else if (candidate.startsWith(normalized)) match = Math.max(match, 60);
+      else if (candidate.includes(normalized)) match = Math.max(match, 40);
+      else if (initials(term).startsWith(normalized.replace(/[^a-z0-9]/g, ""))) match = Math.max(match, 30);
+    }
+    const recency = item.lastUsedAt ? Math.max(0, 10 - (Date.now() - new Date(item.lastUsedAt).getTime()) / 86_400_000) : 0;
+    return { item, match, score: match + (item.favorite ? 100 : 0) + Math.min(item.useCount, 20) + recency };
+  }).filter(({ match }) => match >= 0).sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name)).slice(0, limit).map(({ item }) => item);
 }
 
 export function hasFirstCallContent(draft: FirstCallDraft) {

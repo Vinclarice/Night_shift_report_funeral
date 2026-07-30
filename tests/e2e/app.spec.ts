@@ -1,10 +1,21 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { _electron as electron, expect, test } from "@playwright/test";
+
+async function directoryContainsText(directory: string, needle: string): Promise<boolean> {
+  if (!existsSync(directory)) return false;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (await directoryContainsText(path, needle)) return true;
+    } else if ((await readFile(path)).toString("utf8").includes(needle)) return true;
+  }
+  return false;
+}
 
 test("launches portably and renders the exact nine-card page", async () => {
   test.setTimeout(60_000);
@@ -16,7 +27,8 @@ test("launches portably and renders the exact nine-card page", async () => {
   try {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
-    await page.getByRole("button", { name: "Start empty" }).click();
+    await page.screenshot({ path: "test-results/version-2-launch.png" });
+    await page.getByRole("button", { name: "Open Night Shift Report" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
     await page.screenshot({ path: "test-results/studio-empty.png" });
     await page.getByRole("button", { name: "Finalize" }).click();
@@ -157,6 +169,44 @@ test("launches portably and renders the exact nine-card page", async () => {
   }
 });
 
+test("saves, suggests, aliases, and manages a reusable First Call location", async () => {
+  test.setTimeout(60_000);
+  const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-directory-e2e-"));
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
+  });
+  try {
+    const page = await electronApp.firstWindow();
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1100));
+    await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await page.getByLabel("Direct funeral home name").fill("Harbor Funeral Directors");
+    await page.getByLabel("Direct funeral home address").fill("100 Harbor Way, Alexandria, VA 22314");
+    await page.getByLabel("Direct funeral home telephone").fill("703-555-0100");
+    await page.getByRole("button", { name: "Save to directory" }).first().click();
+    await expect(page.getByText("Funeral home saved.")).toBeVisible();
+
+    await page.getByLabel("Direct funeral home name").fill("Harb");
+    await page.getByRole("option", { name: /Harbor Funeral Directors/ }).click();
+    await expect(page.getByLabel("Funeral home address", { exact: true })).toHaveValue("100 Harbor Way, Alexandria, VA 22314");
+
+    await page.getByRole("button", { name: "Manage directories" }).click();
+    await page.getByRole("button", { name: /Harbor Funeral Directors/ }).click();
+    await page.getByRole("button", { name: "Add to favorites" }).click();
+    await page.getByLabel("Aliases").fill("HFD, Harbor Funeral");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Funeral home updated.")).toBeVisible();
+    await page.screenshot({ path: "test-results/version-2-directory-manager.png" });
+    await page.getByRole("button", { name: "Close directory manager" }).click();
+
+    await page.getByLabel("Direct funeral home name").fill("HFD");
+    await expect(page.getByRole("option", { name: /Harbor Funeral Directors/ })).toBeVisible();
+  } finally {
+    await electronApp.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 test("opens the temporary First Call workspace and keeps Residence out of persistence", async () => {
   test.setTimeout(60_000);
   const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-e2e-"));
@@ -167,7 +217,7 @@ test("opens the temporary First Call workspace and keeps Residence out of persis
   try {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1200));
-    await page.getByRole("button", { name: "First Call Sheet" }).click();
+    await page.getByRole("button", { name: "New First Call Sheet" }).click();
     await expect(page.getByLabel("First Call Sheet canvas")).toBeVisible();
     await page.getByRole("button", { name: "100%" }).click();
     await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
@@ -198,9 +248,11 @@ test("opens the temporary First Call workspace and keeps Residence out of persis
     await page.getByLabel("Name of decedent").fill("Smith, Mary A.");
     await expect(page.getByLabel("Deceased last name")).toHaveValue("SMITH");
     await page.getByRole("button", { name: "Residence" }).click();
-    await page.getByLabel("Place of death address").fill("Private residence address");
-    await page.getByLabel("Place of death phone").fill("Private phone");
-    await expect(page.getByText(/not sent online, stored, backed up/)).toBeVisible();
+    await page.getByLabel("Direct residence address").fill("Private residence address");
+    await page.getByLabel("Direct residence telephone").fill("Private phone");
+    await expect(page.getByLabel("Place of death address")).toHaveValue("Private residence address");
+    await expect(page.getByLabel("Place of death phone")).toHaveValue("Private phone");
+    await expect(page.getByText(/never cached, saved, recommended, logged, backed up/)).toBeVisible();
     expect(await page.evaluate(async () => (await window.nightShift.loadFirstCallWorkspace()).facilities)).toEqual([]);
     await page.screenshot({ path: "test-results/first-call-workspace.png" });
 
@@ -243,13 +295,13 @@ test("uses an explicit TomTom search and formats the selected result simply", as
   });
   try {
     const page = await electronApp.firstWindow();
-    await page.getByRole("button", { name: "First Call Sheet" }).click();
-    await page.getByLabel("Funeral home", { exact: true }).fill("Example Medical");
-    await page.getByRole("button", { name: "Search online" }).first().click();
+    await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await page.getByLabel("Direct funeral home name").fill("Example Medical");
+    await page.getByRole("button", { name: "Search TomTom" }).first().click();
     await page.getByRole("button", { name: /Example Medical Center/ }).click();
 
-    await expect(page.getByLabel("Funeral home address")).toHaveValue("3300 Gallows Road, Falls Church, VA 22042");
-    await expect(page.getByLabel("Funeral home telephone number")).toHaveValue("+1 703-555-0199");
+    await expect(page.getByLabel("Funeral home address", { exact: true })).toHaveValue("3300 Gallows Road, Falls Church, VA 22042");
+    await expect(page.getByLabel("Funeral home telephone number")).toHaveValue("703-555-0199");
     await expect(page.getByLabel("Funeral home fax number")).toHaveValue("");
     const request = new URL(requestedUrl, "http://localhost");
     expect(decodeURIComponent(request.pathname)).toContain("Example Medical.json");
@@ -257,6 +309,53 @@ test("uses an explicit TomTom search and formats the selected result simply", as
     expect(request.searchParams.get("lat")).toBe("38.9072");
   } finally {
     await electronApp.close();
+    server.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("searches a Residence address without persisting it anywhere in app data", async () => {
+  test.setTimeout(60_000);
+  let requestedUrl = "";
+  const server = createServer((request, response) => {
+    requestedUrl = request.url ?? "";
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ results: [{
+      id: "residence-address-1",
+      address: { streetNumber: "742", streetName: "Evergreen Terrace", municipality: "Springfield", countrySubdivision: "VA", postalCode: "22150" },
+    }] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Mock TomTom server did not start.");
+  const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-residence-search-"));
+  const privateQuery = "742 Evergreen Terrace";
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: {
+      ...process.env,
+      NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory,
+      NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1",
+      NIGHT_SHIFT_REPORT_TOMTOM_API_KEY: "test-key",
+      NIGHT_SHIFT_REPORT_TOMTOM_SEARCH_URL: `http://127.0.0.1:${address.port}/search/2/search`,
+    },
+  });
+  let appClosed = false;
+  try {
+    const page = await electronApp.firstWindow();
+    await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await page.getByRole("button", { name: "Residence" }).click();
+    await page.getByLabel("Direct residence address").fill(privateQuery);
+    await page.getByRole("button", { name: "Search address with TomTom" }).click();
+    await page.getByRole("button", { name: /742 Evergreen Terrace, Springfield/ }).click();
+    await expect(page.getByLabel("Place of death address")).toHaveValue("742 Evergreen Terrace, Springfield, VA 22150");
+    expect(decodeURIComponent(requestedUrl)).toContain(privateQuery);
+    expect(await page.evaluate(async () => (await window.nightShift.loadFirstCallWorkspace()).facilities)).toEqual([]);
+    await electronApp.close();
+    appClosed = true;
+    expect(await directoryContainsText(dataDirectory, privateQuery)).toBe(false);
+  } finally {
+    if (!appClosed) await electronApp.close();
     server.close();
     await rm(dataDirectory, { recursive: true, force: true });
   }
@@ -272,10 +371,12 @@ test("the packaged Windows application starts with clean local data", async () =
   });
   try {
     const page = await electronApp.firstWindow();
-    await expect(page.getByRole("heading", { name: /Build tonight/ })).toBeVisible();
-    await page.getByRole("button", { name: "First Call Sheet" }).click();
-    await expect(page.getByText("Online search - TomTom")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Night Shift Report" })).toBeVisible();
+    await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await expect(page.getByRole("button", { name: /TomTom search settings/ })).toBeVisible();
     await expect(page.getByLabel("TomTom API key")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Manage directories" })).toBeVisible();
+    await expect(page.getByLabel("Direct funeral home name")).toBeVisible();
     await page.getByRole("button", { name: "100%" }).click();
     await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
     await expect(page.getByLabel("Selectable printed form text")).toBeVisible();
@@ -285,7 +386,7 @@ test("the packaged Windows application starts with clean local data", async () =
     expect(await page.locator(".first-call-source-page > img").first().evaluate((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
     await page.getByRole("button", { name: "Night Shift Report" }).click();
     await page.getByRole("button", { name: "Leave sheet" }).click();
-    await page.getByRole("button", { name: "Start empty" }).click();
+    await page.getByRole("button", { name: "Open Night Shift Report" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
     expect(existsSync(join(dataDirectory, "night-shift-report.db"))).toBe(true);
   } finally {

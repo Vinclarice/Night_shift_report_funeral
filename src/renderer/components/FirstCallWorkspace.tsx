@@ -7,10 +7,12 @@ import {
   deriveDeceasedLastName,
   hasFirstCallContent,
   normalizeFirstCallDirectoryName,
+  rankFirstCallDirectoryMatches,
 } from "@/domain/firstCall";
 import type {
   FirstCallCheckField,
   FirstCallDirectories,
+  FirstCallDirectoryKind,
   FirstCallDraft,
   FirstCallHighlight,
   FirstCallHighlightColor,
@@ -20,12 +22,14 @@ import type {
   FirstCallSearchSettings,
   FirstCallTextField,
 } from "@/domain/firstCall";
-import { IconArrowLeft, IconBuilding, IconMinus, IconPlus, IconPrinter, IconSearch, IconTrash } from "../icons";
+import type { FirstCallFacilityInput, FirstCallFuneralHomeInput } from "@/shared/contracts";
+import { IconArrowLeft, IconBuilding, IconMinus, IconPlus, IconPrinter, IconSearch, IconSliders, IconTrash } from "../icons";
 import { useToast } from "../ui/Toast";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FirstCallPage } from "./FirstCallPage";
+import { FirstCallDirectoryManager } from "./FirstCallDirectoryManager";
 import { WindowControls } from "./TitleBar";
 
 const EMPTY_DIRECTORIES: FirstCallDirectories = { funeralHomes: [], facilities: [] };
@@ -33,6 +37,10 @@ const DEFAULT_SEARCH_SETTINGS: FirstCallSearchSettings = { provider: "tomtom", c
 const MIN_PREVIEW_ZOOM = 0.5;
 const MAX_PREVIEW_ZOOM = 2;
 const HIGHLIGHT_COLORS: FirstCallHighlightColor[] = ["yellow", "green", "blue", "pink", "orange"];
+
+type PendingDuplicate =
+  | { kind: "funeralHome"; input: FirstCallFuneralHomeInput; existing: FirstCallDirectories["funeralHomes"][number] }
+  | { kind: "facility"; input: FirstCallFacilityInput; existing: FirstCallDirectories["facilities"][number] };
 
 function clampPreviewZoom(value: number) {
   return Math.min(MAX_PREVIEW_ZOOM, Math.max(MIN_PREVIEW_ZOOM, Math.round(value * 20) / 20));
@@ -50,6 +58,7 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
   const [searchSettings, setSearchSettings] = useState<FirstCallSearchSettings>(DEFAULT_SEARCH_SETTINGS);
   const [tomTomKey, setTomTomKey] = useState("");
   const [savingTomTomKey, setSavingTomTomKey] = useState(false);
+  const [tomTomSettingsOpen, setTomTomSettingsOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(0.75);
   const [previewZoomMode, setPreviewZoomMode] = useState<"fit" | "manual">("fit");
   const [highlightColor, setHighlightColor] = useState<FirstCallHighlightColor>("yellow");
@@ -60,6 +69,9 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
   const [lookupResultKind, setLookupResultKind] = useState<FirstCallLookupKind>("funeralHome");
   const [lookupResults, setLookupResults] = useState<FirstCallLookupCandidate[]>([]);
   const [confirmAction, setConfirmAction] = useState<"new" | "back" | null>(null);
+  const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
+  const [activeSuggestions, setActiveSuggestions] = useState<FirstCallDirectoryKind | null>(null);
+  const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +81,7 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
       setDirectories({ funeralHomes: data.funeralHomes, facilities: data.facilities });
       setPreference(data.printPreference);
       setSearchSettings(data.searchSettings);
+      setTomTomSettingsOpen(!data.searchSettings.configured && data.searchSettings.source !== "environment");
     }).catch((error: Error) => toast.error(error.message)).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [toast]);
@@ -112,12 +125,20 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     () => draft.placeOfDeathKind === "facility" ? directories.facilities.find((item) => sameName(item.name, draft.values.placeOfDeathName)) : undefined,
     [directories.facilities, draft.placeOfDeathKind, draft.values.placeOfDeathName],
   );
+  const funeralHomeSuggestions = useMemo(
+    () => rankFirstCallDirectoryMatches(directories.funeralHomes, draft.values.funeralHomeName),
+    [directories.funeralHomes, draft.values.funeralHomeName],
+  );
+  const facilitySuggestions = useMemo(
+    () => rankFirstCallDirectoryMatches(directories.facilities, draft.values.placeOfDeathName),
+    [directories.facilities, draft.values.placeOfDeathName],
+  );
 
   function patchValues(values: Partial<FirstCallDraft["values"]>) {
     setDraft((current) => ({ ...current, values: { ...current.values, ...values } }));
   }
 
-  function selectFuneralHome(name: string) {
+  function selectFuneralHome(name: string, trackUsage = true) {
     const match = directories.funeralHomes.find((item) => sameName(item.name, name));
     if (!match) return;
     patchValues({
@@ -127,13 +148,17 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
       funeralHomeFax: match.fax,
       funeralHomeEmail: match.email,
     });
+    setActiveSuggestions(null);
+    if (trackUsage) void window.nightShift.useFirstCallDirectory("funeralHome", match.id).then(setDirectories).catch((error: Error) => toast.error(error.message));
   }
 
-  function selectFacility(name: string) {
+  function selectFacility(name: string, trackUsage = true) {
     if (draft.placeOfDeathKind === "residence") return;
     const match = directories.facilities.find((item) => sameName(item.name, name));
     if (!match) return;
     patchValues({ placeOfDeathName: match.name, placeOfDeathAddress: match.address, placeOfDeathPhone: match.phone });
+    setActiveSuggestions(null);
+    if (trackUsage) void window.nightShift.useFirstCallDirectory("facility", match.id).then(setDirectories).catch((error: Error) => toast.error(error.message));
   }
 
   function setText(field: FirstCallTextField, value: string) {
@@ -147,8 +172,8 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
       }
       return { ...current, values, lastNameManuallyEdited };
     });
-    if (field === "funeralHomeName") selectFuneralHome(value);
-    if (field === "placeOfDeathName") selectFacility(value);
+    if (field === "funeralHomeName" && directories.funeralHomes.some((item) => sameName(item.name, value))) selectFuneralHome(value, false);
+    if (field === "placeOfDeathName" && directories.facilities.some((item) => sameName(item.name, value))) selectFacility(value, false);
   }
 
   function setCheck(field: FirstCallCheckField, value: boolean) {
@@ -198,35 +223,52 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     }));
   }
 
-  async function rememberFuneralHome() {
-    const values = draft.values;
+  async function saveFuneralHome(input: FirstCallFuneralHomeInput, message?: string) {
     try {
-      const next = await window.nightShift.saveFirstCallFuneralHome({
-        id: selectedFuneralHome?.id,
-        name: values.funeralHomeName,
-        address: values.funeralHomeAddress,
-        phone: values.funeralHomePhone,
-        fax: values.funeralHomeFax,
-        email: values.funeralHomeEmail,
-      });
+      const next = await window.nightShift.saveFirstCallFuneralHome(input);
       setDirectories(next);
-      toast.success(selectedFuneralHome ? "Funeral home updated." : "Funeral home remembered.");
+      toast.success(message ?? (input.id ? "Funeral home updated." : "Funeral home saved."));
     } catch (error) { toast.error((error as Error).message); }
   }
 
-  async function rememberFacility() {
+  async function saveFacility(input: FirstCallFacilityInput, message?: string) {
+    try {
+      const next = await window.nightShift.saveFirstCallFacility(input);
+      setDirectories(next);
+      toast.success(message ?? (input.id ? "Facility updated." : "Facility saved."));
+    } catch (error) { toast.error((error as Error).message); }
+  }
+
+  function potentialDuplicate<T extends { id: string; name: string; address: string }>(items: T[], id: string | undefined, name: string, address: string) {
+    const normalizedName = normalizeFirstCallDirectoryName(name);
+    const normalizedAddress = normalizeFirstCallDirectoryName(address);
+    return items.find((item) => item.id !== id && (
+      normalizeFirstCallDirectoryName(item.name) === normalizedName ||
+      (normalizedAddress.length >= 6 && normalizeFirstCallDirectoryName(item.address) === normalizedAddress)
+    ));
+  }
+
+  function rememberFuneralHome() {
+    const values = draft.values;
+    const input: FirstCallFuneralHomeInput = {
+      id: selectedFuneralHome?.id, name: values.funeralHomeName, address: values.funeralHomeAddress, phone: values.funeralHomePhone,
+      fax: values.funeralHomeFax, email: values.funeralHomeEmail, aliases: selectedFuneralHome?.aliases ?? [], favorite: selectedFuneralHome?.favorite ?? false,
+    };
+    const duplicate = potentialDuplicate(directories.funeralHomes, input.id, input.name, input.address);
+    if (duplicate) setPendingDuplicate({ kind: "funeralHome", input, existing: duplicate });
+    else void saveFuneralHome(input);
+  }
+
+  function rememberFacility() {
     if (draft.placeOfDeathKind === "residence") return;
     const values = draft.values;
-    try {
-      const next = await window.nightShift.saveFirstCallFacility({
-        id: selectedFacility?.id,
-        name: values.placeOfDeathName,
-        address: values.placeOfDeathAddress,
-        phone: values.placeOfDeathPhone,
-      });
-      setDirectories(next);
-      toast.success(selectedFacility ? "Facility updated." : "Facility remembered.");
-    } catch (error) { toast.error((error as Error).message); }
+    const input: FirstCallFacilityInput = {
+      id: selectedFacility?.id, name: values.placeOfDeathName, address: values.placeOfDeathAddress, phone: values.placeOfDeathPhone,
+      aliases: selectedFacility?.aliases ?? [], favorite: selectedFacility?.favorite ?? false,
+    };
+    const duplicate = potentialDuplicate(directories.facilities, input.id, input.name, input.address);
+    if (duplicate) setPendingDuplicate({ kind: "facility", input, existing: duplicate });
+    else void saveFacility(input);
   }
 
   async function removeDirectoryItem(kind: FirstCallLookupKind) {
@@ -241,7 +283,8 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
 
   async function searchOnline(kind: FirstCallLookupKind) {
     if (kind === "facility" && draft.placeOfDeathKind === "residence") return;
-    const query = kind === "funeralHome" ? draft.values.funeralHomeName : draft.values.placeOfDeathName;
+    if (kind === "residence" && draft.placeOfDeathKind !== "residence") return;
+    const query = kind === "funeralHome" ? draft.values.funeralHomeName : kind === "facility" ? draft.values.placeOfDeathName : draft.values.placeOfDeathAddress;
     if (query.trim().length < 2) { toast.error("Enter at least two characters before searching."); return; }
     setLookupKind(kind);
     setLookupResultKind(kind);
@@ -260,6 +303,7 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     try {
       setSearchSettings(await window.nightShift.saveFirstCallTomTomApiKey(tomTomKey));
       setTomTomKey("");
+      setTomTomSettingsOpen(false);
       toast.success("TomTom search is ready.");
     } catch (error) { toast.error((error as Error).message); }
     finally { setSavingTomTomKey(false); }
@@ -270,12 +314,20 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     try {
       setSearchSettings(await window.nightShift.saveFirstCallTomTomApiKey(""));
       setTomTomKey("");
+      setTomTomSettingsOpen(true);
       toast.success("Saved TomTom key removed. Manual entry remains available.");
     } catch (error) { toast.error((error as Error).message); }
     finally { setSavingTomTomKey(false); }
   }
 
   function applyLookup(candidate: FirstCallLookupCandidate, kind: FirstCallLookupKind) {
+    if (kind === "residence") {
+      if (draft.placeOfDeathKind !== "residence") return;
+      patchValues({ placeOfDeathAddress: candidate.address });
+      setLookupResults([]);
+      toast.success("Residence address applied for this sheet only.");
+      return;
+    }
     if (kind === "facility") {
       if (draft.placeOfDeathKind === "residence") return;
       patchValues({ placeOfDeathName: candidate.name, placeOfDeathAddress: candidate.address, placeOfDeathPhone: candidate.phone });
@@ -292,6 +344,50 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     toast.success("Suggestion applied. Review the details before remembering it.");
   }
 
+  async function removeManagedDirectoryItem(kind: FirstCallDirectoryKind, id: string) {
+    try {
+      const next = kind === "funeralHome" ? await window.nightShift.deleteFirstCallFuneralHome(id) : await window.nightShift.deleteFirstCallFacility(id);
+      setDirectories(next);
+      toast.success("Saved directory record removed.");
+    } catch (error) { toast.error((error as Error).message); }
+  }
+
+  async function mergeDirectoryItems(kind: FirstCallDirectoryKind, sourceId: string, targetId: string) {
+    try {
+      setDirectories(await window.nightShift.mergeFirstCallDirectory(kind, sourceId, targetId));
+      toast.success("Directory records merged.");
+    } catch (error) { toast.error((error as Error).message); }
+  }
+
+  async function exportDirectories() {
+    try {
+      const result = await window.nightShift.exportFirstCallDirectories();
+      if (!result.canceled) toast.success("Directory CSV exported.");
+    } catch (error) { toast.error((error as Error).message); }
+  }
+
+  async function importDirectories() {
+    try {
+      const result = await window.nightShift.importFirstCallDirectories();
+      setDirectories({ funeralHomes: result.funeralHomes, facilities: result.facilities });
+      if (!result.canceled) toast.success(`${result.imported} directory ${result.imported === 1 ? "record" : "records"} imported.`);
+    } catch (error) { toast.error((error as Error).message); }
+  }
+
+  function resolveDuplicate(useExisting: boolean) {
+    const pending = pendingDuplicate;
+    setPendingDuplicate(null);
+    if (!pending) return;
+    if (!useExisting) {
+      if (pending.kind === "funeralHome") void saveFuneralHome(pending.input, "Funeral home saved as a separate record.");
+      else void saveFacility(pending.input, "Facility saved as a separate record.");
+      return;
+    }
+    const aliases = [...new Set([...pending.existing.aliases, pending.input.name])];
+    if (pending.kind === "funeralHome") void saveFuneralHome({ ...pending.input, id: pending.existing.id, name: pending.existing.name, aliases, favorite: pending.existing.favorite }, "Existing funeral home updated and the alternate name was saved as an alias.");
+    else void saveFacility({ ...pending.input, id: pending.existing.id, name: pending.existing.name, aliases, favorite: pending.existing.favorite }, "Existing facility updated and the alternate name was saved as an alias.");
+  }
+
   async function saveCalibration() {
     try {
       setPreference(await window.nightShift.saveFirstCallPrintPreference(preference));
@@ -304,6 +400,8 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     else {
       setDraft(createFirstCallDraft());
       setPendingHighlightRects([]);
+      setLookupResults([]);
+      setLookupKind(null);
     }
   }
 
@@ -319,6 +417,8 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     else {
       setDraft(createFirstCallDraft());
       setPendingHighlightRects([]);
+      setLookupResults([]);
+      setLookupKind(null);
       window.getSelection()?.removeAllRanges();
     }
   }
@@ -333,6 +433,7 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
         </div>
         <div className="command-drag-region" aria-hidden="true" />
         <div className="command-actions">
+          <Button variant="quiet" onClick={() => setDirectoryManagerOpen(true)}>Manage directories</Button>
           <Button variant="secondary" onClick={requestNew}>New sheet</Button>
           <Button variant="print" icon={<IconPrinter />} onClick={() => void window.nightShift.printFirstCall()}>Print sheet</Button>
           <WindowControls />
@@ -341,27 +442,46 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
 
       <div className="first-call-workspace no-print">
         <aside className="first-call-tools" aria-label="First Call automation tools">
-          <section>
-            <div className="first-call-tool-heading"><IconSearch /><div><strong>Online search - TomTom</strong><small>{searchSettings.configured ? "Ready for name and address lookup" : "A free API key is required"}</small></div></div>
-            {searchSettings.source !== "environment" && <>
-              <label>TomTom API key<input type="password" aria-label="TomTom API key" value={tomTomKey} placeholder={searchSettings.configured ? "Saved securely" : "Paste your free key"} autoComplete="off" onChange={(event) => setTomTomKey(event.target.value)} /></label>
-              <div className="first-call-tool-actions">
-                <Button variant="secondary" disabled={!tomTomKey.trim()} busy={savingTomTomKey} onClick={() => void saveTomTomKey()}>Save key</Button>
-                {searchSettings.configured && <Button variant="quiet" disabled={savingTomTomKey} onClick={() => void clearTomTomKey()}>Remove key</Button>}
-              </div>
-            </>}
-            <p className="first-call-search-note">Free keys are available from TomTom Developer. Searches return the name, simple address, and main phone when available.</p>
+          <section className="first-call-settings-section">
+            <button type="button" className="first-call-settings-toggle" aria-expanded={tomTomSettingsOpen} onClick={() => setTomTomSettingsOpen((current) => !current)}>
+              <IconSliders />
+              <span><strong>TomTom search settings</strong><small>{searchSettings.configured ? "API key saved securely" : "Setup required for online search"}</small></span>
+              <b aria-hidden="true">{tomTomSettingsOpen ? "−" : "+"}</b>
+            </button>
+            {tomTomSettingsOpen && <div className="first-call-settings-menu">
+              {searchSettings.source !== "environment" ? <>
+                <label>TomTom API key<input type="password" aria-label="TomTom API key" value={tomTomKey} placeholder={searchSettings.configured ? "Enter a replacement key" : "Paste your free key"} autoComplete="off" onChange={(event) => setTomTomKey(event.target.value)} /></label>
+                <div className="first-call-tool-actions">
+                  <Button variant="secondary" disabled={!tomTomKey.trim()} busy={savingTomTomKey} onClick={() => void saveTomTomKey()}>{searchSettings.configured ? "Replace key" : "Save key"}</Button>
+                  {searchSettings.configured && <Button variant="quiet" disabled={savingTomTomKey} onClick={() => void clearTomTomKey()}>Remove key</Button>}
+                </div>
+              </> : <p className="first-call-search-note">The TomTom key is supplied by the application environment.</p>}
+              <p className="first-call-search-note">Searches return the name, simple address, and main phone when available.</p>
+            </div>}
           </section>
 
           <section>
-            <div className="first-call-tool-heading"><IconBuilding /><div><strong>Funeral home</strong><small>Fill and remember verified details</small></div></div>
-            <select aria-label="Saved First Call funeral home" value={selectedFuneralHome?.name ?? ""} onChange={(event) => selectFuneralHome(event.target.value)}>
-              <option value="">Choose a saved funeral home</option>
-              {directories.funeralHomes.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-            </select>
+            <div className="first-call-tool-heading"><IconBuilding /><div><strong>Funeral home</strong><small>Enter details here or choose a saved record</small></div></div>
+            <div className="first-call-direct-entry" aria-label="Direct funeral home entry">
+              <div className="first-call-suggest-field">
+                <label>Name<input type="text" aria-label="Direct funeral home name" autoComplete="off" value={draft.values.funeralHomeName} onFocus={() => setActiveSuggestions("funeralHome")} onChange={(event) => { setText("funeralHomeName", event.target.value); setActiveSuggestions("funeralHome"); }} /></label>
+                {activeSuggestions === "funeralHome" && funeralHomeSuggestions.length > 0 && <div className="first-call-suggestions" role="listbox" aria-label="Saved funeral home suggestions">
+                  {funeralHomeSuggestions.map((item) => <button key={item.id} role="option" aria-selected={selectedFuneralHome?.id === item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectFuneralHome(item.name)}>
+                    <span><strong>{item.favorite && "★ "}{item.name}</strong><small>{item.address || "No address saved"}</small></span>{item.aliases.length > 0 && <em>{item.aliases.join(" · ")}</em>}
+                  </button>)}
+                </div>}
+                {activeSuggestions === "funeralHome" && draft.values.funeralHomeName.trim().length >= 2 && funeralHomeSuggestions.length === 0 && <small className="first-call-no-match">No saved match. Use Search TomTom below.</small>}
+              </div>
+              <label>Address<input type="text" aria-label="Direct funeral home address" value={draft.values.funeralHomeAddress} onChange={(event) => setText("funeralHomeAddress", event.target.value)} /></label>
+              <div className="two-field">
+                <label>Telephone<input type="tel" aria-label="Direct funeral home telephone" value={draft.values.funeralHomePhone} onChange={(event) => setText("funeralHomePhone", event.target.value)} /></label>
+                <label>Fax<input type="tel" aria-label="Direct funeral home fax" value={draft.values.funeralHomeFax} onChange={(event) => setText("funeralHomeFax", event.target.value)} /></label>
+              </div>
+              <label>Email<input type="email" aria-label="Direct funeral home email" value={draft.values.funeralHomeEmail} onChange={(event) => setText("funeralHomeEmail", event.target.value)} /></label>
+            </div>
             <div className="first-call-tool-actions">
-              <Button variant="secondary" disabled={!draft.values.funeralHomeName.trim()} onClick={() => void rememberFuneralHome()}>{selectedFuneralHome ? "Update" : "Remember"}</Button>
-              <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "funeralHome"} onClick={() => void searchOnline("funeralHome")}>Search online</Button>
+              <Button variant="secondary" disabled={!draft.values.funeralHomeName.trim()} onClick={() => void rememberFuneralHome()}>{selectedFuneralHome ? "Update saved" : "Save to directory"}</Button>
+              <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "funeralHome"} onClick={() => void searchOnline("funeralHome")}>Search TomTom</Button>
               {selectedFuneralHome && <Button variant="quiet" icon={<IconTrash />} aria-label="Remove saved funeral home" onClick={() => void removeDirectoryItem("funeralHome")} />}
             </div>
           </section>
@@ -373,16 +493,32 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
               <button className={draft.placeOfDeathKind === "residence" ? "active" : ""} aria-pressed={draft.placeOfDeathKind === "residence"} onClick={() => setPlaceKind("residence")}>Residence</button>
             </div>
             {draft.placeOfDeathKind === "facility" ? <>
-              <select aria-label="Saved place of death facility" value={selectedFacility?.name ?? ""} onChange={(event) => selectFacility(event.target.value)}>
-                <option value="">Choose a saved facility</option>
-                {directories.facilities.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-              </select>
+              <div className="first-call-direct-entry" aria-label="Direct facility entry">
+                <div className="first-call-suggest-field">
+                  <label>Name<input type="text" aria-label="Direct facility name" autoComplete="off" value={draft.values.placeOfDeathName} onFocus={() => setActiveSuggestions("facility")} onChange={(event) => { setText("placeOfDeathName", event.target.value); setActiveSuggestions("facility"); }} /></label>
+                  {activeSuggestions === "facility" && facilitySuggestions.length > 0 && <div className="first-call-suggestions" role="listbox" aria-label="Saved facility suggestions">
+                  {facilitySuggestions.map((item) => <button key={item.id} role="option" aria-selected={selectedFacility?.id === item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectFacility(item.name)}>
+                      <span><strong>{item.favorite && "★ "}{item.name}</strong><small>{item.address || "No address saved"}</small></span>{item.aliases.length > 0 && <em>{item.aliases.join(" · ")}</em>}
+                    </button>)}
+                  </div>}
+                  {activeSuggestions === "facility" && draft.values.placeOfDeathName.trim().length >= 2 && facilitySuggestions.length === 0 && <small className="first-call-no-match">No saved match. Use Search TomTom below.</small>}
+                </div>
+                <label>Address<input type="text" aria-label="Direct facility address" value={draft.values.placeOfDeathAddress} onChange={(event) => setText("placeOfDeathAddress", event.target.value)} /></label>
+                <label>Telephone<input type="tel" aria-label="Direct facility telephone" value={draft.values.placeOfDeathPhone} onChange={(event) => setText("placeOfDeathPhone", event.target.value)} /></label>
+              </div>
               <div className="first-call-tool-actions">
-                <Button variant="secondary" disabled={!draft.values.placeOfDeathName.trim()} onClick={() => void rememberFacility()}>{selectedFacility ? "Update" : "Remember"}</Button>
-                <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "facility"} onClick={() => void searchOnline("facility")}>Search online</Button>
+                <Button variant="secondary" disabled={!draft.values.placeOfDeathName.trim()} onClick={() => void rememberFacility()}>{selectedFacility ? "Update saved" : "Save to directory"}</Button>
+                <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "facility"} onClick={() => void searchOnline("facility")}>Search TomTom</Button>
                 {selectedFacility && <Button variant="quiet" icon={<IconTrash />} aria-label="Remove saved facility" onClick={() => void removeDirectoryItem("facility")} />}
               </div>
-            </> : <p className="first-call-privacy-note">The residence name, address, and phone stay only on this sheet. They are not sent online, stored, backed up, or recovered.</p>}
+            </> : <>
+              <div className="first-call-direct-entry" aria-label="Direct residence entry">
+                <label>Address<input type="text" aria-label="Direct residence address" value={draft.values.placeOfDeathAddress} onChange={(event) => setText("placeOfDeathAddress", event.target.value)} /></label>
+                <label>Telephone<input type="tel" aria-label="Direct residence telephone" value={draft.values.placeOfDeathPhone} onChange={(event) => setText("placeOfDeathPhone", event.target.value)} /></label>
+              </div>
+              <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured || draft.values.placeOfDeathAddress.trim().length < 2} busy={lookupKind === "residence"} onClick={() => void searchOnline("residence")}>Search address with TomTom</Button>
+              <p className="first-call-privacy-note">Only an address you explicitly search is sent to TomTom. Residence details are never cached, saved, recommended, logged, backed up, or recovered.</p>
+            </>}
           </section>
 
           {lookupResults.length > 0 && <section className="first-call-results" aria-label="Online lookup results">
@@ -465,6 +601,30 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
         onConfirm={confirmDiscard}
         onCancel={() => setConfirmAction(null)}
       />}
+      {directoryManagerOpen && <FirstCallDirectoryManager
+        directories={directories}
+        onClose={() => setDirectoryManagerOpen(false)}
+        onSaveFuneralHome={(input) => saveFuneralHome(input)}
+        onSaveFacility={(input) => saveFacility(input)}
+        onDelete={removeManagedDirectoryItem}
+        onMerge={mergeDirectoryItems}
+        onExport={exportDirectories}
+        onImport={importDirectories}
+      />}
+      {pendingDuplicate && <div className="modal-backdrop" role="presentation">
+        <section className="modal first-call-duplicate-modal" role="dialog" aria-modal="true" aria-labelledby="first-call-duplicate-title">
+          <header className="modal-header"><div><p className="studio-kicker">Possible duplicate</p><h2 id="first-call-duplicate-title">A similar location is already saved</h2></div></header>
+          <div className="modal-body">
+            <p><strong>{pendingDuplicate.existing.name}</strong><br />{pendingDuplicate.existing.address || "No saved address"}</p>
+            <p>Update that record and keep the entered name as an alias, or save this as a separate location.</p>
+          </div>
+          <footer className="modal-actions">
+            <Button variant="quiet" onClick={() => setPendingDuplicate(null)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => resolveDuplicate(false)}>Keep both</Button>
+            <Button variant="primary" onClick={() => resolveDuplicate(true)}>Update existing</Button>
+          </footer>
+        </section>
+      </div>}
     </main>
   );
 }

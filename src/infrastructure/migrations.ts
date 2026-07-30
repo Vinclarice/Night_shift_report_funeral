@@ -74,6 +74,10 @@ const statements = [
     "phone" TEXT NOT NULL DEFAULT '',
     "fax" TEXT NOT NULL DEFAULT '',
     "email" TEXT NOT NULL DEFAULT '',
+    "aliasesJson" TEXT NOT NULL DEFAULT '[]',
+    "favorite" BOOLEAN NOT NULL DEFAULT false,
+    "useCount" INTEGER NOT NULL DEFAULT 0,
+    "lastUsedAt" DATETIME,
     "createdAt" DATETIME NOT NULL,
     "updatedAt" DATETIME NOT NULL
   )`,
@@ -84,6 +88,10 @@ const statements = [
     "normalizedName" TEXT NOT NULL,
     "address" TEXT NOT NULL DEFAULT '',
     "phone" TEXT NOT NULL DEFAULT '',
+    "aliasesJson" TEXT NOT NULL DEFAULT '[]',
+    "favorite" BOOLEAN NOT NULL DEFAULT false,
+    "useCount" INTEGER NOT NULL DEFAULT 0,
+    "lastUsedAt" DATETIME,
     "createdAt" DATETIME NOT NULL,
     "updatedAt" DATETIME NOT NULL
   )`,
@@ -110,6 +118,14 @@ const statements = [
  */
 const addedColumns: Array<{ table: string; column: string; definition: string }> = [
   { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
+  { table: "FirstCallFuneralHome", column: "aliasesJson", definition: `TEXT NOT NULL DEFAULT '[]'` },
+  { table: "FirstCallFuneralHome", column: "favorite", definition: `BOOLEAN NOT NULL DEFAULT false` },
+  { table: "FirstCallFuneralHome", column: "useCount", definition: `INTEGER NOT NULL DEFAULT 0` },
+  { table: "FirstCallFuneralHome", column: "lastUsedAt", definition: `DATETIME` },
+  { table: "FirstCallFacility", column: "aliasesJson", definition: `TEXT NOT NULL DEFAULT '[]'` },
+  { table: "FirstCallFacility", column: "favorite", definition: `BOOLEAN NOT NULL DEFAULT false` },
+  { table: "FirstCallFacility", column: "useCount", definition: `INTEGER NOT NULL DEFAULT 0` },
+  { table: "FirstCallFacility", column: "lastUsedAt", definition: `DATETIME` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {
