@@ -211,13 +211,14 @@ test("saves, suggests, aliases, and manages a reusable First Call location", asy
   }
 });
 
-test("opens the temporary First Call workspace and keeps Residence out of persistence", async () => {
+test("opens the First Call workspace and keeps Residence out of persistence", async () => {
   test.setTimeout(60_000);
   const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-e2e-"));
   const electronApp = await electron.launch({
     args: [join(process.cwd(), "out/main/index.js")],
     env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
   });
+  let appClosed = false;
   try {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1200));
@@ -265,8 +266,18 @@ test("opens the temporary First Call workspace and keeps Residence out of persis
     await page.locator(".first-call-print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
     await page.evaluate(() => { document.documentElement.style.overflow = "hidden"; document.body.style.overflow = "hidden"; window.scrollTo(0, 0); });
     await page.screenshot({ path: "test-results/first-call-residence-page.png", clip: { x: 0, y: 0, width: 816, height: 1056 } });
-  } finally {
+
+    // The sheet as a whole now autosaves, but Residence stays excluded even from that: give the
+    // debounce time to fire, close, and confirm the private address/phone never reached disk while
+    // the decedent name (which is allowed to persist) did.
+    await page.waitForTimeout(1000);
     await electronApp.close();
+    appClosed = true;
+    expect(await directoryContainsText(dataDirectory, "Private residence address")).toBe(false);
+    expect(await directoryContainsText(dataDirectory, "Private phone")).toBe(false);
+    expect(await directoryContainsText(dataDirectory, "Smith, Mary A.")).toBe(true);
+  } finally {
+    if (!appClosed) await electronApp.close();
     await rm(dataDirectory, { recursive: true, force: true });
   }
 });
@@ -369,14 +380,15 @@ test("searches a Residence address without persisting it anywhere in app data", 
   }
 });
 
-test("runs a Cremation Batch while keeping deceased names out of local storage", async () => {
+test("persists a Cremation Batch until cleared, while the funeral-home directory stays a separate explicit save", async () => {
   test.setTimeout(60_000);
   const dataDirectory = await mkdtemp(join(tmpdir(), "cremation-batch-e2e-"));
   const privateName = "Privacy Canary Decedent";
-  const electronApp = await electron.launch({
+  const launch = () => electron.launch({
     args: [join(process.cwd(), "out/main/index.js")],
     env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
   });
+  let electronApp = await launch();
   let appClosed = false;
   try {
     const page = await electronApp.firstWindow();
@@ -399,13 +411,38 @@ test("runs a Cremation Batch while keeping deceased names out of local storage",
     await page.getByRole("alertdialog").getByRole("button", { name: "Save final number" }).click();
     await expect(page.getByText("Saved 6-064-01 as the final cremation number.")).toBeVisible();
     await page.screenshot({ path: "test-results/cremation-batch.png" });
+
+    // The batch autosaves in the background on a short debounce; give it time to land before
+    // checking storage or closing the window.
+    await page.waitForTimeout(1000);
     const stored = await page.evaluate(() => window.nightShift.loadCremationWorkspace());
     expect(stored.savedFinalNumber).toBe("6-064-01");
-    expect(stored.funeralHomes).toEqual([]);
+    expect(stored.funeralHomes).toEqual([]); // the funeral-home directory remains a separate, explicit save
+    expect(stored.savedBatch?.rows.map((row) => row.fullName)).toEqual([privateName, "Second Example Person"]);
+    await electronApp.close();
+    appClosed = true;
+    // Batch rows (including deceased names) are now expected to persist until "Clear batch" - the
+    // opposite of this app's earlier behavior - so the saved database should contain them.
+    expect(await directoryContainsText(dataDirectory, privateName)).toBe(true);
+    expect(await directoryContainsText(dataDirectory, "Second Example Person")).toBe(true);
+
+    // Reopening against the same data directory resumes the batch exactly as it was left. The
+    // workspace's own load effect resumes the saved rows regardless of which entry point brought
+    // it up, so this is the same "New Cremation Batch" button used to open it the first time.
+    electronApp = await launch();
+    appClosed = false;
+    const reopened = await electronApp.firstWindow();
+    await reopened.getByRole("button", { name: "New Cremation Batch" }).click();
+    await expect(reopened.getByLabel("Full name 1")).toHaveValue(privateName);
+    await expect(reopened.getByLabel("Full name 2")).toHaveValue("Second Example Person");
+
+    // Clear batch removes the saved rows for good.
+    await reopened.getByRole("button", { name: "Clear batch" }).click();
+    await expect(reopened.getByLabel("Full name 1")).toHaveValue("");
+    await reopened.waitForTimeout(1000);
     await electronApp.close();
     appClosed = true;
     expect(await directoryContainsText(dataDirectory, privateName)).toBe(false);
-    expect(await directoryContainsText(dataDirectory, "Second Example Person")).toBe(false);
   } finally {
     if (!appClosed) await electronApp.close();
     await rm(dataDirectory, { recursive: true, force: true });
@@ -444,8 +481,9 @@ test("the packaged Windows application starts with clean local data", async () =
     await expect(page.locator(".first-call-interactive .first-call-highlight-auto")).toHaveCount(1);
     await expect(page.locator(".first-call-print-only .first-call-highlight-auto")).toHaveCount(1);
     expect(await page.locator(".first-call-source-page > img").first().evaluate((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
+    // Leaving the sheet no longer asks for confirmation - it autosaves, so there's nothing to
+    // discard - it navigates straight back to Night Shift Report.
     await page.getByRole("button", { name: "Night Shift" }).click();
-    await page.getByRole("button", { name: "Leave sheet" }).click();
     await page.getByRole("button", { name: "Open Night Shift Report" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
     expect(existsSync(join(dataDirectory, "night-shift-report.db"))).toBe(true);

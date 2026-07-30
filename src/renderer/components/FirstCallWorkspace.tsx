@@ -8,6 +8,7 @@ import {
   hasFirstCallContent,
   normalizeFirstCallDirectoryName,
   rankFirstCallDirectoryMatches,
+  sanitizeFirstCallDraftForPersistence,
 } from "@/domain/firstCall";
 import type {
   FirstCallCheckField,
@@ -70,7 +71,7 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
   const [lookupKind, setLookupKind] = useState<FirstCallLookupKind | null>(null);
   const [lookupResultKind, setLookupResultKind] = useState<FirstCallLookupKind>("funeralHome");
   const [lookupResults, setLookupResults] = useState<FirstCallLookupCandidate[]>([]);
-  const [confirmAction, setConfirmAction] = useState<"new" | "back" | "cremation" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"new" | null>(null);
   const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<"funeralHome" | "placeOfDeath" | "settings">("funeralHome");
   const [activeSuggestions, setActiveSuggestions] = useState<FirstCallDirectoryKind | null>(null);
@@ -86,9 +87,21 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
       setPreference(data.printPreference);
       setSearchSettings(data.searchSettings);
       setTomTomSettingsOpen(!data.searchSettings.configured && data.searchSettings.source !== "environment");
+      if (data.savedDraft) setDraft(data.savedDraft);
     }).catch((error: Error) => toast.error(error.message)).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [toast]);
+
+  // The sheet now persists on its own until the operator explicitly clears it (New sheet). Residence
+  // details are stripped out by sanitizeFirstCallDraftForPersistence before they ever reach the save
+  // call, so that carve-out holds regardless of what triggers this effect.
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      void window.nightShift.saveFirstCallDraft(sanitizeFirstCallDraftForPersistence(draft)).catch((error: Error) => toast.error(error.message));
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [draft, loading, toast]);
 
   const fitPreview = useCallback(() => {
     const canvas = canvasRef.current;
@@ -417,38 +430,29 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
 
   function requestNew() {
     if (hasFirstCallContent(draft)) setConfirmAction("new");
-    else {
-      setDraft(createFirstCallDraft());
-      setPendingHighlightRects([]);
-      setLookupResults([]);
-      setLookupKind(null);
-    }
+    else void clearDraft();
   }
 
-  function requestBack() {
-    if (hasFirstCallContent(draft)) setConfirmAction("back");
-    else onBack();
-  }
-
+  // Leaving or switching workspaces no longer discards anything - the sheet autosaves - so this
+  // navigates directly instead of confirming first. Only "New sheet" is still destructive.
   function navigateWorkspace(mode: WorkspaceMode) {
     if (mode === "firstCall") return;
-    if (mode === "report") return requestBack();
-    if (hasFirstCallContent(draft)) setConfirmAction("cremation");
-    else onNavigate(mode);
+    if (mode === "report") return onBack();
+    onNavigate(mode);
+  }
+
+  async function clearDraft() {
+    setDraft(createFirstCallDraft());
+    setPendingHighlightRects([]);
+    setLookupResults([]);
+    setLookupKind(null);
+    window.getSelection()?.removeAllRanges();
+    try { await window.nightShift.clearFirstCallDraft(); } catch (error) { toast.error((error as Error).message); }
   }
 
   function confirmDiscard() {
-    const action = confirmAction;
     setConfirmAction(null);
-    if (action === "back") onBack();
-    else if (action === "cremation") onNavigate("cremation");
-    else {
-      setDraft(createFirstCallDraft());
-      setPendingHighlightRects([]);
-      setLookupResults([]);
-      setLookupKind(null);
-      window.getSelection()?.removeAllRanges();
-    }
+    void clearDraft();
   }
 
   return (
@@ -456,7 +460,7 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
       <header className="studio-commandbar no-print">
         <div className="command-report-meta">
           <span className="command-glow" aria-hidden="true" />
-          <div><p>Private, temporary workspace</p><strong>First Call Sheet</strong></div>
+          <div><p>Saved until you clear it</p><strong>First Call Sheet</strong></div>
         </div>
         <WorkspaceTabs active="firstCall" onNavigate={navigateWorkspace} />
         <div className="command-drag-region" aria-hidden="true" />
@@ -623,9 +627,9 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
 
       <div className="print-only first-call-print-only"><FirstCallPage draft={draft} preference={preference} autoHighlightChecks={autoHighlightChecks} /></div>
       {confirmAction && <ConfirmDialog
-        title={confirmAction === "back" ? "Leave this First Call Sheet?" : confirmAction === "cremation" ? "Open Cremation Batch?" : "Start a new First Call Sheet?"}
-        message="This sheet is intentionally not saved. The information currently on it will be discarded."
-        confirmLabel={confirmAction === "back" ? "Leave sheet" : confirmAction === "cremation" ? "Open Cremation Batch" : "Start new sheet"}
+        title="Start a new First Call Sheet?"
+        message="This sheet is saved automatically, but starting a new one clears it for good. Print or note anything you still need first."
+        confirmLabel="Start new sheet"
         danger
         onConfirm={confirmDiscard}
         onCancel={() => setConfirmAction(null)}

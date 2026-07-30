@@ -159,6 +159,18 @@ export function rankFirstCallDirectoryMatches<T extends SearchableDirectory>(ite
   }).filter(({ match }) => match >= 0).sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name)).slice(0, limit).map(({ item }) => item);
 }
 
+/**
+ * The sheet as a whole is now persisted until the operator clears it, but a Residence place of
+ * death stays exactly as temporary as before: its address and phone are never written to disk,
+ * whether typed directly or pulled in from a TomTom search. Facility addresses are unaffected -
+ * only Residence carries this carve-out. Called before every save so the excluded fields never
+ * reach the IPC boundary in the first place.
+ */
+export function sanitizeFirstCallDraftForPersistence(draft: FirstCallDraft): FirstCallDraft {
+  if (draft.placeOfDeathKind !== "residence") return draft;
+  return { ...draft, values: { ...draft.values, placeOfDeathAddress: "", placeOfDeathPhone: "" } };
+}
+
 export function hasFirstCallContent(draft: FirstCallDraft) {
   return draft.highlights.length > 0 || FIRST_CALL_CHECK_FIELDS.some((field) => draft.checks[field]) || FIRST_CALL_TEXT_FIELDS.some((field) => {
     if (field === "dateOfCall" || field === "takenBy") return false;

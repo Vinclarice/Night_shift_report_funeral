@@ -1,6 +1,7 @@
 import type { LayoutSettings, NightReport, SectionKey } from "@/domain/types";
 import type {
   FirstCallDirectories,
+  FirstCallDraft,
   FirstCallFacility,
   FirstCallFuneralHome,
   FirstCallLookupCandidate,
@@ -11,6 +12,7 @@ import type {
 } from "@/domain/firstCall";
 import type { RevisionSummary } from "@/application/repository";
 import type {
+  CremationBatchRow,
   CremationDocumentKind,
   CremationFuneralHome,
   CremationLabelReadiness,
@@ -27,14 +29,23 @@ export interface FirstCallDirectoryExportResult { canceled: boolean; path?: stri
 export interface FirstCallWorkspaceData extends FirstCallDirectories {
   printPreference: FirstCallPrintPreference;
   searchSettings: FirstCallSearchSettings;
+  /** The sheet left over from last time, or null when there is nothing saved to resume. */
+  savedDraft: FirstCallDraft | null;
 }
 
 export type CremationFuneralHomeInput = Pick<CremationFuneralHome, "name" | "location"> & { id?: string };
+/** The full in-progress batch, saved as one unit so it can be resumed exactly as it was left. */
+export interface CremationBatchSnapshot {
+  date: string;
+  rows: CremationBatchRow[];
+}
 export interface CremationWorkspaceData {
   funeralHomes: CremationFuneralHome[];
   savedFinalNumber: string | null;
   printPreferences: Record<CremationDocumentKind, CremationPrintPreference>;
   labelReadiness: CremationLabelReadiness;
+  /** The batch left over from last time, or null when there is nothing saved to resume. */
+  savedBatch: CremationBatchSnapshot | null;
 }
 export interface CremationLabelItem { id: string; displayName: string }
 export interface CremationLabelPrintResult { printedIds: string[]; failureReason?: string }
@@ -91,11 +102,15 @@ export interface NightShiftApi {
   saveFirstCallTomTomApiKey(apiKey: string): Promise<FirstCallSearchSettings>;
   saveFirstCallPrintPreference(preference: FirstCallPrintPreference): Promise<FirstCallPrintPreference>;
   printFirstCall(): Promise<{ success: boolean; failureReason?: string }>;
+  saveFirstCallDraft(draft: FirstCallDraft): Promise<void>;
+  clearFirstCallDraft(): Promise<void>;
   loadCremationWorkspace(): Promise<CremationWorkspaceData>;
   saveCremationFuneralHome(input: CremationFuneralHomeInput): Promise<CremationFuneralHome[]>;
   deleteCremationFuneralHome(id: string): Promise<CremationFuneralHome[]>;
   saveCremationFinalNumber(value: string): Promise<string>;
   saveCremationPrintPreference(kind: CremationDocumentKind, preference: CremationPrintPreference): Promise<CremationPrintPreference>;
+  saveCremationBatch(snapshot: CremationBatchSnapshot): Promise<void>;
+  clearCremationBatch(): Promise<void>;
   printCremationDocument(kind: CremationDocumentKind): Promise<{ success: boolean; failureReason?: string }>;
   checkCremationLabelReadiness(): Promise<CremationLabelReadiness>;
   printCremationLabels(items: CremationLabelItem[]): Promise<CremationLabelPrintResult>;

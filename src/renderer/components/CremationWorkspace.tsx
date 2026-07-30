@@ -81,8 +81,13 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
     let active = true;
     void window.nightShift.loadCremationWorkspace().then((data) => {
       if (!active) return;
-      const firstNumber = data.savedFinalNumber ? nextCremationNumber(data.savedFinalNumber) ?? "" : "";
-      setRows([createCremationBatchRow(firstNumber)]);
+      if (data.savedBatch && data.savedBatch.rows.length) {
+        setRows(data.savedBatch.rows);
+        setDate(data.savedBatch.date);
+      } else {
+        const firstNumber = data.savedFinalNumber ? nextCremationNumber(data.savedFinalNumber) ?? "" : "";
+        setRows([createCremationBatchRow(firstNumber)]);
+      }
       setSavedFinalNumber(data.savedFinalNumber);
       setFuneralHomes(data.funeralHomes);
       setPreferences(data.printPreferences);
@@ -100,6 +105,15 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
     });
     return () => { active = false; };
   }, [toast]);
+
+  // The batch now persists on its own until the operator explicitly clears it.
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      void window.nightShift.saveCremationBatch({ date, rows }).catch((error: Error) => toast.error(error.message));
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [date, rows, loading, toast]);
 
   const completeRows = useMemo(() => rows.filter(isCremationRowComplete), [rows]);
   const selectedRows = useMemo(() => completeRows.filter((row) => row.selected), [completeRows]);
@@ -276,14 +290,15 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
   }
 
   function clearBatch() {
-    const reset = () => {
+    const reset = async () => {
       const number = savedFinalNumber ? nextCremationNumber(savedFinalNumber) ?? "" : "";
       setRows([createCremationBatchRow(number)]);
       setDate(todayLocal());
       setConfirm(null);
+      try { await window.nightShift.clearCremationBatch(); } catch (error) { toast.error(error instanceof Error ? error.message : "The saved batch could not be cleared."); }
     };
-    if (!hasUnsavedSequence) return reset();
-    setConfirm({ title: "Clear this unsaved batch?", message: "The final cremation number has not been saved. Clearing now will discard the batch rows and names.", label: "Clear batch", danger: true, action: reset });
+    if (!hasUnsavedSequence) return void reset();
+    setConfirm({ title: "Clear this unsaved batch?", message: "The final cremation number has not been saved. Clearing now will discard the batch rows and names for good.", label: "Clear batch", danger: true, action: reset });
   }
 
   function navigateWorkspace(mode: WorkspaceMode) {
@@ -292,7 +307,7 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
     if (!hasUnsavedSequence) return navigate();
     setConfirm({
       title: "Leave without saving the final number?",
-      message: "The cremation sequence has advanced beyond the saved number. Names and batch rows are never stored and will be lost when you leave.",
+      message: "The batch rows are saved automatically, but the cremation sequence has advanced beyond the saved final number, so the next batch won't pick up where this one left off until you save it.",
       label: mode === "firstCall" ? "Open First Call" : "Leave workspace",
       danger: true,
       action: navigate,
@@ -432,7 +447,7 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
           </section>
 
           <section hidden={sidebarTab !== "directory"}>
-            <div className="cremation-section-heading"><div><strong>Cremation funeral homes</strong><small>Saving this directory is explicit. Batch names are never stored.</small></div></div>
+            <div className="cremation-section-heading"><div><strong>Cremation funeral homes</strong><small>Saving this directory is explicit and separate from the batch, which now saves automatically until you clear it.</small></div></div>
             <label>Name<input value={directoryDraft.name} onChange={(event) => setDirectoryDraft((current) => ({ ...current, name: event.target.value }))} /></label>
             <label>City / State<input value={directoryDraft.location} onChange={(event) => setDirectoryDraft((current) => ({ ...current, location: event.target.value }))} /></label>
             <div className="cremation-directory-actions"><Button variant="secondary" busy={busy} onClick={() => void saveDirectory()}>{directoryDraft.id ? "Update record" : "Save record"}</Button>{directoryDraft.id && <Button variant="quiet" onClick={() => setDirectoryDraft({ id: "", name: "", location: "" })}>Cancel</Button>}</div>

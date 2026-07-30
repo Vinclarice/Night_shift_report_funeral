@@ -665,6 +665,9 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .first-call-highlight { position: absolute; border-radius: 1.5pt; mix-blend-mode: multiply; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .first-call-highlight-auto { filter: saturate(.92); }
 .first-call-highlight-manual { filter: saturate(.86); }
+/* Redraws a checked box's label in solid black bold, on top of the highlight rectangle, so the
+   mix-blend-mode tint behind it never dulls the printed word into a harder-to-read gray. */
+.first-call-check-highlight-label { position: absolute; display: flex; align-items: center; overflow: visible; color: #000; font: 800 9pt/1 Arial, Helvetica, sans-serif; white-space: nowrap; }
 .first-call-field-layer { z-index: 3; pointer-events: none; }
 .first-call-input, .first-call-value { position: absolute; z-index: 3; margin: 0; padding: 0 1.5pt 1pt; overflow: hidden; border: 1px solid transparent; border-radius: 2px; color: #050505; background: transparent; font: var(--field-font-weight, 400) var(--field-font-size)/1 Arial, Helvetica, sans-serif; white-space: nowrap; pointer-events: auto; }
 .first-call-input:hover { background: rgb(32 170 126 / 5%); }
@@ -674,7 +677,7 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .first-call-check-slot { position: absolute; z-index: 4; display: grid; place-items: center; pointer-events: auto; }
 .first-call-check-slot input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: .015; cursor: pointer; }
 .first-call-check-slot:focus-within { border-radius: 3px; outline: 1px solid rgb(11 122 85 / 70%); background: rgb(221 255 244 / 45%); }
-.first-call-check-mark { color: #050505; font: 800 9pt/1 Arial, Helvetica, sans-serif; transform: translateY(-.5pt); }
+.first-call-check-mark { color: #050505; font: 800 11pt/1 Arial, Helvetica, sans-serif; transform: translateY(-.6pt); }
 .first-call-semantic-layer { z-index: 2; color: transparent; user-select: text; pointer-events: none; }
 .first-call-semantic-layer > span { position: absolute; display: block; overflow: visible; color: transparent; font-family: Arial, Helvetica, sans-serif; line-height: 1; white-space: nowrap; cursor: text; user-select: text; pointer-events: auto; }
 .first-call-semantic-layer > span::selection { color: transparent; background: var(--semantic-selection-color); }
@@ -765,16 +768,16 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .cremation-document-page { position: relative; flex: none; overflow: hidden; color: #050505; background: white; box-sizing: border-box; font-family: "Times New Roman", Times, serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .cremation-print-transform { position: absolute; inset: 0; transform: translate(var(--cremation-offset-x), var(--cremation-offset-y)) scale(var(--cremation-scale)); transform-origin: center; }
 .cremation-certificate-page { width: 210mm; height: 148mm; }
-.cremation-certificate-page span { position: absolute; display: block; white-space: nowrap; }
-.certificate-date { top: 59.5mm; left: 104mm; width: 65mm; text-align: center; font-size: 14pt; font-style: italic; font-weight: 700; }
-.certificate-number { top: 68mm; left: 146mm; width: 39mm; text-align: center; font-size: 14pt; font-style: italic; font-weight: 700; }
-.certificate-name { top: 85mm; left: 70mm; width: 91mm; text-align: center; font-size: 16pt; font-style: italic; font-weight: 700; }
+.cremation-certificate-page span { position: absolute; display: block; white-space: nowrap; font-family: "Bookman Old Style", "URW Bookman", Georgia, serif; }
+.certificate-date { top: 59.5mm; left: 104mm; width: 65mm; text-align: center; font-size: 12pt; font-style: italic; font-weight: 700; }
+.certificate-number { top: 68mm; left: 146mm; width: 39mm; text-align: center; font-size: 12pt; font-style: italic; font-weight: 700; }
+.certificate-name { top: 85mm; left: 70mm; width: 91mm; text-align: center; font-size: 12pt; font-style: italic; font-weight: 700; }
 .cremation-envelope-page { width: 229mm; height: 162mm; }
-.cremation-envelope-page h1 { position: absolute; top: 59mm; left: 18mm; right: 18mm; margin: 0; text-align: center; font-family: Arial, Helvetica, sans-serif; font-size: 24pt; font-weight: 800; text-shadow: 1.1pt 1.1pt 1pt rgb(0 0 0 / 48%); }
-.cremation-envelope-page .envelope-name, .cremation-envelope-page .envelope-funeral-home, .cremation-envelope-page .envelope-location { position: absolute; left: 18mm; right: 18mm; display: block; text-align: center; white-space: nowrap; }
-.envelope-name { top: 74mm; font-size: 24pt; font-style: italic; font-weight: 400; }
-.envelope-funeral-home { top: 88mm; font-family: Arial, Helvetica, sans-serif; font-size: 14pt; font-weight: 400; }
-.envelope-location { top: 94mm; font-family: Arial, Helvetica, sans-serif; font-size: 12pt; }
+.cremation-envelope-page h1 { position: absolute; top: 59mm; left: 18mm; right: 18mm; margin: 0; text-align: center; font-family: "Bookman Old Style", "URW Bookman", Georgia, serif; font-size: 22pt; font-weight: 700; text-shadow: 1.1pt 1.1pt 1pt rgb(0 0 0 / 48%); }
+.cremation-envelope-page .envelope-name, .cremation-envelope-page .envelope-funeral-home, .cremation-envelope-page .envelope-location { position: absolute; left: 18mm; right: 18mm; display: block; text-align: center; white-space: nowrap; font-family: "Bookman Old Style", "URW Bookman", Georgia, serif; }
+.envelope-name { top: 74mm; font-size: 22pt; font-style: italic; font-weight: 400; }
+.envelope-funeral-home { top: 88mm; font-size: 12pt; font-weight: 400; }
+.envelope-location { top: 94mm; font-size: 11pt; }
 .cremation-print-only { display: none; }
 
 @media (max-width: 1320px) {

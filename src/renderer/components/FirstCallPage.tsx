@@ -35,13 +35,13 @@ interface CheckPlacement {
 // Coordinates are measured in the supplied PDF's native 576.6 x 770.28 point coordinate space.
 // Keeping this manifest in PDF points means screen preview and physical print share one geometry.
 export const FIRST_CALL_TEXT_LAYOUT: TextPlacement[] = [
-  { field: "deceasedLastName", label: "Deceased last name", x: 375.1, y: 9, width: 150, height: 22, fontSize: 11, fontWeight: 700, uppercase: true },
+  { field: "deceasedLastName", label: "Deceased last name", x: 375.1, y: 9, width: 150, height: 22, fontSize: 14, fontWeight: 700, uppercase: true },
   { field: "dateOfCall", label: "Date of call", x: 199.2, y: 44.6, width: 150, height: 22, fontSize: 12 },
   { field: "timeOfCall", label: "Time of call", x: 446.8, y: 45.7, width: 75.3, height: 22 },
   { field: "takenBy", label: "Taken by", x: 194, y: 68.9, width: 143.3, height: 19.7, fontSize: 12, align: "center" },
   { field: "contactAtFuneralHome", label: "Contact at funeral home", x: 444, y: 67, width: 81.6, height: 20 },
-  { field: "caseNumber", label: "Case number", x: 390.3, y: 86.4, width: 130.2, height: 22, fontWeight: 700 },
-  { field: "decedentName", label: "Name of decedent", x: 88, y: 118.9, width: 437, height: 18.6, fontWeight: 700 },
+  { field: "caseNumber", label: "Case number", x: 390.3, y: 86.4, width: 130.2, height: 22, fontSize: 14, fontWeight: 700 },
+  { field: "decedentName", label: "Name of decedent", x: 88, y: 118.9, width: 437, height: 18.6, fontSize: 14, fontWeight: 700 },
   { field: "funeralHomeName", label: "Funeral home", x: 70.1, y: 141.4, width: 457, height: 17 },
   { field: "funeralHomeAddress", label: "Funeral home address", x: 100, y: 163.7, width: 427, height: 18 },
   { field: "funeralHomePhone", label: "Funeral home telephone number", x: 146.6, y: 187, width: 151, height: 16.3 },
@@ -89,20 +89,42 @@ export const FIRST_CALL_TEXT_LAYOUT: TextPlacement[] = [
   { field: "caseNote3", label: "Case notes line 3", x: 12, y: 709.45, width: 515, height: 18 },
 ];
 
+// x/y were re-measured directly against the printed checkbox glyphs in first-call-template.png
+// (the gap between "(" and ")" for each box), rather than eyeballed - the previous coordinates put
+// the slot consistently left of the real gap, worst on Metropolitan, whose closing paren is also
+// shorter than its opening one in the source scan.
 export const FIRST_CALL_CHECK_LAYOUT: CheckPlacement[] = [
-  { field: "metropolitan", label: "Metropolitan", x: 7.4, y: 74.6, width: 18, height: 14 },
-  { field: "nms", label: "NMS", x: 8.1, y: 94.4, width: 18, height: 14 },
-  { field: "inman", label: "Inman", x: 66.4, y: 94.7, width: 18, height: 14 },
-  { field: "removalOnly", label: "Removal only", x: 104.7, y: 269.1, width: 18, height: 14 },
-  { field: "removeAndEmbalm", label: "Remove and embalm", x: 221.2, y: 268.2, width: 18, height: 14 },
-  { field: "fdp", label: "FDP", x: 374.5, y: 267.5, width: 18, height: 14 },
-  { field: "removeAndHold", label: "Remove and hold", x: 431.8, y: 267.2, width: 18, height: 14 },
-  { field: "cremationServiceOnly", label: "Cremation service only", x: 177.1, y: 289.6, width: 18, height: 14 },
-  { field: "certificateYes", label: "Metro to file certificate yes", x: 143.9, y: 318.9, width: 18, height: 14 },
-  { field: "certificateNo", label: "Metro to file certificate no", x: 202.2, y: 318.7, width: 18, height: 14 },
-  { field: "needsVaMedicalExaminerAuthorization", label: "Needs Virginia medical examiner authorization", x: 272.9, y: 318.7, width: 18, height: 14 },
-  { field: "needsDcStamp", label: "Needs DC C stamp", x: 422, y: 318.1, width: 18, height: 14 },
+  { field: "metropolitan", label: "Metropolitan", x: 10.3, y: 73.9, width: 18, height: 14 },
+  { field: "nms", label: "NMS", x: 12.8, y: 93.3, width: 18, height: 14 },
+  { field: "inman", label: "Inman", x: 68.5, y: 93.9, width: 18, height: 14 },
+  { field: "removalOnly", label: "Removal only", x: 105.5, y: 268.2, width: 18, height: 14 },
+  { field: "removeAndEmbalm", label: "Remove and embalm", x: 223.4, y: 268.2, width: 18, height: 14 },
+  { field: "fdp", label: "FDP", x: 373.8, y: 267.4, width: 18, height: 14 },
+  { field: "removeAndHold", label: "Remove and hold", x: 433.3, y: 268.3, width: 18, height: 14 },
+  { field: "cremationServiceOnly", label: "Cremation service only", x: 177.3, y: 291.2, width: 18, height: 14 },
+  { field: "certificateYes", label: "Metro to file certificate yes", x: 143.4, y: 317.2, width: 18, height: 14 },
+  { field: "certificateNo", label: "Metro to file certificate no", x: 205.0, y: 317.7, width: 18, height: 14 },
+  { field: "needsVaMedicalExaminerAuthorization", label: "Needs Virginia medical examiner authorization", x: 272.0, y: 318.1, width: 18, height: 14 },
+  { field: "needsDcStamp", label: "Needs DC C stamp", x: 423.2, y: 318.1, width: 18, height: 14 },
 ];
+
+// Plain label text for the bold black redraw that sits above each auto-highlight rectangle (see
+// FIRST_CALL_CHECK_HIGHLIGHTS), so a checked box's label stays crisp and legible instead of being
+// muddied by the highlight's mix-blend-mode over the scanned page.
+export const FIRST_CALL_CHECK_LABELS: Record<FirstCallCheckField, string> = {
+  metropolitan: "METROPOLITAN",
+  nms: "NMS",
+  inman: "INMAN",
+  removalOnly: "Removal Only",
+  removeAndEmbalm: "Remove & Embalm",
+  fdp: "FDP",
+  removeAndHold: "Remove & Hold",
+  cremationServiceOnly: "Cremation S/O",
+  certificateYes: "YES",
+  certificateNo: "NO",
+  needsVaMedicalExaminerAuthorization: 'Need VA ME "C" Auth',
+  needsDcStamp: 'Need DC "C" Stamp',
+};
 
 function pointStyle(item: { x: number; y: number; width: number; height?: number }): CSSProperties {
   return { left: `${item.x / 72}in`, top: `${item.y / 72}in`, width: `${item.width / 72}in`, height: `${(item.height ?? 18) / 72}in` };
@@ -171,11 +193,16 @@ export function FirstCallPage({ draft, preference, interactive = false, onTextCh
           {draft.highlights.map((highlight) => (
             <span key={highlight.id} className="first-call-highlight first-call-highlight-manual" style={{ ...pointStyle(highlight), background: HIGHLIGHT_COLORS[highlight.color] }} />
           ))}
+          {autoHighlightChecks && FIRST_CALL_CHECK_LAYOUT.filter((item) => draft.checks[item.field]).map((item) => (
+            <span key={`auto-label-${item.field}`} className="first-call-check-highlight-label" style={pointStyle(FIRST_CALL_CHECK_HIGHLIGHTS[item.field])}>
+              {FIRST_CALL_CHECK_LABELS[item.field]}
+            </span>
+          ))}
         </div>
         <div className="first-call-field-layer">
           {FIRST_CALL_TEXT_LAYOUT.map((item) => {
             const value = draft.values[item.field];
-            const style = { ...pointStyle(item), "--field-font-size": `${item.fontSize ?? 9}pt`, "--field-font-weight": String(item.fontWeight ?? 400), textAlign: item.align ?? "left", textTransform: item.uppercase ? "uppercase" : undefined } as CSSProperties;
+            const style = { ...pointStyle(item), "--field-font-size": `${item.fontSize ?? 12}pt`, "--field-font-weight": String(item.fontWeight ?? 400), textAlign: item.align ?? "left", textTransform: item.uppercase ? "uppercase" : undefined } as CSSProperties;
             if (!interactive) return <span key={item.field} className={`first-call-value${value.length > item.width / 4 ? " compact" : ""}`} style={style}>{value}</span>;
             const list = item.field === "funeralHomeName" ? "first-call-funeral-home-options" : item.field === "placeOfDeathName" && draft.placeOfDeathKind === "facility" ? "first-call-facility-options" : undefined;
             return <input key={item.field} aria-label={item.label} className="first-call-input" style={style} value={value} list={list} autoComplete="off" onChange={(event) => onTextChange?.(item.field, event.target.value)} />;

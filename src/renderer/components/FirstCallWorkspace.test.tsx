@@ -21,6 +21,7 @@ function mockApi(): NightShiftApi {
       facilities: [{ id: "pod-1", name: "Example Hospital", address: "2 Health Way", phone: "202-555-0200", aliases: ["EH"], favorite: false, useCount: 1, lastUsedAt: null }],
       printPreference: { scale: 1, offsetXInches: 0, offsetYInches: 0 },
       searchSettings: { provider: "tomtom", configured: true, source: "saved" },
+      savedDraft: null,
     }),
     saveFirstCallFuneralHome: vi.fn(async () => ({ funeralHomes: [], facilities: [] })),
     deleteFirstCallFuneralHome: vi.fn(async () => ({ funeralHomes: [], facilities: [] })),
@@ -34,10 +35,14 @@ function mockApi(): NightShiftApi {
     saveFirstCallTomTomApiKey: vi.fn(async () => ({ provider: "tomtom" as const, configured: true, source: "saved" as const })),
     saveFirstCallPrintPreference: async (preference) => preference,
     printFirstCall: vi.fn(async () => ({ success: true })),
-    loadCremationWorkspace: async () => ({ funeralHomes: [], savedFinalNumber: null, printPreferences: { certificate: { scale: 1, offsetXInches: 0, offsetYInches: 0 }, envelope: { scale: 1, offsetXInches: 0, offsetYInches: 0 } }, labelReadiness: { ready: false, bpacInstalled: true, driverInstalled: false, templateAvailable: true, message: "Printer unavailable" } }),
+    saveFirstCallDraft: vi.fn(async () => {}),
+    clearFirstCallDraft: vi.fn(async () => {}),
+    loadCremationWorkspace: async () => ({ funeralHomes: [], savedFinalNumber: null, printPreferences: { certificate: { scale: 1, offsetXInches: 0, offsetYInches: 0 }, envelope: { scale: 1, offsetXInches: 0, offsetYInches: 0 } }, labelReadiness: { ready: false, bpacInstalled: true, driverInstalled: false, templateAvailable: true, message: "Printer unavailable" }, savedBatch: null }),
     saveCremationFuneralHome: async () => [], deleteCremationFuneralHome: async () => [],
     saveCremationFinalNumber: async (value) => value, saveCremationPrintPreference: async (_kind, preference) => preference,
     printCremationDocument: async () => ({ success: true }), checkCremationLabelReadiness: async () => ({ ready: false, bpacInstalled: true, driverInstalled: false, templateAvailable: true, message: "Printer unavailable" }), printCremationLabels: async () => ({ printedIds: [] }),
+    saveCremationBatch: vi.fn(async () => {}),
+    clearCremationBatch: vi.fn(async () => {}),
     windowControl: async () => {}, isWindowMaximized: async () => false, onWindowMaximizeChange: () => () => {},
   };
 }
@@ -231,6 +236,7 @@ describe("FirstCallWorkspace", () => {
       funeralHomes: [], facilities: [],
       printPreference: { scale: 1, offsetXInches: 0, offsetYInches: 0 },
       searchSettings: { provider: "tomtom", configured: false, source: "none" },
+      savedDraft: null,
     });
     renderWorkspace(api);
     await screen.findByRole("tab", { name: /Settings/ });

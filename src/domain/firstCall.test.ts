@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createFirstCallDraft, deriveDeceasedLastName, hasFirstCallContent, rankFirstCallDirectoryMatches } from "./firstCall";
+import { createFirstCallDraft, deriveDeceasedLastName, hasFirstCallContent, rankFirstCallDirectoryMatches, sanitizeFirstCallDraftForPersistence } from "./firstCall";
 
 describe("First Call defaults and surname derivation", () => {
   it("defaults the date and taken-by value without treating them as user content", () => {
@@ -25,6 +25,30 @@ describe("First Call defaults and surname derivation", () => {
     ["Jordan Smith-Jones III", "SMITH-JONES"],
   ])("derives %s as %s", (name, expected) => {
     expect(deriveDeceasedLastName(name)).toBe(expected);
+  });
+});
+
+describe("First Call persistence privacy", () => {
+  it("strips the Residence address and phone before the sheet is persisted", () => {
+    const draft = createFirstCallDraft();
+    draft.placeOfDeathKind = "residence";
+    draft.values.placeOfDeathName = "Residence";
+    draft.values.placeOfDeathAddress = "123 Main St";
+    draft.values.placeOfDeathPhone = "555-0100";
+    draft.values.decedentName = "Jordan Smith";
+    const sanitized = sanitizeFirstCallDraftForPersistence(draft);
+    expect(sanitized.values.placeOfDeathAddress).toBe("");
+    expect(sanitized.values.placeOfDeathPhone).toBe("");
+    expect(sanitized.values.placeOfDeathName).toBe("Residence");
+    expect(sanitized.values.decedentName).toBe("Jordan Smith");
+  });
+
+  it("leaves a Facility place of death untouched", () => {
+    const draft = createFirstCallDraft();
+    draft.values.placeOfDeathName = "Sibley Memorial Hospital";
+    draft.values.placeOfDeathAddress = "5255 Loughboro Rd";
+    const sanitized = sanitizeFirstCallDraftForPersistence(draft);
+    expect(sanitized).toEqual(draft);
   });
 });
 

@@ -8,11 +8,12 @@ import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
 import type { LayoutSettings, NightReport } from "../domain/types";
-import { normalizeFirstCallDirectoryName } from "../domain/firstCall";
-import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
+import { FIRST_CALL_CHECK_FIELDS, FIRST_CALL_TEXT_FIELDS, normalizeFirstCallDirectoryName, sanitizeFirstCallDraftForPersistence } from "../domain/firstCall";
+import type { FirstCallDraft, FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
 import { nextReportDate } from "../domain/report";
 import { parseCremationNumber } from "../domain/cremation";
 import type { CremationDocumentKind, CremationLabelReadiness } from "../domain/cremation";
+import type { CremationBatchSnapshot } from "../shared/contracts";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 import { formatFirstCallDirectoryCsv, parseFirstCallDirectoryCsv } from "../infrastructure/firstCallDirectoryCsv";
 import { searchTomTom } from "../infrastructure/tomTomSearch";
@@ -244,7 +245,46 @@ const cremationLabelItemsSchema = z.array(z.object({
   id: z.string().uuid(),
   displayName: z.string().trim().min(1).max(160).refine((value) => !/[\r\n\t]/.test(value), "Label names must fit on one line."),
 })).min(1).max(250);
+const cremationPrintStateSchema = z.enum(["notPrinted", "printed", "stale"]);
+const cremationBatchRowSchema = z.object({
+  id: z.string().min(1),
+  selected: z.boolean(),
+  number: z.string().max(20),
+  fullName: z.string().max(200),
+  displayName: z.string().max(200),
+  displayNameManuallyEdited: z.boolean(),
+  funeralHome: z.string().max(160),
+  location: z.string().max(160),
+  certificateStatus: cremationPrintStateSchema,
+  envelopeStatus: cremationPrintStateSchema,
+  labelStatus: cremationPrintStateSchema,
+});
+const cremationBatchSnapshotSchema = z.object({
+  date: z.string().max(20),
+  rows: z.array(cremationBatchRowSchema).max(500),
+});
+const firstCallHighlightSchema = z.object({
+  id: z.string().min(1),
+  x: z.number(), y: z.number(), width: z.number(), height: z.number(),
+  color: z.enum(["yellow", "green", "blue", "pink", "orange"]),
+});
+const firstCallDraftSchema = z.object({
+  placeOfDeathKind: z.enum(["facility", "residence"]),
+  values: z.object(Object.fromEntries(FIRST_CALL_TEXT_FIELDS.map((field) => [field, z.string().max(4000)]))),
+  checks: z.object(Object.fromEntries(FIRST_CALL_CHECK_FIELDS.map((field) => [field, z.boolean()]))),
+  highlights: z.array(firstCallHighlightSchema).max(500),
+  lastNameManuallyEdited: z.boolean(),
+});
+const FIRST_CALL_DRAFT_SETTING = "firstCallDraft";
+const CREMATION_BATCH_SETTING = "cremationBatchDraft";
 const TOMTOM_KEY_SETTING = "firstCallTomTomApiKey";
+
+async function readJsonSetting<T>(key: string): Promise<T | null> {
+  const raw = await repository.readAppSetting(key);
+  if (!raw) return null;
+  try { return JSON.parse(raw) as T; }
+  catch (error) { await logError(`read-json-setting:${key}`, error); return null; }
+}
 
 async function readSavedTomTomApiKey(): Promise<string> {
   const encrypted = await repository.readAppSetting(TOMTOM_KEY_SETTING);
@@ -355,6 +395,7 @@ function registerIpc() {
     ...(await repository.listFirstCallDirectories()),
     printPreference: await repository.loadFirstCallPrintPreference(),
     searchSettings: await tomTomSearchSettings(),
+    savedDraft: await readJsonSetting<FirstCallDraft>(FIRST_CALL_DRAFT_SETTING),
   }));
   handle("first-call:funeral-home:save", (_event, input: unknown) => repository.saveFirstCallFuneralHome(firstCallFuneralHomeSchema.parse(input)));
   handle("first-call:funeral-home:delete", (_event, id: string) => repository.deleteFirstCallFuneralHome(z.string().min(1).parse(id)));
@@ -391,16 +432,23 @@ function registerIpc() {
       mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });
   });
+  handle("first-call:draft:save", async (_event, rawDraft: unknown) => {
+    const draft = sanitizeFirstCallDraftForPersistence(firstCallDraftSchema.parse(rawDraft) as FirstCallDraft);
+    await repository.writeAppSetting(FIRST_CALL_DRAFT_SETTING, JSON.stringify(draft));
+  });
+  handle("first-call:draft:clear", async () => { await repository.deleteAppSetting(FIRST_CALL_DRAFT_SETTING); });
   handle("cremation:load", async () => {
-    const [funeralHomes, savedFinalNumber, printPreferences] = await Promise.all([
+    const [funeralHomes, savedFinalNumber, printPreferences, savedBatch] = await Promise.all([
       repository.listCremationFuneralHomes(),
       repository.loadCremationSequence(),
       repository.loadCremationPrintPreferences(),
+      readJsonSetting<CremationBatchSnapshot>(CREMATION_BATCH_SETTING),
     ]);
     return {
       funeralHomes,
       savedFinalNumber,
       printPreferences,
+      savedBatch,
       labelReadiness: { ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Checking Brother label printer…" },
     };
   });
@@ -414,12 +462,28 @@ function registerIpc() {
     const kind = cremationDocumentKindSchema.parse(rawKind);
     return repository.saveCremationPrintPreference(kind, cremationPrintPreferenceSchema.parse(rawPreference));
   });
+  handle("cremation:batch:save", async (_event, rawSnapshot: unknown) => {
+    const snapshot = cremationBatchSnapshotSchema.parse(rawSnapshot) as CremationBatchSnapshot;
+    await repository.writeAppSetting(CREMATION_BATCH_SETTING, JSON.stringify(snapshot));
+  });
+  handle("cremation:batch:clear", async () => { await repository.deleteAppSetting(CREMATION_BATCH_SETTING); });
   handle("cremation:print", async (_event, rawKind: unknown) => {
     if (!mainWindow) return { success: false, failureReason: "The cremation workspace is unavailable." };
     const kind = cremationDocumentKindSchema.parse(rawKind) as CremationDocumentKind;
-    const pageSize = kind === "certificate" ? { width: 210_000, height: 148_000 } : { width: 229_000, height: 162_000 };
+    // The certificate and envelope are laid out landscape (wider than tall) in CSS, but the
+    // physical stock is portrait A5 (148x210mm) / C5 (162x229mm). Electron/Chromium's custom
+    // pageSize {width, height} objects are known to be silently dropped or mishandled by real
+    // (non-virtual) Windows printer drivers - see electron/electron#39702 and #22066 - which is
+    // what made the printer fall back to its default paper size instead of A5/C5. Passing the
+    // true portrait dimensions and letting `landscape: true` do the rotation (rather than
+    // pre-swapping width/height ourselves with landscape: false) matches what Chromium expects
+    // and is far more likely to be honored by the driver. Electron ships a built-in "A5" preset,
+    // which real printer drivers recognize more reliably than any custom object, so the
+    // certificate uses that; C5 has no built-in preset, so it stays a custom object at its true
+    // portrait size.
+    const pageSize = kind === "certificate" ? "A5" : { width: 162_000, height: 229_000 };
     return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
-      mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, landscape: false, pageSize }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
+      mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, landscape: true, pageSize }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });
   });
   handle("cremation:labels:readiness", () => cremationLabelReadiness());
