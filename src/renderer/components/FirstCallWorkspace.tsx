@@ -23,7 +23,7 @@ import type {
   FirstCallTextField,
 } from "@/domain/firstCall";
 import type { FirstCallFacilityInput, FirstCallFuneralHomeInput } from "@/shared/contracts";
-import { IconArrowLeft, IconBuilding, IconMinus, IconPlus, IconPrinter, IconSearch, IconSliders, IconTrash } from "../icons";
+import { IconBuilding, IconMinus, IconPlus, IconPrinter, IconSearch, IconSliders, IconTrash } from "../icons";
 import { useToast } from "../ui/Toast";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
@@ -31,6 +31,8 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { FirstCallPage } from "./FirstCallPage";
 import { FirstCallDirectoryManager } from "./FirstCallDirectoryManager";
 import { WindowControls } from "./TitleBar";
+import { WorkspaceTabs } from "./WorkspaceTabs";
+import type { WorkspaceMode } from "./WorkspaceTabs";
 
 const EMPTY_DIRECTORIES: FirstCallDirectories = { funeralHomes: [], facilities: [] };
 const DEFAULT_SEARCH_SETTINGS: FirstCallSearchSettings = { provider: "tomtom", configured: false, source: "none" };
@@ -50,7 +52,7 @@ function sameName(left: string, right: string) {
   return normalizeFirstCallDirectoryName(left) === normalizeFirstCallDirectoryName(right);
 }
 
-export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
+export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: () => void; onNavigate?: (mode: WorkspaceMode) => void }) {
   const toast = useToast();
   const [draft, setDraft] = useState<FirstCallDraft>(() => createFirstCallDraft());
   const [directories, setDirectories] = useState<FirstCallDirectories>(EMPTY_DIRECTORIES);
@@ -68,11 +70,13 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
   const [lookupKind, setLookupKind] = useState<FirstCallLookupKind | null>(null);
   const [lookupResultKind, setLookupResultKind] = useState<FirstCallLookupKind>("funeralHome");
   const [lookupResults, setLookupResults] = useState<FirstCallLookupCandidate[]>([]);
-  const [confirmAction, setConfirmAction] = useState<"new" | "back" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"new" | "back" | "cremation" | null>(null);
   const [directoryManagerOpen, setDirectoryManagerOpen] = useState(false);
+  const [activeTool, setActiveTool] = useState<"funeralHome" | "placeOfDeath" | "settings">("funeralHome");
   const [activeSuggestions, setActiveSuggestions] = useState<FirstCallDirectoryKind | null>(null);
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const lookupResultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -105,6 +109,11 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     observer.observe(canvasRef.current);
     return () => observer.disconnect();
   }, [fitPreview, loading, previewZoomMode]);
+
+  useEffect(() => {
+    if (!lookupResults.length) return;
+    lookupResultsRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [lookupResults]);
 
   function changePreviewZoom(next: number) {
     setPreviewZoomMode("manual");
@@ -344,6 +353,17 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     toast.success("Suggestion applied. Review the details before remembering it.");
   }
 
+  function onlineLookupResults(kind: FirstCallLookupKind) {
+    if (lookupResultKind !== kind || lookupResults.length === 0) return null;
+    return <div ref={lookupResultsRef} className="first-call-results" aria-label="Online lookup results">
+      <strong>Review online suggestions</strong>
+      {lookupResults.map((candidate) => <button key={candidate.sourceId} onClick={() => applyLookup(candidate, kind)}>
+        <b>{candidate.name}</b><span>{candidate.address}</span>{candidate.phone && <small>{candidate.phone}</small>}
+      </button>)}
+      <small>Search results © TomTom</small>
+    </div>;
+  }
+
   async function removeManagedDirectoryItem(kind: FirstCallDirectoryKind, id: string) {
     try {
       const next = kind === "funeralHome" ? await window.nightShift.deleteFirstCallFuneralHome(id) : await window.nightShift.deleteFirstCallFacility(id);
@@ -410,10 +430,18 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
     else onBack();
   }
 
+  function navigateWorkspace(mode: WorkspaceMode) {
+    if (mode === "firstCall") return;
+    if (mode === "report") return requestBack();
+    if (hasFirstCallContent(draft)) setConfirmAction("cremation");
+    else onNavigate(mode);
+  }
+
   function confirmDiscard() {
     const action = confirmAction;
     setConfirmAction(null);
     if (action === "back") onBack();
+    else if (action === "cremation") onNavigate("cremation");
     else {
       setDraft(createFirstCallDraft());
       setPendingHighlightRects([]);
@@ -428,9 +456,9 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
       <header className="studio-commandbar no-print">
         <div className="command-report-meta">
           <span className="command-glow" aria-hidden="true" />
-          <Button variant="quiet" icon={<IconArrowLeft />} onClick={requestBack}>Night Shift Report</Button>
           <div><p>Private, temporary workspace</p><strong>First Call Sheet</strong></div>
         </div>
+        <WorkspaceTabs active="firstCall" onNavigate={navigateWorkspace} />
         <div className="command-drag-region" aria-hidden="true" />
         <div className="command-actions">
           <Button variant="quiet" onClick={() => setDirectoryManagerOpen(true)}>Manage directories</Button>
@@ -442,7 +470,13 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
 
       <div className="first-call-workspace no-print">
         <aside className="first-call-tools" aria-label="First Call automation tools">
-          <section className="first-call-settings-section">
+          <nav className="first-call-tool-nav" role="tablist" aria-label="First Call tools">
+            <button role="tab" aria-selected={activeTool === "funeralHome"} className={activeTool === "funeralHome" ? "active" : ""} onClick={() => setActiveTool("funeralHome")}><IconBuilding /><span>Funeral home</span></button>
+            <button role="tab" aria-selected={activeTool === "placeOfDeath"} className={activeTool === "placeOfDeath" ? "active" : ""} onClick={() => setActiveTool("placeOfDeath")}><IconBuilding /><span>Place of death</span></button>
+            <button role="tab" aria-selected={activeTool === "settings"} className={activeTool === "settings" ? "active" : ""} onClick={() => setActiveTool("settings")}><IconSliders /><span>Settings</span>{!searchSettings.configured && <b>Setup</b>}</button>
+          </nav>
+
+          <section className="first-call-settings-section first-call-tool-panel" hidden={activeTool !== "settings"}>
             <button type="button" className="first-call-settings-toggle" aria-expanded={tomTomSettingsOpen} onClick={() => setTomTomSettingsOpen((current) => !current)}>
               <IconSliders />
               <span><strong>TomTom search settings</strong><small>{searchSettings.configured ? "API key saved securely" : "Setup required for online search"}</small></span>
@@ -460,7 +494,7 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
             </div>}
           </section>
 
-          <section>
+          <section className="first-call-tool-panel" hidden={activeTool !== "funeralHome"}>
             <div className="first-call-tool-heading"><IconBuilding /><div><strong>Funeral home</strong><small>Enter details here or choose a saved record</small></div></div>
             <div className="first-call-direct-entry" aria-label="Direct funeral home entry">
               <div className="first-call-suggest-field">
@@ -484,9 +518,10 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
               <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "funeralHome"} onClick={() => void searchOnline("funeralHome")}>Search TomTom</Button>
               {selectedFuneralHome && <Button variant="quiet" icon={<IconTrash />} aria-label="Remove saved funeral home" onClick={() => void removeDirectoryItem("funeralHome")} />}
             </div>
+            {onlineLookupResults("funeralHome")}
           </section>
 
-          <section>
+          <section className="first-call-tool-panel" hidden={activeTool !== "placeOfDeath"}>
             <div className="first-call-tool-heading"><IconBuilding /><div><strong>Place of death</strong><small>Residence information is never saved</small></div></div>
             <div className="first-call-kind" role="group" aria-label="Place of death type">
               <button className={draft.placeOfDeathKind === "facility" ? "active" : ""} aria-pressed={draft.placeOfDeathKind === "facility"} onClick={() => setPlaceKind("facility")}>Facility</button>
@@ -511,25 +546,19 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
                 <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured} busy={lookupKind === "facility"} onClick={() => void searchOnline("facility")}>Search TomTom</Button>
                 {selectedFacility && <Button variant="quiet" icon={<IconTrash />} aria-label="Remove saved facility" onClick={() => void removeDirectoryItem("facility")} />}
               </div>
+              {onlineLookupResults("facility")}
             </> : <>
               <div className="first-call-direct-entry" aria-label="Direct residence entry">
                 <label>Address<input type="text" aria-label="Direct residence address" value={draft.values.placeOfDeathAddress} onChange={(event) => setText("placeOfDeathAddress", event.target.value)} /></label>
                 <label>Telephone<input type="tel" aria-label="Direct residence telephone" value={draft.values.placeOfDeathPhone} onChange={(event) => setText("placeOfDeathPhone", event.target.value)} /></label>
               </div>
               <Button variant="quiet" icon={<IconSearch />} disabled={!searchSettings.configured || draft.values.placeOfDeathAddress.trim().length < 2} busy={lookupKind === "residence"} onClick={() => void searchOnline("residence")}>Search address with TomTom</Button>
+              {onlineLookupResults("residence")}
               <p className="first-call-privacy-note">Only an address you explicitly search is sent to TomTom. Residence details are never cached, saved, recommended, logged, backed up, or recovered.</p>
             </>}
           </section>
 
-          {lookupResults.length > 0 && <section className="first-call-results" aria-label="Online lookup results">
-            <strong>Review online suggestions</strong>
-            {lookupResults.map((candidate) => <button key={candidate.sourceId} onClick={() => applyLookup(candidate, lookupResultKind)}>
-              <b>{candidate.name}</b><span>{candidate.address}</span>{candidate.phone && <small>{candidate.phone}</small>}
-            </button>)}
-            <small>Search results © TomTom</small>
-          </section>}
-
-          <section>
+          <section className="first-call-tool-panel" hidden={activeTool !== "settings"}>
             <div className="first-call-tool-heading"><div><strong>Print calibration</strong><small>Original size, centered on Letter</small></div></div>
             <label>Scale ({Math.round(preference.scale * 100)}%)<input type="range" min="0.9" max="1.1" step="0.005" value={preference.scale} onChange={(event) => setPreference({ ...preference, scale: Number(event.target.value) })} /></label>
             <div className="two-field">
@@ -594,9 +623,9 @@ export function FirstCallWorkspace({ onBack }: { onBack: () => void }) {
 
       <div className="print-only first-call-print-only"><FirstCallPage draft={draft} preference={preference} autoHighlightChecks={autoHighlightChecks} /></div>
       {confirmAction && <ConfirmDialog
-        title={confirmAction === "back" ? "Leave this First Call Sheet?" : "Start a new First Call Sheet?"}
+        title={confirmAction === "back" ? "Leave this First Call Sheet?" : confirmAction === "cremation" ? "Open Cremation Batch?" : "Start a new First Call Sheet?"}
         message="This sheet is intentionally not saved. The information currently on it will be discarded."
-        confirmLabel={confirmAction === "back" ? "Leave sheet" : "Start new sheet"}
+        confirmLabel={confirmAction === "back" ? "Leave sheet" : confirmAction === "cremation" ? "Open Cremation Batch" : "Start new sheet"}
         danger
         onConfirm={confirmDiscard}
         onCancel={() => setConfirmAction(null)}

@@ -79,11 +79,12 @@ const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
   return <span className="entry-line-content"><span>{entry.text}</span></span>;
 });
 
-function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
+function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; onContinueEntry?: () => void; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
   const inputRef = useRef<HTMLInputElement>(null);
+  const continueEntryRef = useRef(false);
   const category = section.category === "human" ? "Human Remains" : "Cremated Remains";
   const rowLabel = `${category} ${section.title}`;
   const inputWidth = Math.min(3.53, Math.max(2.4, draft.length * 0.075 + 0.25));
@@ -98,12 +99,16 @@ function EditableReportRow({ section, entry, onLineCommit, autoWidth, freeRowInd
   function finish() {
     setEditing(false);
     const clean = draft.trim();
-    if (clean !== original.trim()) onLineCommit(section.key, entry?.id ?? null, clean);
+    const changed = clean !== original.trim();
+    if (changed && continueEntryRef.current && !entry && clean) onContinueEntry?.();
+    continueEntryRef.current = false;
+    if (changed) onLineCommit(section.key, entry?.id ?? null, clean);
   }
 
   function handleKey(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
       event.preventDefault();
+      continueEntryRef.current = true;
       event.currentTarget.blur();
     } else if (event.key === "Escape") {
       event.preventDefault();
@@ -173,6 +178,14 @@ const SectionCard = memo(function SectionCard({
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const freeRows = THREE_FREE_ROW_SECTIONS.has(section.key) ? 3 : 1;
+  const cardRef = useRef<HTMLElement>(null);
+  const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
+
+  useEffect(() => {
+    if (!continueFromEntriesRef.current || section.entries === continueFromEntriesRef.current) return;
+    continueFromEntriesRef.current = null;
+    cardRef.current?.querySelector<HTMLButtonElement>(".inline-row-button.blank-row")?.click();
+  }, [section.entries]);
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -195,6 +208,7 @@ const SectionCard = memo(function SectionCard({
 
   return (
     <section
+      ref={cardRef}
       className={`section-card${dropActive ? " drop-active" : ""}${selected ? " studio-selected" : ""}`}
       data-testid="section-card"
       data-section-key={section.key}
@@ -209,7 +223,7 @@ const SectionCard = memo(function SectionCard({
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
-          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} autoWidth={!width} freeRowIndex={index} onEntryMove={index === 0 ? onEntryMove : undefined} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={index === 0 && dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
+          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} onContinueEntry={() => { continueFromEntriesRef.current = section.entries; }} autoWidth={!width} freeRowIndex={index} onEntryMove={index === 0 ? onEntryMove : undefined} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={index === 0 && dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
           : <div className="report-row blank-row" data-testid="free-row" aria-label={`${section.title} free row ${index + 1}`} key={`free-${index}`}>&nbsp;</div>
       ))}
       {interactive && (

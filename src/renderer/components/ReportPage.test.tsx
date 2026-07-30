@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { createEmptyReport } from "@/domain/report";
@@ -47,6 +47,28 @@ describe("print report", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(onLineCommit).toHaveBeenCalledWith("human-deliver", null, "McGuire \u2013 Smith (13A)");
+  });
+
+  it.each(["Enter", "Tab"])("opens the next blank preview row after committing with %s", async (key) => {
+    const layout = { sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 };
+    const report = createEmptyReport("2026-07-26");
+    let nextReport = report;
+    const onLineCommit = vi.fn((sectionKey: string, _entryId: string | null, value: string) => {
+      nextReport = structuredClone(report);
+      nextReport.sections.find((section) => section.key === sectionKey)!.entries.push({
+        id: "continued-entry", type: "plain", text: value, rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+      });
+    });
+    const view = render(<ReportPage report={report} layout={layout} interactive onLineCommit={onLineCommit} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
+    const input = screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    fireEvent.change(input, { target: { value: "Second entry" } });
+    fireEvent.keyDown(input, { key });
+    view.rerender(<ReportPage report={nextReport} layout={layout} interactive onLineCommit={onLineCommit} />);
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
   });
 
   it("prints three trailing free rows in the specified HR cards and one for Airport Drops", () => {

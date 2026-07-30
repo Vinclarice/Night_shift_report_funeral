@@ -47,10 +47,8 @@ export function ReportNavigator({ report }: { report: NightReport }) {
               const active = selected === section.key;
               return (
                 <button type="button" className={`navigator-row${active ? " active" : ""}`} key={section.key} aria-label={`${group.label} ${section.title}`} aria-current={active ? "page" : undefined} onClick={() => select(section.key)}>
-                  <span className="navigator-row-copy">
-                    <span className={`section-orb${hasRush(section) ? " rush" : ""}`} aria-hidden="true" />
-                    <span>{section.title}</span>
-                  </span>
+                  <span className="navigator-row-copy"><span className="section-orb" aria-hidden="true" /><span>{section.title}</span></span>
+                  {hasRush(section) && <Badge tone="danger">Rush</Badge>}
                   <Badge tone={active ? "success" : "neutral"}>{section.entries.length}</Badge>
                 </button>
               );

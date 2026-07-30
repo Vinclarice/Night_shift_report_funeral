@@ -8,6 +8,7 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { WindowControls } from "./TitleBar";
+import { WorkspaceTabs } from "./WorkspaceTabs";
 
 function formatReportDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -47,6 +48,10 @@ export function CommandBar({ report, onOpenFirstCall, onOpenCremation }: { repor
         <div><p>Night Shift Report</p><strong>{formatReportDate(report.reportDate)}</strong></div>
         <Badge tone={report.status === "finalized" ? "success" : "warning"}>{report.status === "finalized" ? "Finalized" : "Draft"}</Badge>
       </div>
+      <WorkspaceTabs active="report" onNavigate={(mode) => {
+        if (mode === "firstCall") onOpenFirstCall();
+        if (mode === "cremation") onOpenCremation();
+      }} />
       {/* Empty space between the two clusters is the window drag handle. */}
       <div className="command-drag-region" aria-hidden="true" />
       <div className="command-actions">
@@ -55,8 +60,6 @@ export function CommandBar({ report, onOpenFirstCall, onOpenCremation }: { repor
         </Badge>
         {report.status === "draft" && <div className="command-group"><IconButton icon={<IconUndo />} aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!controller.undoAvailable} onClick={controller.undo} /><IconButton icon={<IconRedo />} aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!controller.redoAvailable} onClick={controller.redo} /></div>}
         {!workspace.inspectorOpen && <Button variant="quiet" icon={<IconSidebar />} onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: true })}>Inspector</Button>}
-        <Button variant="quiet" icon={<IconBuilding />} onClick={onOpenFirstCall}>First Call</Button>
-        <Button variant="quiet" onClick={onOpenCremation}>Cremation Batch</Button>
         <div className="tools-menu" ref={toolsRef}>
           <Button variant="quiet" icon={<IconWand />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>
           {toolsOpen && (

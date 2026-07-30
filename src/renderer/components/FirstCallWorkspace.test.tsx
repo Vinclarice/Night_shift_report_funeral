@@ -48,6 +48,14 @@ function renderWorkspace(api = mockApi()) {
   return api;
 }
 
+function openPlaceOfDeathTools() {
+  fireEvent.click(screen.getByRole("tab", { name: "Place of death" }));
+}
+
+function openSettingsTools() {
+  fireEvent.click(screen.getByRole("tab", { name: /Settings/ }));
+}
+
 describe("FirstCallWorkspace", () => {
   it("defaults Vincent and derives an editable last name", async () => {
     renderWorkspace();
@@ -70,6 +78,7 @@ describe("FirstCallWorkspace", () => {
     expect(screen.getByLabelText("Funeral home address")).toHaveValue("1 Main St");
     expect(screen.getByLabelText("Funeral home fax number")).toHaveValue("202-555-0101");
 
+    openPlaceOfDeathTools();
     const facilityName = screen.getByLabelText("Direct facility name");
     fireEvent.focus(facilityName);
     fireEvent.change(facilityName, { target: { value: "Example Hosp" } });
@@ -91,7 +100,9 @@ describe("FirstCallWorkspace", () => {
     const funeralSection = funeralName.closest("section")!;
     fireEvent.change(screen.getByLabelText("Funeral home"), { target: { value: "Suggested" } });
     fireEvent.click(within(funeralSection).getByRole("button", { name: "Search TomTom" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Suggested Funeral/ }));
+    const onlineResult = await within(funeralSection).findByRole("button", { name: /Suggested Funeral/ });
+    expect(within(funeralSection).getByLabelText("Online lookup results")).toContainElement(onlineResult);
+    fireEvent.click(onlineResult);
 
     expect(screen.getByLabelText("Funeral home address")).toHaveValue("10 Suggested Ave");
     expect(api.saveFirstCallFuneralHome).not.toHaveBeenCalled();
@@ -117,6 +128,7 @@ describe("FirstCallWorkspace", () => {
       phone: "202-555-0190",
     })));
 
+    openPlaceOfDeathTools();
     const facilityName = screen.getByLabelText("Direct facility name");
     const facilitySection = facilityName.closest("section")!;
     fireEvent.change(facilityName, { target: { value: "Direct Medical Center" } });
@@ -134,7 +146,9 @@ describe("FirstCallWorkspace", () => {
 
   it("reviews a duplicate address before updating the existing saved record", async () => {
     const api = renderWorkspace();
-    const facilityName = await screen.findByLabelText("Direct facility name");
+    await screen.findByRole("tab", { name: "Place of death" });
+    openPlaceOfDeathTools();
+    const facilityName = screen.getByLabelText("Direct facility name");
     fireEvent.change(facilityName, { target: { value: "Alternate Hospital Name" } });
     fireEvent.change(screen.getByLabelText("Direct facility address"), { target: { value: "2 Health Way" } });
     fireEvent.click(within(facilityName.closest("section")!).getByRole("button", { name: "Save to directory" }));
@@ -148,7 +162,9 @@ describe("FirstCallWorkspace", () => {
 
   it("keeps all Residence information in memory and exposes no persistence or lookup action", async () => {
     const api = renderWorkspace();
-    const residence = await screen.findByRole("button", { name: "Residence" });
+    await screen.findByRole("tab", { name: "Place of death" });
+    openPlaceOfDeathTools();
+    const residence = screen.getByRole("button", { name: "Residence" });
     fireEvent.click(residence);
     const placeSection = residence.closest("section")!;
     expect(within(placeSection).queryByRole("button", { name: "Remember" })).not.toBeInTheDocument();
@@ -171,7 +187,9 @@ describe("FirstCallWorkspace", () => {
       phone: "", fax: "", email: "", attribution: "TomTom" as const,
     }]);
     renderWorkspace(api);
-    fireEvent.click(await screen.findByRole("button", { name: "Residence" }));
+    await screen.findByRole("tab", { name: "Place of death" });
+    openPlaceOfDeathTools();
+    fireEvent.click(screen.getByRole("button", { name: "Residence" }));
     fireEvent.change(screen.getByLabelText("Direct residence address"), { target: { value: "100 Oak" } });
     fireEvent.click(screen.getByRole("button", { name: "Search address with TomTom" }));
     fireEvent.click(await screen.findByRole("button", { name: /100 Oak Street/ }));
@@ -215,19 +233,22 @@ describe("FirstCallWorkspace", () => {
       searchSettings: { provider: "tomtom", configured: false, source: "none" },
     });
     renderWorkspace(api);
+    await screen.findByRole("tab", { name: /Settings/ });
+    openSettingsTools();
     const keyInput = await screen.findByLabelText("TomTom API key");
-    const searchButtons = screen.getAllByRole("button", { name: "Search TomTom" });
-    expect(searchButtons.every((button) => button.hasAttribute("disabled"))).toBe(true);
 
     fireEvent.change(keyInput, { target: { value: "test-key" } });
     fireEvent.click(screen.getByRole("button", { name: "Save key" }));
     await waitFor(() => expect(api.saveFirstCallTomTomApiKey).toHaveBeenCalledWith("test-key"));
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Search TomTom" }).every((button) => !button.hasAttribute("disabled"))).toBe(true));
     expect(screen.queryByLabelText("TomTom API key")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Funeral home" }));
+    expect(screen.getByRole("button", { name: "Search TomTom" })).toBeEnabled();
   });
 
   it("keeps configured TomTom credentials inside a collapsed settings menu", async () => {
     renderWorkspace();
+    await screen.findByRole("tab", { name: /Settings/ });
+    openSettingsTools();
     const settingsButton = await screen.findByRole("button", { name: /TomTom search settings/ });
     expect(settingsButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByLabelText("TomTom API key")).not.toBeInTheDocument();

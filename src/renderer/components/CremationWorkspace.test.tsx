@@ -46,11 +46,17 @@ function renderWorkspace(api = mockApi()) {
   return api;
 }
 
+function printOutput(output: "Certificates" | "Envelopes" | "Labels") {
+  fireEvent.click(screen.getByRole("button", { name: output }));
+  fireEvent.click(screen.getByRole("button", { name: "Print selected" }));
+}
+
 async function completeFirstRow() {
   expect(await screen.findByLabelText("Cremation number 1")).toHaveValue("6-063-37");
   fireEvent.change(screen.getByLabelText("Full name 1"), { target: { value: "Mary Ann Smith Jr." } });
   expect(screen.getByLabelText("Display name 1")).toHaveValue("Mary Smith");
   fireEvent.change(screen.getByLabelText("Funeral home 1"), { target: { value: "Example Funeral" } });
+  expect(screen.getByLabelText("City and state 1")).toHaveValue("Baltimore, MD");
   fireEvent.blur(screen.getByLabelText("Funeral home 1"));
   expect(screen.getByLabelText("City and state 1")).toHaveValue("Baltimore, MD");
 }
@@ -72,7 +78,7 @@ describe("CremationWorkspace", () => {
     const api = renderWorkspace();
     await completeFirstRow();
 
-    fireEvent.click(screen.getByRole("button", { name: "Print certificates" }));
+    printOutput("Certificates");
     await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
     await waitFor(() => expect(screen.getByText("Printed")).toBeInTheDocument());
 
@@ -88,6 +94,7 @@ describe("CremationWorkspace", () => {
 
   it("only stores a funeral home after the explicit directory action", async () => {
     const api = renderWorkspace();
+    fireEvent.click(await screen.findByRole("tab", { name: "Funeral homes" }));
     await screen.findByText("Cremation funeral homes");
     const section = screen.getByText("Cremation funeral homes").closest("section")!;
     fireEvent.change(within(section).getByLabelText("Name"), { target: { value: "New Home" } });
@@ -95,6 +102,38 @@ describe("CremationWorkspace", () => {
     expect(api.saveCremationFuneralHome).not.toHaveBeenCalled();
     fireEvent.click(within(section).getByRole("button", { name: "Save record" }));
     await waitFor(() => expect(api.saveCremationFuneralHome).toHaveBeenCalledWith({ id: undefined, name: "New Home", location: "Laurel, MD" }));
+  });
+
+  it("keeps a batch selected across all output jobs, then leaves a new row selected separately", async () => {
+    const api = renderWorkspace();
+    await completeFirstRow();
+
+    printOutput("Certificates");
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
+    expect(screen.getByLabelText("Select row 1")).toBeChecked();
+
+    printOutput("Envelopes");
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("envelope"));
+    expect(screen.getByLabelText("Select row 1")).toBeChecked();
+
+    printOutput("Labels");
+    await waitFor(() => expect(api.printCremationLabels).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByLabelText("Select row 1")).not.toBeChecked());
+
+    fireEvent.keyDown(screen.getByLabelText("Funeral home 1"), { key: "Enter" });
+    expect(await screen.findByLabelText("Select row 2")).toBeChecked();
+    expect(screen.getByLabelText("Select row 1")).not.toBeChecked();
+  });
+
+  it("allows an unknown funeral home to keep optional city and state blank", async () => {
+    const api = renderWorkspace();
+    expect(await screen.findByLabelText("Cremation number 1")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Full name 1"), { target: { value: "Unknown Home Decedent" } });
+    fireEvent.change(screen.getByLabelText("Funeral home 1"), { target: { value: "Unknown Out of State Home" } });
+
+    expect(screen.getByLabelText("City and state 1")).toHaveValue("");
+    printOutput("Certificates");
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
   });
 
   it("marks only labels accepted before a partial Brother failure", async () => {
@@ -107,7 +146,7 @@ describe("CremationWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Full name 2"), { target: { value: "John Q Public" } });
     fireEvent.change(screen.getByLabelText("Funeral home 2"), { target: { value: "Example Funeral" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Print labels" }));
+    printOutput("Labels");
     await waitFor(() => expect(api.printCremationLabels).toHaveBeenCalledOnce());
     const firstRow = screen.getByLabelText("Full name 1").closest("tr")!;
     const secondRow = screen.getByLabelText("Full name 2").closest("tr")!;
@@ -120,7 +159,7 @@ describe("CremationWorkspace", () => {
     window.nightShift = mockApi();
     render(<ToastProvider><CremationWorkspace onBack={onBack} /></ToastProvider>);
     await completeFirstRow();
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Night Shift" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent("sequence has advanced");
     expect(onBack).not.toHaveBeenCalled();

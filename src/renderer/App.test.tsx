@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 import { createEmptyReport } from "@/domain/report";
 import type { NightReport } from "@/domain/types";
@@ -81,6 +81,15 @@ describe("resuming a draft stranded by the date rollover", () => {
     expect(screen.queryByText(/Build tonight|focused workspace|Local-first/i)).not.toBeInTheDocument();
     expect(await screen.findByText(/Unfinished report for/)).toHaveTextContent("Tuesday, Jul 28");
     expect(screen.getByText(/1 entry/)).toBeInTheDocument();
+  });
+
+  it("always exposes working window controls on the launch screen", async () => {
+    const windowControl = vi.fn(async () => {});
+    window.nightShift = { ...window.nightShift, windowControl };
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Close" }));
+    expect(windowControl).toHaveBeenCalledWith("close");
   });
 
   it("opens that draft rather than creating a new report", async () => {

@@ -21,6 +21,8 @@ import { useToast } from "../ui/Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CremationCertificatePage, CremationEnvelopePage, CremationPrintPages } from "./CremationPages";
 import { WindowControls } from "./TitleBar";
+import { WorkspaceTabs } from "./WorkspaceTabs";
+import type { WorkspaceMode } from "./WorkspaceTabs";
 
 function todayLocal() {
   const now = new Date();
@@ -53,7 +55,7 @@ interface ConfirmState {
   action: () => void | Promise<void>;
 }
 
-export function CremationWorkspace({ onBack }: { onBack: () => void }) {
+export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: () => void; onNavigate?: (mode: WorkspaceMode) => void }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -68,6 +70,8 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
   });
   const [setupKind, setSetupKind] = useState<CremationDocumentKind>("certificate");
   const [previewKind, setPreviewKind] = useState<CremationDocumentKind>("certificate");
+  const [printKind, setPrintKind] = useState<CremationDocumentKind | "label">("certificate");
+  const [sidebarTab, setSidebarTab] = useState<"preview" | "printer" | "directory">("preview");
   const [labelReadiness, setLabelReadiness] = useState({ ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Checking Brother label printer…" });
   const [activePrint, setActivePrint] = useState<{ kind: CremationDocumentKind; rows: CremationBatchRow[] } | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -103,6 +107,18 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
   const finalCompleteNumber = completeRows.at(-1)?.number ?? null;
   const hasUnsavedSequence = Boolean(finalCompleteNumber && finalCompleteNumber !== savedFinalNumber);
   const previewRow = selectedRows[0] ?? completeRows[0] ?? rows[0];
+
+  function matchingFuneralHome(value: string) {
+    const clean = value.trim();
+    if (!clean) return undefined;
+    return funeralHomes.find((home) => home.name.localeCompare(clean, undefined, { sensitivity: "base" }) === 0);
+  }
+
+  function unselectWhenAllOutputsPrinted(row: CremationBatchRow) {
+    return row.certificateStatus === "printed" && row.envelopeStatus === "printed" && row.labelStatus === "printed"
+      ? { ...row, selected: false }
+      : row;
+  }
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -142,6 +158,13 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
         row.displayNameManuallyEdited = true;
         row.envelopeStatus = stale(row.envelopeStatus);
         row.labelStatus = stale(row.labelStatus);
+      } else if (field === "funeralHome") {
+        const previousMatch = matchingFuneralHome(row.funeralHome);
+        const nextMatch = matchingFuneralHome(value);
+        row.funeralHome = nextMatch?.name ?? value;
+        if (nextMatch) row.location = nextMatch.location;
+        else if (previousMatch && row.location === previousMatch.location) row.location = "";
+        row.envelopeStatus = stale(row.envelopeStatus);
       } else {
         row[field] = value;
         row.envelopeStatus = stale(row.envelopeStatus);
@@ -153,7 +176,7 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
   function chooseFuneralHome(id: string) {
     setRows((current) => current.map((row) => {
       if (row.id !== id) return row;
-      const match = funeralHomes.find((home) => home.name.localeCompare(row.funeralHome, undefined, { sensitivity: "accent" }) === 0);
+      const match = matchingFuneralHome(row.funeralHome);
       return match ? { ...row, funeralHome: match.name, location: match.location, envelopeStatus: stale(row.envelopeStatus) } : row;
     }));
   }
@@ -201,7 +224,7 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
       }
       const ids = new Set(selectedRows.map((row) => row.id));
       const key = kind === "certificate" ? "certificateStatus" : "envelopeStatus";
-      setRows((current) => current.map((row) => ids.has(row.id) ? { ...row, [key]: "printed" } : row));
+      setRows((current) => current.map((row) => ids.has(row.id) ? unselectWhenAllOutputsPrinted({ ...row, [key]: "printed" }) : row));
       toast.success(`${selectedRows.length} ${kind}${selectedRows.length === 1 ? "" : "s"} sent to the printer. You can print the remaining items for the same selected rows next.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : `The ${kind} print job failed.`);
@@ -218,7 +241,7 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
     try {
       const result = await window.nightShift.printCremationLabels(selectedRows.map((row) => ({ id: row.id, displayName: row.displayName })));
       const printed = new Set(result.printedIds);
-      setRows((current) => current.map((row) => printed.has(row.id) ? { ...row, labelStatus: "printed" } : row));
+      setRows((current) => current.map((row) => printed.has(row.id) ? unselectWhenAllOutputsPrinted({ ...row, labelStatus: "printed" }) : row));
       if (result.failureReason) toast.error(`${result.printedIds.length} label${result.printedIds.length === 1 ? " was" : "s were"} accepted. ${result.failureReason}`);
       else toast.success(`${result.printedIds.length} label${result.printedIds.length === 1 ? "" : "s"} printed and cut.`);
     } catch (error) {
@@ -263,9 +286,30 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
     setConfirm({ title: "Clear this unsaved batch?", message: "The final cremation number has not been saved. Clearing now will discard the batch rows and names.", label: "Clear batch", danger: true, action: reset });
   }
 
-  function leaveWorkspace() {
-    if (!hasUnsavedSequence) return onBack();
-    setConfirm({ title: "Leave without saving the final number?", message: "The cremation sequence has advanced beyond the saved number. Names and batch rows are never stored and will be lost when you leave.", label: "Leave workspace", danger: true, action: onBack });
+  function navigateWorkspace(mode: WorkspaceMode) {
+    if (mode === "cremation") return;
+    const navigate = () => mode === "report" ? onBack() : onNavigate(mode);
+    if (!hasUnsavedSequence) return navigate();
+    setConfirm({
+      title: "Leave without saving the final number?",
+      message: "The cremation sequence has advanced beyond the saved number. Names and batch rows are never stored and will be lost when you leave.",
+      label: mode === "firstCall" ? "Open First Call" : "Leave workspace",
+      danger: true,
+      action: navigate,
+    });
+  }
+
+  function addRow() {
+    const last = rows.at(-1);
+    if (last && isCremationRowBlank(last)) return nameInputs.current.get(last.id)?.focus();
+    const next = createCremationBatchRow(last ? nextCremationNumber(last.number) ?? "" : "");
+    setRows((current) => [...current, next]);
+    requestAnimationFrame(() => nameInputs.current.get(next.id)?.focus());
+  }
+
+  function printSelected() {
+    if (printKind === "label") return void printLabels();
+    return void printDocuments(printKind);
   }
 
   async function saveDirectory() {
@@ -311,7 +355,8 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
   return (
     <main className="cremation-shell">
       <header className="cremation-commandbar no-print">
-        <div className="command-report-meta"><button className="cremation-back" onClick={leaveWorkspace} aria-label="Back">‹</button><div><p>Cremation Batch</p><strong>{completeRows.length} complete · {selectedRows.length} selected</strong></div></div>
+        <div className="command-report-meta"><div><p>Cremation Batch</p><strong>{completeRows.length} complete · {selectedRows.length} selected</strong></div></div>
+        <WorkspaceTabs active="cremation" onNavigate={navigateWorkspace} />
         <div className="command-drag-region" />
         <div className="cremation-header-actions">
           <Button variant="quiet" onClick={clearBatch}>Clear batch</Button>
@@ -326,15 +371,25 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
             <label>Certificate date<input type="date" value={date} onChange={(event) => { setDate(event.target.value); setRows((current) => current.map((row) => ({ ...row, certificateStatus: stale(row.certificateStatus) }))); }} /></label>
             <div className="cremation-sequence-note"><small>Last saved number</small><strong>{savedFinalNumber ?? "Not set — enter the first number manually"}</strong></div>
             <div className="cremation-print-actions">
-              <Button variant="print" busy={busy && activePrint?.kind === "certificate"} onClick={() => void printDocuments("certificate")}>Print certificates</Button>
-              <Button variant="print" busy={busy && activePrint?.kind === "envelope"} onClick={() => void printDocuments("envelope")}>Print envelopes</Button>
-              <Button variant="print" busy={busy && !activePrint} disabled={!labelReadiness.ready} title={labelReadiness.message} onClick={() => void printLabels()}>Print labels</Button>
+              <div className="cremation-output-picker" role="group" aria-label="Print output">
+                {(["certificate", "envelope", "label"] as const).map((kind) => <button
+                  key={kind}
+                  type="button"
+                  className={printKind === kind ? "active" : ""}
+                  aria-pressed={printKind === kind}
+                  onClick={() => {
+                    setPrintKind(kind);
+                    if (kind !== "label") { setSetupKind(kind); setPreviewKind(kind); }
+                  }}
+                >{kind === "certificate" ? "Certificates" : kind === "envelope" ? "Envelopes" : "Labels"}</button>)}
+              </div>
+              <Button variant="print" busy={busy} disabled={printKind === "label" && !labelReadiness.ready} title={printKind === "label" ? labelReadiness.message : undefined} onClick={printSelected}>Print selected</Button>
             </div>
           </div>
 
           <div className="cremation-table-wrap">
             <table className="cremation-table">
-              <thead><tr><th><input type="checkbox" aria-label="Select all complete rows" checked={completeRows.length > 0 && selectedRows.length === completeRows.length} onChange={(event) => setRows((current) => current.map((row) => isCremationRowComplete(row) ? { ...row, selected: event.target.checked } : row))} /></th><th>#</th><th>Full name</th><th>Envelope & label name</th><th>Funeral home</th><th>City / State</th><th>Certificate</th><th>Envelope</th><th>Label</th></tr></thead>
+              <thead><tr><th><input type="checkbox" aria-label="Select all complete rows" checked={completeRows.length > 0 && selectedRows.length === completeRows.length} onChange={(event) => setRows((current) => current.map((row) => isCremationRowComplete(row) ? { ...row, selected: event.target.checked } : row))} /></th><th>#</th><th>Full name</th><th>Envelope & label name</th><th>Funeral home</th><th>City / State</th><th>Outputs</th></tr></thead>
               <tbody>{rows.map((row, index) => <tr key={row.id} className={!isCremationRowBlank(row) && !isCremationRowComplete(row) ? "incomplete" : ""}>
                 <td><input type="checkbox" aria-label={`Select row ${index + 1}`} checked={row.selected} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, selected: event.target.checked } : item))} /></td>
                 <td><input className="cremation-number-input" aria-label={`Cremation number ${index + 1}`} placeholder="6-063-01" value={row.number} onChange={(event) => updateRow(row.id, "number", event.target.value)} onKeyDown={(event) => handleRowEnter(row, event)} /></td>
@@ -342,24 +397,25 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
                 <td><input aria-label={`Display name ${index + 1}`} placeholder="First Last" value={row.displayName} onChange={(event) => updateRow(row.id, "displayName", event.target.value)} onKeyDown={(event) => handleRowEnter(row, event)} /></td>
                 <td><input list="cremation-funeral-homes" aria-label={`Funeral home ${index + 1}`} value={row.funeralHome} onChange={(event) => updateRow(row.id, "funeralHome", event.target.value)} onBlur={() => chooseFuneralHome(row.id)} onKeyDown={(event) => handleRowEnter(row, event)} /></td>
                 <td><input aria-label={`City and state ${index + 1}`} placeholder="Optional" value={row.location} onChange={(event) => updateRow(row.id, "location", event.target.value)} onKeyDown={(event) => handleRowEnter(row, event)} /></td>
-                <td><Badge tone={statusTone(row.certificateStatus)}>{statusLabel(row.certificateStatus)}</Badge></td>
-                <td><Badge tone={statusTone(row.envelopeStatus)}>{statusLabel(row.envelopeStatus)}</Badge></td>
-                <td><Badge tone={statusTone(row.labelStatus)}>{statusLabel(row.labelStatus)}</Badge></td>
+                <td className="cremation-output-statuses">
+                  <Badge tone={statusTone(row.certificateStatus)}><b>C</b><span>{statusLabel(row.certificateStatus)}</span></Badge>
+                  <Badge tone={statusTone(row.envelopeStatus)}><b>E</b><span>{statusLabel(row.envelopeStatus)}</span></Badge>
+                  <Badge tone={statusTone(row.labelStatus)}><b>L</b><span>{statusLabel(row.labelStatus)}</span></Badge>
+                </td>
               </tr>)}</tbody>
             </table>
             <datalist id="cremation-funeral-homes">{funeralHomes.map((home) => <option key={home.id} value={home.name}>{home.location}</option>)}</datalist>
           </div>
-          <div className="cremation-table-footer"><span>Press Enter on a complete row to add the next number.</span><Button variant="quiet" onClick={() => {
-            const last = rows.at(-1);
-            if (last && isCremationRowBlank(last)) return nameInputs.current.get(last.id)?.focus();
-            const next = createCremationBatchRow(last ? nextCremationNumber(last.number) ?? "" : "");
-            setRows((current) => [...current, next]);
-            requestAnimationFrame(() => nameInputs.current.get(next.id)?.focus());
-          }}>Add row</Button></div>
+          <div className="cremation-table-footer"><Button variant="quiet" onClick={addRow}>+ Add cremation</Button><span>Press Enter on a complete row to continue with the next number.</span></div>
         </section>
 
         <aside className="cremation-sidebar">
-          <section>
+          <nav className="cremation-sidebar-tabs" role="tablist" aria-label="Cremation tools">
+            <button role="tab" aria-selected={sidebarTab === "preview"} className={sidebarTab === "preview" ? "active" : ""} onClick={() => setSidebarTab("preview")}>Preview</button>
+            <button role="tab" aria-selected={sidebarTab === "printer"} className={sidebarTab === "printer" ? "active" : ""} onClick={() => setSidebarTab("printer")}>Printer</button>
+            <button role="tab" aria-selected={sidebarTab === "directory"} className={sidebarTab === "directory" ? "active" : ""} onClick={() => setSidebarTab("directory")}>Funeral homes</button>
+          </nav>
+          <section hidden={sidebarTab !== "preview"}>
             <div className="cremation-section-heading"><div><strong>Print preview & calibration</strong><small>A5 certificate and C5 envelope are calibrated separately.</small></div></div>
             <div className="cremation-tabs"><button className={setupKind === "certificate" ? "active" : ""} onClick={() => { setSetupKind("certificate"); setPreviewKind("certificate"); }}>Certificate</button><button className={setupKind === "envelope" ? "active" : ""} onClick={() => { setSetupKind("envelope"); setPreviewKind("envelope"); }}>Envelope</button></div>
             <div className="cremation-preview"><div className={`cremation-preview-scale ${previewKind}`}>{previewKind === "certificate" ? <CremationCertificatePage row={previewRow} date={date} preference={preferences.certificate} /> : <CremationEnvelopePage row={previewRow} preference={preferences.envelope} />}</div></div>
@@ -369,13 +425,13 @@ export function CremationWorkspace({ onBack }: { onBack: () => void }) {
             </div>
           </section>
 
-          <section>
+          <section hidden={sidebarTab !== "printer"}>
             <div className="cremation-section-heading"><div><strong>Brother label printer</strong><small>{labelReadiness.message}</small></div><Badge tone={labelReadiness.ready ? "success" : "warning"}>{labelReadiness.ready ? "Ready" : "Setup needed"}</Badge></div>
             <div className="cremation-readiness"><span className={labelReadiness.bpacInstalled ? "ready" : ""}>b-PAC</span><span className={labelReadiness.driverInstalled ? "ready" : ""}>PT-D610BT</span><span className={labelReadiness.templateAvailable ? "ready" : ""}>12 mm template</span></div>
             <Button variant="quiet" busy={busy} onClick={() => void refreshLabels()}>Check again</Button>
           </section>
 
-          <section>
+          <section hidden={sidebarTab !== "directory"}>
             <div className="cremation-section-heading"><div><strong>Cremation funeral homes</strong><small>Saving this directory is explicit. Batch names are never stored.</small></div></div>
             <label>Name<input value={directoryDraft.name} onChange={(event) => setDirectoryDraft((current) => ({ ...current, name: event.target.value }))} /></label>
             <label>City / State<input value={directoryDraft.location} onChange={(event) => setDirectoryDraft((current) => ({ ...current, location: event.target.value }))} /></label>

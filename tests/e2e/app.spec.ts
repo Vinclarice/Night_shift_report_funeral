@@ -27,6 +27,7 @@ test("launches portably and renders the exact nine-card page", async () => {
   try {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
     await page.screenshot({ path: "test-results/version-2-launch.png" });
     await page.getByRole("button", { name: "Open Night Shift Report" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
@@ -52,6 +53,9 @@ test("launches portably and renders the exact nine-card page", async () => {
     await inlineInput.fill("Preview Home - Typed Family (9A)");
     await inlineInput.press("Enter");
     await expect(page.getByText("Typed Family").first()).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toBeFocused();
+    await expect(page.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
+    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Escape");
     await expect(page.locator(".save-state")).toHaveText("Saved");
 
     await page.getByRole("button", { name: "Edit Human Remains DELIVER" }).click();
@@ -247,6 +251,7 @@ test("opens the temporary First Call workspace and keeps Residence out of persis
     await page.screenshot({ path: "test-results/first-call-highlights.png" });
     await page.getByLabel("Name of decedent").fill("Smith, Mary A.");
     await expect(page.getByLabel("Deceased last name")).toHaveValue("SMITH");
+    await page.getByRole("tab", { name: "Place of death" }).click();
     await page.getByRole("button", { name: "Residence" }).click();
     await page.getByLabel("Direct residence address").fill("Private residence address");
     await page.getByLabel("Direct residence telephone").fill("Private phone");
@@ -298,7 +303,9 @@ test("uses an explicit TomTom search and formats the selected result simply", as
     await page.getByRole("button", { name: "New First Call Sheet" }).click();
     await page.getByLabel("Direct funeral home name").fill("Example Medical");
     await page.getByRole("button", { name: "Search TomTom" }).first().click();
-    await page.getByRole("button", { name: /Example Medical Center/ }).click();
+    const funeralHomeSection = page.locator(".first-call-tools > section").filter({ has: page.getByLabel("Direct funeral home name") });
+    await expect(funeralHomeSection.getByLabel("Online lookup results")).toContainText("Example Medical Center");
+    await funeralHomeSection.getByRole("button", { name: /Example Medical Center/ }).click();
 
     await expect(page.getByLabel("Funeral home address", { exact: true })).toHaveValue("3300 Gallows Road, Falls Church, VA 22042");
     await expect(page.getByLabel("Funeral home telephone number")).toHaveValue("703-555-0199");
@@ -344,6 +351,7 @@ test("searches a Residence address without persisting it anywhere in app data", 
   try {
     const page = await electronApp.firstWindow();
     await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await page.getByRole("tab", { name: "Place of death" }).click();
     await page.getByRole("button", { name: "Residence" }).click();
     await page.getByLabel("Direct residence address").fill(privateQuery);
     await page.getByRole("button", { name: "Search address with TomTom" }).click();
@@ -385,7 +393,8 @@ test("runs a Cremation Batch while keeping deceased names out of local storage",
     await page.getByLabel("Funeral home 2").fill("Harbor Funeral Service");
     await page.getByLabel("Cremation number 1").fill("6-063-38");
     await expect(page.getByLabel("Cremation number 2")).toHaveValue("6-064-01");
-    await expect(page.getByRole("button", { name: "Print labels" })).toBeDisabled();
+    await page.getByRole("button", { name: "Labels" }).click();
+    await expect(page.getByRole("button", { name: "Print selected" })).toBeDisabled();
     await page.getByRole("button", { name: "Save final number" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Save final number" }).click();
     await expect(page.getByText("Saved 6-064-01 as the final cremation number.")).toBeVisible();
@@ -420,11 +429,13 @@ test("the packaged Windows application starts with clean local data", async () =
     expect(labels.bpacInstalled).toBe(true);
     expect(labels.templateAvailable).toBe(true);
     expect(labels.message).not.toBe("");
-    await page.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("button", { name: "Night Shift" }).click();
     await page.getByRole("button", { name: "New First Call Sheet" }).click();
+    await page.getByRole("tab", { name: /Settings/ }).click();
     await expect(page.getByRole("button", { name: /TomTom search settings/ })).toBeVisible();
     await expect(page.getByLabel("TomTom API key")).toBeVisible();
     await expect(page.getByRole("button", { name: "Manage directories" })).toBeVisible();
+    await page.getByRole("tab", { name: "Funeral home" }).click();
     await expect(page.getByLabel("Direct funeral home name")).toBeVisible();
     await page.getByRole("button", { name: "100%" }).click();
     await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
@@ -433,7 +444,7 @@ test("the packaged Windows application starts with clean local data", async () =
     await expect(page.locator(".first-call-interactive .first-call-highlight-auto")).toHaveCount(1);
     await expect(page.locator(".first-call-print-only .first-call-highlight-auto")).toHaveCount(1);
     expect(await page.locator(".first-call-source-page > img").first().evaluate((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
-    await page.getByRole("button", { name: "Night Shift Report" }).click();
+    await page.getByRole("button", { name: "Night Shift" }).click();
     await page.getByRole("button", { name: "Leave sheet" }).click();
     await page.getByRole("button", { name: "Open Night Shift Report" }).click();
     await expect(page.getByText("Live canvas")).toBeVisible();
