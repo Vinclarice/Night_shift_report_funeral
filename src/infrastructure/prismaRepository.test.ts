@@ -100,6 +100,21 @@ describe("PrismaReportRepository", () => {
     expect(await repository.listReports()).toEqual([]);
   });
 
+  it("persists only Cremation Batch directory, sequence, and calibration data", async () => {
+    await repository.saveCremationFuneralHome({ name: "Example Cremation Home", location: "Baltimore, MD" });
+    await repository.saveCremationSequence({ major: 6, middle: 63, minor: 38 });
+    await repository.saveCremationPrintPreference("envelope", { scale: 1.01, offsetXInches: .02, offsetYInches: -.01 });
+
+    expect(await repository.listCremationFuneralHomes()).toEqual([expect.objectContaining({ name: "Example Cremation Home", location: "Baltimore, MD" })]);
+    await expect(repository.loadCremationSequence()).resolves.toBe("6-063-38");
+    expect((await repository.loadCremationPrintPreferences()).envelope).toEqual({ scale: 1.01, offsetXInches: .02, offsetYInches: -.01 });
+
+    const client = new PrismaClient({ datasources: { db: { url: `file:${repository.databasePath.replace(/\\/g, "/")}` } } });
+    const tables = await client.$queryRawUnsafe<Array<{ name: string }>>(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'Cremation%'`);
+    await client.$disconnect();
+    expect(tables.map((table) => table.name).sort()).toEqual(["CremationFuneralHome", "CremationPrintPreference", "CremationSequenceState"]);
+  });
+
   it("creates a backup that passes SQLite integrity verification", async () => {
     const backupPath = join(directory, "verified-backup.db");
     await repository.backupTo(backupPath);

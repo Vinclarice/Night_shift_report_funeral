@@ -10,6 +10,12 @@ import type {
   FirstCallSearchSettings,
 } from "@/domain/firstCall";
 import type { RevisionSummary } from "@/application/repository";
+import type {
+  CremationDocumentKind,
+  CremationFuneralHome,
+  CremationLabelReadiness,
+  CremationPrintPreference,
+} from "@/domain/cremation";
 
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
@@ -22,6 +28,16 @@ export interface FirstCallWorkspaceData extends FirstCallDirectories {
   printPreference: FirstCallPrintPreference;
   searchSettings: FirstCallSearchSettings;
 }
+
+export type CremationFuneralHomeInput = Pick<CremationFuneralHome, "name" | "location"> & { id?: string };
+export interface CremationWorkspaceData {
+  funeralHomes: CremationFuneralHome[];
+  savedFinalNumber: string | null;
+  printPreferences: Record<CremationDocumentKind, CremationPrintPreference>;
+  labelReadiness: CremationLabelReadiness;
+}
+export interface CremationLabelItem { id: string; displayName: string }
+export interface CremationLabelPrintResult { printedIds: string[]; failureReason?: string }
 
 /** A past report as listed in the read-only archive. Deliberately does not carry entries. */
 export interface ReportSummary {
@@ -75,6 +91,14 @@ export interface NightShiftApi {
   saveFirstCallTomTomApiKey(apiKey: string): Promise<FirstCallSearchSettings>;
   saveFirstCallPrintPreference(preference: FirstCallPrintPreference): Promise<FirstCallPrintPreference>;
   printFirstCall(): Promise<{ success: boolean; failureReason?: string }>;
+  loadCremationWorkspace(): Promise<CremationWorkspaceData>;
+  saveCremationFuneralHome(input: CremationFuneralHomeInput): Promise<CremationFuneralHome[]>;
+  deleteCremationFuneralHome(id: string): Promise<CremationFuneralHome[]>;
+  saveCremationFinalNumber(value: string): Promise<string>;
+  saveCremationPrintPreference(kind: CremationDocumentKind, preference: CremationPrintPreference): Promise<CremationPrintPreference>;
+  printCremationDocument(kind: CremationDocumentKind): Promise<{ success: boolean; failureReason?: string }>;
+  checkCremationLabelReadiness(): Promise<CremationLabelReadiness>;
+  printCremationLabels(items: CremationLabelItem[]): Promise<CremationLabelPrintResult>;
   listReports(): Promise<ReportSummary[]>;
   loadReport(id: string): Promise<NightReport | null>;
   windowControl(action: WindowControl): Promise<void>;

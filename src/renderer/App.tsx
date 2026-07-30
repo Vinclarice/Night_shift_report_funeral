@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Studio } from "./components/Studio";
 import { FirstCallWorkspace } from "./components/FirstCallWorkspace";
+import { CremationWorkspace } from "./components/CremationWorkspace";
 import { ReportControllerProvider, useReportController } from "./state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState, WorkspaceProvider } from "./state/WorkspaceContext";
 import { Button } from "./ui/Button";
@@ -38,6 +39,7 @@ function WelcomeScreen({
   onStartEmpty,
   onBack,
   onOpenFirstCall,
+  onOpenCremation,
 }: {
   resumable?: { reportDate: string; entryCount: number };
   latestFinalized?: boolean;
@@ -46,6 +48,7 @@ function WelcomeScreen({
   onStartEmpty?: () => void;
   onBack?: () => void;
   onOpenFirstCall: () => void;
+  onOpenCremation: () => void;
 }) {
   return (
     <main className="start-screen">
@@ -65,6 +68,7 @@ function WelcomeScreen({
           {!onBack && resumable && <Button variant="primary" onClick={onResume}>Resume unfinished report</Button>}
           {!onBack && <Button variant={resumable ? "secondary" : "primary"} onClick={onStartEmpty}>Open Night Shift Report</Button>}
           <Button variant="secondary" onClick={onOpenFirstCall}>New First Call Sheet</Button>
+          <Button variant="secondary" onClick={onOpenCremation}>New Cremation Batch</Button>
           {!onBack && latestFinalized && <Button variant="quiet" onClick={onContinueFromLast}>Continue from last report</Button>}
         </div>
       </section>
@@ -73,7 +77,7 @@ function WelcomeScreen({
 }
 
 function AppContent() {
-  const [mode, setMode] = useState<"report" | "firstCall">("report");
+  const [mode, setMode] = useState<"report" | "firstCall" | "cremation">("report");
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -88,6 +92,7 @@ function AppContent() {
   }
 
   if (mode === "firstCall") return <FirstCallWorkspace onBack={() => setMode("report")} />;
+  if (mode === "cremation") return <CremationWorkspace onBack={() => setMode("report")} />;
 
   if (!controller.report) {
     const resumable = controller.bootstrap.resumableDraft;
@@ -100,13 +105,14 @@ function AppContent() {
         onContinueFromLast={() => void controller.createDraft("clone").catch((error: Error) => toast.error(error.message))}
         onStartEmpty={() => void controller.createDraft("empty").catch((error: Error) => toast.error(error.message))}
         onOpenFirstCall={() => setMode("firstCall")}
+        onOpenCremation={() => setMode("cremation")}
       />
     );
   }
 
   if (workspace.viewingStart) {
-    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} onOpenFirstCall={() => setMode("firstCall")} />;
+    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} onOpenFirstCall={() => setMode("firstCall")} onOpenCremation={() => setMode("cremation")} />;
   }
 
-  return <Studio onOpenFirstCall={() => setMode("firstCall")} />;
+  return <Studio onOpenFirstCall={() => setMode("firstCall")} onOpenCremation={() => setMode("cremation")} />;
 }

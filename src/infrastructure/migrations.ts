@@ -108,6 +108,28 @@ const statements = [
     "offsetXInches" REAL NOT NULL DEFAULT 0,
     "offsetYInches" REAL NOT NULL DEFAULT 0
   )`,
+  `CREATE TABLE IF NOT EXISTS "CremationFuneralHome" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "normalizedName" TEXT NOT NULL,
+    "location" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL,
+    "updatedAt" DATETIME NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "CremationFuneralHome_normalizedName_key" ON "CremationFuneralHome"("normalizedName")`,
+  `CREATE TABLE IF NOT EXISTS "CremationSequenceState" (
+    "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+    "major" INTEGER,
+    "middle" INTEGER,
+    "minor" INTEGER,
+    "updatedAt" DATETIME NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "CremationPrintPreference" (
+    "kind" TEXT NOT NULL PRIMARY KEY,
+    "scale" REAL NOT NULL DEFAULT 1,
+    "offsetXInches" REAL NOT NULL DEFAULT 0,
+    "offsetYInches" REAL NOT NULL DEFAULT 0
+  )`,
 ];
 
 /**
@@ -142,4 +164,8 @@ export async function migrate(client: PrismaClient): Promise<void> {
   await applyAddedColumns(client);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
   await client.firstCallPrintPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  await client.cremationSequenceState.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  for (const kind of ["certificate", "envelope"]) {
+    await client.cremationPrintPreference.upsert({ where: { kind }, update: {}, create: { kind } });
+  }
 }

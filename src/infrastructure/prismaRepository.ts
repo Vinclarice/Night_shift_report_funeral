@@ -10,9 +10,12 @@ import { normalizeFuneralHome } from "@/domain/entries";
 import { createEmptyReport } from "@/domain/report";
 import { DEFAULT_FIRST_CALL_PRINT_PREFERENCE, normalizeFirstCallDirectoryName } from "@/domain/firstCall";
 import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallPrintPreference } from "@/domain/firstCall";
+import { DEFAULT_CREMATION_PRINT_PREFERENCE, formatCremationNumber, normalizeCremationFuneralHome } from "@/domain/cremation";
+import type { CremationDocumentKind, CremationNumberParts, CremationPrintPreference } from "@/domain/cremation";
 import type { LayoutSettings, NightReport, ReportEntry } from "@/domain/types";
 import { DEFAULT_LAYOUT } from "@/shared/contracts";
 import type { BackupSummary, FirstCallFacilityInput, FirstCallFuneralHomeInput, FuneralHomeOption } from "@/shared/contracts";
+import type { CremationFuneralHomeInput } from "@/shared/contracts";
 import { migrate } from "./migrations";
 
 type LoadedReport = Prisma.ReportGetPayload<{
@@ -334,6 +337,65 @@ export class PrismaReportRepository implements ReportRepository {
     const saved = await this.client.firstCallPrintPreference.upsert({
       where: { id: 1 },
       create: { id: 1, ...preference },
+      update: preference,
+    });
+    return { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches };
+  }
+
+  async listCremationFuneralHomes() {
+    return this.client.cremationFuneralHome.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, location: true },
+    });
+  }
+
+  async saveCremationFuneralHome(input: CremationFuneralHomeInput) {
+    const name = input.name.trim().replace(/\s+/g, " ");
+    const data = {
+      name,
+      normalizedName: normalizeCremationFuneralHome(name),
+      location: input.location.trim().replace(/\s+/g, " "),
+    };
+    if (input.id) await this.client.cremationFuneralHome.update({ where: { id: input.id }, data });
+    else await this.client.cremationFuneralHome.upsert({ where: { normalizedName: data.normalizedName }, update: data, create: data });
+    return this.listCremationFuneralHomes();
+  }
+
+  async deleteCremationFuneralHome(id: string) {
+    await this.client.cremationFuneralHome.delete({ where: { id } });
+    return this.listCremationFuneralHomes();
+  }
+
+  async loadCremationSequence(): Promise<string | null> {
+    const saved = await this.client.cremationSequenceState.findUnique({ where: { id: 1 } });
+    if (!saved || saved.major === null || saved.middle === null || saved.minor === null) return null;
+    return formatCremationNumber({ major: saved.major, middle: saved.middle, minor: saved.minor });
+  }
+
+  async saveCremationSequence(parts: CremationNumberParts) {
+    const saved = await this.client.cremationSequenceState.upsert({
+      where: { id: 1 },
+      create: { id: 1, ...parts },
+      update: parts,
+    });
+    return formatCremationNumber({ major: saved.major!, middle: saved.middle!, minor: saved.minor! });
+  }
+
+  async loadCremationPrintPreferences(): Promise<Record<CremationDocumentKind, CremationPrintPreference>> {
+    const saved = await this.client.cremationPrintPreference.findMany({ where: { kind: { in: ["certificate", "envelope"] } } });
+    const read = (kind: CremationDocumentKind) => {
+      const preference = saved.find((item) => item.kind === kind);
+      return preference
+        ? { scale: preference.scale, offsetXInches: preference.offsetXInches, offsetYInches: preference.offsetYInches }
+        : DEFAULT_CREMATION_PRINT_PREFERENCE;
+    };
+    return { certificate: read("certificate"), envelope: read("envelope") };
+  }
+
+  async saveCremationPrintPreference(kind: CremationDocumentKind, preference: CremationPrintPreference) {
+    const saved = await this.client.cremationPrintPreference.upsert({
+      where: { kind },
+      create: { kind, ...preference },
       update: preference,
     });
     return { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches };

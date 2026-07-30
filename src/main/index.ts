@@ -1,4 +1,5 @@
 import { access, appendFile, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +11,8 @@ import type { LayoutSettings, NightReport } from "../domain/types";
 import { normalizeFirstCallDirectoryName } from "../domain/firstCall";
 import type { FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
 import { nextReportDate } from "../domain/report";
+import { parseCremationNumber } from "../domain/cremation";
+import type { CremationDocumentKind, CremationLabelReadiness } from "../domain/cremation";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 import { formatFirstCallDirectoryCsv, parseFirstCallDirectoryCsv } from "../infrastructure/firstCallDirectoryCsv";
 import { searchTomTom } from "../infrastructure/tomTomSearch";
@@ -33,6 +36,88 @@ let backups: BackupManager;
 const STUDIO_BACKGROUND = "#080b10";
 const windowStatePath = join(userDataPath, "window-state.json");
 const logDirectory = join(userDataPath, "logs");
+
+function cremationResourcePath(name: string) {
+  return app.isPackaged
+    ? join(process.resourcesPath, "cremation", name)
+    : join(currentDirectory, "../../resources/cremation", name);
+}
+
+async function cremationLabelTemplatePath(): Promise<string | null> {
+  const target = join(userDataPath, "cremation-label.lbx");
+  if (await pathExists(target)) return target;
+  try {
+    const bundledTemplate = cremationResourcePath("cremation-label.lbx");
+    if (await pathExists(bundledTemplate)) {
+      await copyFile(bundledTemplate, target);
+      return target;
+    }
+    const encoded = await readFile(cremationResourcePath("cremation-label.lbx.base64"), "utf8");
+    await writeFile(target, Buffer.from(encoded.trim(), "base64"));
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+async function pathExists(path: string) {
+  try { await access(path); return true; }
+  catch { return false; }
+}
+
+function runBpacBridge(args: string[], input = "") {
+  const executable = join(process.env.WINDIR ?? "C:\\Windows", "System32", "cscript.exe");
+  const script = cremationResourcePath("print-labels.vbs");
+  return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn(executable, ["//nologo", script, ...args], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill();
+      resolve({ code: -1, stdout, stderr: "The Brother label job timed out." });
+    }, 120_000);
+    const finish = (result: { code: number; stdout: string; stderr: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+    child.on("error", (error) => finish({ code: -1, stdout, stderr: error.message }));
+    child.on("close", (code) => finish({ code: code ?? -1, stdout, stderr }));
+    child.stdin.end(input, "utf8");
+  });
+}
+
+async function cremationLabelReadiness(): Promise<CremationLabelReadiness> {
+  const bridgeAvailable = await pathExists(cremationResourcePath("print-labels.vbs"));
+  const templatePath = await cremationLabelTemplatePath();
+  const templateAvailable = Boolean(templatePath);
+  const check = bridgeAvailable ? await runBpacBridge(["--check"]) : { code: -1, stdout: "", stderr: "" };
+  const bpacInstalled = check.code === 0 && check.stdout.includes("READY");
+  const printers = mainWindow ? await mainWindow.webContents.getPrintersAsync().catch(() => []) : [];
+  const printer = printers.find((candidate) => /(?:PT-?D610BT|D610BT)/i.test(`${candidate.name} ${candidate.description ?? ""}`));
+  const driverInstalled = Boolean(printer);
+  const missing = [
+    !bpacInstalled && "Brother b-PAC 64-bit",
+    !driverInstalled && "PT-D610BT Windows driver/USB printer",
+    !templateAvailable && "cremation label template",
+  ].filter(Boolean);
+  return {
+    ready: bpacInstalled && driverInstalled && templateAvailable,
+    bpacInstalled,
+    driverInstalled,
+    templateAvailable,
+    printerName: printer?.name,
+    message: missing.length ? `Label printing needs: ${missing.join(", ")}.` : `Ready to print through ${printer!.name}.`,
+  };
+}
 
 /**
  * console.error goes nowhere in a packaged build, so anything that fails overnight leaves no trace.
@@ -143,6 +228,22 @@ const firstCallPrintPreferenceSchema = z.object({
 });
 const firstCallDirectoryKindSchema = z.enum(["funeralHome", "facility"]);
 const firstCallLookupKindSchema = z.enum(["funeralHome", "facility", "residence"]);
+const cremationDocumentKindSchema = z.enum(["certificate", "envelope"]);
+const cremationFuneralHomeSchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().trim().min(1).max(160),
+  location: z.string().trim().max(160),
+});
+const cremationPrintPreferenceSchema = z.object({
+  scale: z.number().min(0.9).max(1.1),
+  offsetXInches: z.number().min(-0.5).max(0.5),
+  offsetYInches: z.number().min(-0.5).max(0.5),
+});
+const cremationNumberSchema = z.string().trim().refine((value) => parseCremationNumber(value) !== null, "Enter a cremation number like 6-063-24.");
+const cremationLabelItemsSchema = z.array(z.object({
+  id: z.string().uuid(),
+  displayName: z.string().trim().min(1).max(160).refine((value) => !/[\r\n\t]/.test(value), "Label names must fit on one line."),
+})).min(1).max(250);
 const TOMTOM_KEY_SETTING = "firstCallTomTomApiKey";
 
 async function readSavedTomTomApiKey(): Promise<string> {
@@ -289,6 +390,57 @@ function registerIpc() {
     return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
       mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });
+  });
+  handle("cremation:load", async () => {
+    const [funeralHomes, savedFinalNumber, printPreferences] = await Promise.all([
+      repository.listCremationFuneralHomes(),
+      repository.loadCremationSequence(),
+      repository.loadCremationPrintPreferences(),
+    ]);
+    return {
+      funeralHomes,
+      savedFinalNumber,
+      printPreferences,
+      labelReadiness: { ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Checking Brother label printer…" },
+    };
+  });
+  handle("cremation:funeral-home:save", (_event, input: unknown) => repository.saveCremationFuneralHome(cremationFuneralHomeSchema.parse(input)));
+  handle("cremation:funeral-home:delete", (_event, id: unknown) => repository.deleteCremationFuneralHome(z.string().min(1).parse(id)));
+  handle("cremation:sequence:save", (_event, rawValue: unknown) => {
+    const value = cremationNumberSchema.parse(rawValue);
+    return repository.saveCremationSequence(parseCremationNumber(value)!);
+  });
+  handle("cremation:print-preference:save", (_event, rawKind: unknown, rawPreference: unknown) => {
+    const kind = cremationDocumentKindSchema.parse(rawKind);
+    return repository.saveCremationPrintPreference(kind, cremationPrintPreferenceSchema.parse(rawPreference));
+  });
+  handle("cremation:print", async (_event, rawKind: unknown) => {
+    if (!mainWindow) return { success: false, failureReason: "The cremation workspace is unavailable." };
+    const kind = cremationDocumentKindSchema.parse(rawKind) as CremationDocumentKind;
+    const pageSize = kind === "certificate" ? { width: 210_000, height: 148_000 } : { width: 229_000, height: 162_000 };
+    return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
+      mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, landscape: false, pageSize }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
+    });
+  });
+  handle("cremation:labels:readiness", () => cremationLabelReadiness());
+  handle("cremation:labels:print", async (_event, rawItems: unknown) => {
+    const items = cremationLabelItemsSchema.parse(rawItems);
+    const readiness = await cremationLabelReadiness();
+    if (!readiness.ready || !readiness.printerName) return { printedIds: [], failureReason: readiness.message };
+    const input = items.map((item) => `${item.id}\t${item.displayName}`).join("\r\n") + "\r\n";
+    const templatePath = await cremationLabelTemplatePath();
+    if (!templatePath) return { printedIds: [], failureReason: "The bundled cremation label template is unavailable." };
+    const result = await runBpacBridge([templatePath, readiness.printerName], input);
+    const printedIds: string[] = [];
+    let failureReason = result.code === 0 ? undefined : "The Brother label job did not finish.";
+    for (const line of result.stdout.split(/\r?\n/).filter(Boolean)) {
+      const [id, status, detail] = line.split("\t");
+      if (status === "OK" && items.some((item) => item.id === id)) printedIds.push(id);
+      else if (id === "FATAL") failureReason = status;
+      else if (status === "ERROR") failureReason = detail || "The Brother printer rejected a label.";
+    }
+    if (!failureReason && printedIds.length !== items.length) failureReason = "The Brother printer accepted only part of the label batch.";
+    return { printedIds, failureReason };
   });
   handle("report:list", () => repository.listReports());
   handle("report:load", (_event, id: string) => repository.findById(z.string().min(1).parse(id)));

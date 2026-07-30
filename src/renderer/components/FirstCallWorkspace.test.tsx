@@ -34,6 +34,10 @@ function mockApi(): NightShiftApi {
     saveFirstCallTomTomApiKey: vi.fn(async () => ({ provider: "tomtom" as const, configured: true, source: "saved" as const })),
     saveFirstCallPrintPreference: async (preference) => preference,
     printFirstCall: vi.fn(async () => ({ success: true })),
+    loadCremationWorkspace: async () => ({ funeralHomes: [], savedFinalNumber: null, printPreferences: { certificate: { scale: 1, offsetXInches: 0, offsetYInches: 0 }, envelope: { scale: 1, offsetXInches: 0, offsetYInches: 0 } }, labelReadiness: { ready: false, bpacInstalled: true, driverInstalled: false, templateAvailable: true, message: "Printer unavailable" } }),
+    saveCremationFuneralHome: async () => [], deleteCremationFuneralHome: async () => [],
+    saveCremationFinalNumber: async (value) => value, saveCremationPrintPreference: async (_kind, preference) => preference,
+    printCremationDocument: async () => ({ success: true }), checkCremationLabelReadiness: async () => ({ ready: false, bpacInstalled: true, driverInstalled: false, templateAvailable: true, message: "Printer unavailable" }), printCremationLabels: async () => ({ printedIds: [] }),
     windowControl: async () => {}, isWindowMaximized: async () => false, onWindowMaximizeChange: () => () => {},
   };
 }

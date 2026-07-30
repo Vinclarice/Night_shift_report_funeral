@@ -11,6 +11,8 @@ extraResources:
     to: prisma/query_engine-windows.dll.node
   - from: resources/icon.png
     to: ../resources/icon.png
+  - from: resources/cremation
+    to: cremation
 win:
   icon: resources/icon.ico
   target:

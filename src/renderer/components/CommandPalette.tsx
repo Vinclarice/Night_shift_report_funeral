@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { NightReport, SectionKey } from "@/domain/types";
@@ -116,7 +116,7 @@ export function CommandPalette({ report }: { report: NightReport | null }) {
   // with an out-of-range selection after filtering shrinks the results.
   const activeIndex = results.length ? Math.min(active, results.length - 1) : 0;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function handleKey(event: KeyboardEvent) {
       // Ctrl+K is claimed even while typing — it is not a text-editing shortcut, and having to
       // click out of a field first would defeat the point of a keyboard launcher.

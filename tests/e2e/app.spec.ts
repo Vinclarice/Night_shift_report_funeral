@@ -361,6 +361,48 @@ test("searches a Residence address without persisting it anywhere in app data", 
   }
 });
 
+test("runs a Cremation Batch while keeping deceased names out of local storage", async () => {
+  test.setTimeout(60_000);
+  const dataDirectory = await mkdtemp(join(tmpdir(), "cremation-batch-e2e-"));
+  const privateName = "Privacy Canary Decedent";
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
+  });
+  let appClosed = false;
+  try {
+    const page = await electronApp.firstWindow();
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1050));
+    await page.getByRole("button", { name: "New Cremation Batch" }).click();
+    await expect(page.getByText("Cremation Batch", { exact: true })).toBeVisible();
+    await page.getByLabel("Cremation number 1").fill("6-063-37");
+    await page.getByLabel("Full name 1").fill(privateName);
+    await expect(page.getByLabel("Display name 1")).toHaveValue("Privacy Decedent");
+    await page.getByLabel("Funeral home 1").fill("Harbor Funeral Service");
+    await page.getByLabel("Funeral home 1").press("Enter");
+    await expect(page.getByLabel("Cremation number 2")).toHaveValue("6-063-38");
+    await page.getByLabel("Full name 2").fill("Second Example Person");
+    await page.getByLabel("Funeral home 2").fill("Harbor Funeral Service");
+    await page.getByLabel("Cremation number 1").fill("6-063-38");
+    await expect(page.getByLabel("Cremation number 2")).toHaveValue("6-064-01");
+    await expect(page.getByRole("button", { name: "Print labels" })).toBeDisabled();
+    await page.getByRole("button", { name: "Save final number" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Save final number" }).click();
+    await expect(page.getByText("Saved 6-064-01 as the final cremation number.")).toBeVisible();
+    await page.screenshot({ path: "test-results/cremation-batch.png" });
+    const stored = await page.evaluate(() => window.nightShift.loadCremationWorkspace());
+    expect(stored.savedFinalNumber).toBe("6-064-01");
+    expect(stored.funeralHomes).toEqual([]);
+    await electronApp.close();
+    appClosed = true;
+    expect(await directoryContainsText(dataDirectory, privateName)).toBe(false);
+    expect(await directoryContainsText(dataDirectory, "Second Example Person")).toBe(false);
+  } finally {
+    if (!appClosed) await electronApp.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
 test("the packaged Windows application starts with clean local data", async () => {
   test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run the packaged-app verification after building the portable release.");
@@ -372,6 +414,13 @@ test("the packaged Windows application starts with clean local data", async () =
   try {
     const page = await electronApp.firstWindow();
     await expect(page.getByRole("heading", { name: "Night Shift Report" })).toBeVisible();
+    await page.getByRole("button", { name: "New Cremation Batch" }).click();
+    await expect(page.getByLabel("Cremation number 1")).toBeVisible();
+    const labels = await page.evaluate(() => window.nightShift.checkCremationLabelReadiness());
+    expect(labels.bpacInstalled).toBe(true);
+    expect(labels.templateAvailable).toBe(true);
+    expect(labels.message).not.toBe("");
+    await page.getByRole("button", { name: "Back" }).click();
     await page.getByRole("button", { name: "New First Call Sheet" }).click();
     await expect(page.getByRole("button", { name: /TomTom search settings/ })).toBeVisible();
     await expect(page.getByLabel("TomTom API key")).toBeVisible();
