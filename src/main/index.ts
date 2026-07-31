@@ -11,8 +11,20 @@ import type { LayoutSettings, NightReport } from "../domain/types";
 import { FIRST_CALL_CHECK_FIELDS, FIRST_CALL_TEXT_FIELDS, normalizeFirstCallDirectoryName, sanitizeFirstCallDraftForPersistence } from "../domain/firstCall";
 import type { FirstCallDraft, FirstCallLookupCandidate, FirstCallLookupKind, FirstCallSearchSettings } from "../domain/firstCall";
 import { nextReportDate } from "../domain/report";
-import { parseCremationNumber } from "../domain/cremation";
-import type { CremationDocumentKind, CremationLabelReadiness } from "../domain/cremation";
+import {
+  buildCremationCertificateFields,
+  buildCremationEnvelopeFields,
+  buildCremationPrintPageGeometry,
+  parseCremationNumber,
+} from "../domain/cremation";
+import type {
+  CremationBatchRow,
+  CremationDocumentKind,
+  CremationLabelReadiness,
+  CremationPrintPreference,
+  CremationPrintingReadiness,
+  PrinterCapability,
+} from "../domain/cremation";
 import type { CremationBatchSnapshot } from "../shared/contracts";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 import { formatFirstCallDirectoryCsv, parseFirstCallDirectoryCsv } from "../infrastructure/firstCallDirectoryCsv";
@@ -25,8 +37,10 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const localDataRoot = process.env.LOCALAPPDATA ?? app.getPath("userData");
 const userDataPath = process.env.NIGHT_SHIFT_REPORT_DATA_DIR ?? join(localDataRoot, "Night Shift Report");
 app.setPath("userData", userDataPath);
-if (app.isPackaged && !process.env.PRISMA_QUERY_ENGINE_LIBRARY) {
-  process.env.PRISMA_QUERY_ENGINE_LIBRARY = join(process.resourcesPath, "prisma", "query_engine-windows.dll.node");
+if (!process.env.PRISMA_QUERY_ENGINE_LIBRARY) {
+  process.env.PRISMA_QUERY_ENGINE_LIBRARY = app.isPackaged
+    ? join(process.resourcesPath, "prisma", "query_engine-windows.dll.node")
+    : join(currentDirectory, "query_engine-windows.dll.node");
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -41,7 +55,7 @@ const logDirectory = join(userDataPath, "logs");
 function cremationResourcePath(name: string) {
   return app.isPackaged
     ? join(process.resourcesPath, "cremation", name)
-    : join(currentDirectory, "../../resources/cremation", name);
+    : join(currentDirectory, "../resources/cremation", name);
 }
 
 async function cremationLabelTemplatePath(): Promise<string | null> {
@@ -66,11 +80,9 @@ async function pathExists(path: string) {
   catch { return false; }
 }
 
-function runBpacBridge(args: string[], input = "") {
-  const executable = join(process.env.WINDIR ?? "C:\\Windows", "System32", "cscript.exe");
-  const script = cremationResourcePath("print-labels.vbs");
+function spawnBridge(executable: string, args: string[], input: string, timeoutMs: number, timeoutMessage: string) {
   return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-    const child = spawn(executable, ["//nologo", script, ...args], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let settled = false;
@@ -78,8 +90,8 @@ function runBpacBridge(args: string[], input = "") {
       if (settled) return;
       settled = true;
       child.kill();
-      resolve({ code: -1, stdout, stderr: "The Brother label job timed out." });
-    }, 120_000);
+      resolve({ code: -1, stdout, stderr: timeoutMessage });
+    }, timeoutMs);
     const finish = (result: { code: number; stdout: string; stderr: string }) => {
       if (settled) return;
       settled = true;
@@ -94,6 +106,54 @@ function runBpacBridge(args: string[], input = "") {
     child.on("close", (code) => finish({ code: code ?? -1, stdout, stderr }));
     child.stdin.end(input, "utf8");
   });
+}
+
+function runBpacBridge(args: string[], input = "") {
+  const executable = join(process.env.WINDIR ?? "C:\\Windows", "System32", "cscript.exe");
+  const script = cremationResourcePath("print-labels.vbs");
+  return spawnBridge(executable, ["//nologo", script, ...args], input, 120_000, "The Brother label job timed out.");
+}
+
+// Certificates/envelopes print through this PowerShell/.NET bridge rather than Electron's
+// webContents.print, because real Windows printer drivers are documented to silently drop custom
+// paper sizes when the print dialog is shown (electron/electron#39702, #22066) - forcing the
+// operator into Advanced settings by hand every time. System.Drawing.Printing can set the exact
+// paper size and tray directly, the same reasoning that already put label printing on its own
+// bridge (runBpacBridge) instead of trusting the browser's print pipeline for physical paper.
+function runPrintBridge(args: string[], input = "", timeoutMs = 60_000) {
+  const executable = join(process.env.WINDIR ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const script = cremationResourcePath("print-cremation.ps1");
+  return spawnBridge(executable, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, ...args], input, timeoutMs, "The certificate/envelope print job timed out.");
+}
+
+async function cremationPrintingReadiness(kind: CremationDocumentKind, preference: CremationPrintPreference): Promise<CremationPrintingReadiness> {
+  const scriptAvailable = await pathExists(cremationResourcePath("print-cremation.ps1"));
+  const check = scriptAvailable ? await runPrintBridge(["--check"]) : { code: -1, stdout: "", stderr: "" };
+  const scriptReady = check.code === 0 && check.stdout.includes("READY");
+  const executionPolicyBlocked = /disabled on this system|UnauthorizedAccess|cannot be loaded because running scripts/i.test(check.stderr);
+  const printerConfigured = Boolean(preference.deviceName);
+  let printerInstalled = false;
+  if (printerConfigured && scriptReady) {
+    const list = await runPrintBridge(["--list"]);
+    try {
+      const printers = JSON.parse(list.stdout || "[]") as Array<{ name: string }>;
+      printerInstalled = printers.some((printer) => printer.name === preference.deviceName);
+    } catch { printerInstalled = false; }
+  }
+  const missing = [
+    !scriptAvailable && "the print-cremation.ps1 script",
+    scriptAvailable && !scriptReady && (executionPolicyBlocked ? "PowerShell execution policy is blocking the print engine" : ".NET printing support"),
+    !printerConfigured && "a saved printer",
+    printerConfigured && scriptReady && !printerInstalled && `the configured printer ("${preference.deviceName}")`,
+  ].filter((item): item is string => Boolean(item));
+  const kindLabel = kind === "certificate" ? "Certificate" : "Envelope";
+  return {
+    ready: scriptReady && printerConfigured && printerInstalled,
+    scriptAvailable,
+    printerConfigured,
+    printerInstalled,
+    message: missing.length ? `${kindLabel} printing needs: ${missing.join(", ")}.` : `Ready to print through ${preference.deviceName}.`,
+  };
 }
 
 async function cremationLabelReadiness(): Promise<CremationLabelReadiness> {
@@ -239,6 +299,8 @@ const cremationPrintPreferenceSchema = z.object({
   scale: z.number().min(0.9).max(1.1),
   offsetXInches: z.number().min(-0.5).max(0.5),
   offsetYInches: z.number().min(-0.5).max(0.5),
+  deviceName: z.string().trim().min(1).optional(),
+  paperSource: z.string().trim().min(1).optional(),
 });
 const cremationNumberSchema = z.string().trim().refine((value) => parseCremationNumber(value) !== null, "Enter a cremation number like 6-063-24.");
 const cremationLabelItemsSchema = z.array(z.object({
@@ -444,12 +506,14 @@ function registerIpc() {
       repository.loadCremationPrintPreferences(),
       readJsonSetting<CremationBatchSnapshot>(CREMATION_BATCH_SETTING),
     ]);
+    const checkingReadiness: CremationPrintingReadiness = { ready: false, scriptAvailable: false, printerConfigured: false, printerInstalled: false, message: "Checking printer…" };
     return {
       funeralHomes,
       savedFinalNumber,
       printPreferences,
       savedBatch,
       labelReadiness: { ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Checking Brother label printer…" },
+      printingReadiness: { certificate: checkingReadiness, envelope: checkingReadiness },
     };
   });
   handle("cremation:funeral-home:save", (_event, input: unknown) => repository.saveCremationFuneralHome(cremationFuneralHomeSchema.parse(input)));
@@ -467,24 +531,50 @@ function registerIpc() {
     await repository.writeAppSetting(CREMATION_BATCH_SETTING, JSON.stringify(snapshot));
   });
   handle("cremation:batch:clear", async () => { await repository.deleteAppSetting(CREMATION_BATCH_SETTING); });
-  handle("cremation:print", async (_event, rawKind: unknown) => {
-    if (!mainWindow) return { success: false, failureReason: "The cremation workspace is unavailable." };
+  handle("cremation:print", async (_event, rawKind: unknown, rawRows: unknown, rawDate: unknown) => {
     const kind = cremationDocumentKindSchema.parse(rawKind) as CremationDocumentKind;
-    // The certificate and envelope are laid out landscape (wider than tall) in CSS, but the
-    // physical stock is portrait A5 (148x210mm) / C5 (162x229mm). Electron/Chromium's custom
-    // pageSize {width, height} objects are known to be silently dropped or mishandled by real
-    // (non-virtual) Windows printer drivers - see electron/electron#39702 and #22066 - which is
-    // what made the printer fall back to its default paper size instead of A5/C5. Passing the
-    // true portrait dimensions and letting `landscape: true` do the rotation (rather than
-    // pre-swapping width/height ourselves with landscape: false) matches what Chromium expects
-    // and is far more likely to be honored by the driver. Electron ships a built-in "A5" preset,
-    // which real printer drivers recognize more reliably than any custom object, so the
-    // certificate uses that; C5 has no built-in preset, so it stays a custom object at its true
-    // portrait size.
-    const pageSize = kind === "certificate" ? "A5" : { width: 162_000, height: 229_000 };
-    return new Promise<{ success: boolean; failureReason?: string }>((resolve) => {
-      mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, landscape: true, pageSize }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
+    const rows = z.array(cremationBatchRowSchema).min(1).max(500).parse(rawRows) as CremationBatchRow[];
+    const date = z.string().max(20).parse(rawDate);
+    const preferences = await repository.loadCremationPrintPreferences();
+    const preference = preferences[kind];
+    if (!preference.deviceName) return { printedIds: [], failureReason: `No printer is configured for ${kind === "certificate" ? "certificates" : "envelopes"} yet - set one in the Printer tab.` };
+
+    const pages = rows.map((row) => {
+      const fields = kind === "certificate" ? buildCremationCertificateFields(row, date) : buildCremationEnvelopeFields(row);
+      const geometry = buildCremationPrintPageGeometry(kind, fields, preference);
+      return { id: row.id, fields: geometry.fields, widthHundredths: geometry.widthHundredths, heightHundredths: geometry.heightHundredths, landscape: geometry.landscape };
     });
+    const payload = {
+      kind,
+      printerName: preference.deviceName,
+      paperSource: preference.paperSource,
+      widthHundredths: pages[0].widthHundredths,
+      heightHundredths: pages[0].heightHundredths,
+      landscape: pages[0].landscape,
+      pages: pages.map(({ id, fields }) => ({ id, fields })),
+    };
+    const timeoutMs = Math.min(600_000, 30_000 + rows.length * 4_000);
+    const result = await runPrintBridge([], JSON.stringify(payload), timeoutMs);
+    const printedIds: string[] = [];
+    let failureReason = result.code === 0 ? undefined : "The certificate/envelope print job did not finish.";
+    for (const line of result.stdout.split(/\r?\n/).filter(Boolean)) {
+      const [id, status, detail] = line.split("\t");
+      if (status === "OK" && rows.some((row) => row.id === id)) printedIds.push(id);
+      else if (id === "FATAL") failureReason = status;
+      else if (status === "ERROR") failureReason = detail || "The printer rejected a page.";
+    }
+    if (!failureReason && printedIds.length !== rows.length) failureReason = "The printer accepted only part of the batch.";
+    return { printedIds, failureReason };
+  });
+  handle("cremation:printers:list", async (): Promise<PrinterCapability[]> => {
+    const result = await runPrintBridge(["--list"]);
+    try { return JSON.parse(result.stdout || "[]") as PrinterCapability[]; }
+    catch { return []; }
+  });
+  handle("cremation:printing:readiness", async (_event, rawKind: unknown) => {
+    const kind = cremationDocumentKindSchema.parse(rawKind) as CremationDocumentKind;
+    const preferences = await repository.loadCremationPrintPreferences();
+    return cremationPrintingReadiness(kind, preferences[kind]);
   });
   handle("cremation:labels:readiness", () => cremationLabelReadiness());
   handle("cremation:labels:print", async (_event, rawItems: unknown) => {

@@ -149,8 +149,10 @@ model CremationSequenceState {
 }
 
 model CremationPrintPreference {
-  kind           String @id
-  scale          Float  @default(1)
-  offsetXInches  Float  @default(0)
-  offsetYInches  Float  @default(0)
+  kind           String  @id
+  scale          Float   @default(1)
+  offsetXInches  Float   @default(0)
+  offsetYInches  Float   @default(0)
+  deviceName     String?
+  paperSource    String?
 }

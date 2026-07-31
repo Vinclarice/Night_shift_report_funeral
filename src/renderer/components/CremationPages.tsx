@@ -1,12 +1,7 @@
 import type { CSSProperties } from "react";
 
-import type { CremationBatchRow, CremationDocumentKind, CremationPrintPreference } from "@/domain/cremation";
-
-function formatCertificateDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date(year, month - 1, day));
-}
+import { formatCertificateDate } from "@/domain/cremation";
+import type { CremationBatchRow, CremationPrintPreference } from "@/domain/cremation";
 
 interface PageProps {
   row: CremationBatchRow;
@@ -47,17 +42,4 @@ export function CremationEnvelopePage({ row, preference }: PageProps) {
       </div>
     </article>
   );
-}
-
-export function CremationPrintPages({ kind, rows, date, preference }: {
-  kind: CremationDocumentKind;
-  rows: CremationBatchRow[];
-  date: string;
-  preference: CremationPrintPreference;
-}) {
-  return <>{rows.map((row) => {
-    return kind === "certificate"
-      ? <CremationCertificatePage key={row.id} row={row} date={date} preference={preference} />
-      : <CremationEnvelopePage key={row.id} row={row} preference={preference} />;
-  })}</>;
 }

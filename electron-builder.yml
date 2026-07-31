@@ -4,8 +4,6 @@ directories:
   output: release
 files:
   - out/**/*
-  - node_modules/@prisma/client/**/*
-  - prisma/**/*
 extraResources:
   - from: src/generated/prisma-client/query_engine-windows.dll.node
     to: prisma/query_engine-windows.dll.node

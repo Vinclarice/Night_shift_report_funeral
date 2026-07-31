@@ -1,13 +1,12 @@
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
-  electron-winstaller: true
+  electron-winstaller: false
   esbuild: true
   prisma: true
 onlyBuiltDependencies:
   - "@prisma/client"
   - "@prisma/engines"
   - electron
-  - electron-winstaller
   - esbuild
   - prisma

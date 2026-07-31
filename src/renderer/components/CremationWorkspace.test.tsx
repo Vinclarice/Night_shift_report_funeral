@@ -27,15 +27,24 @@ function mockApi(): NightShiftApi {
     loadCremationWorkspace: vi.fn(async () => ({
       funeralHomes: [{ id: "home-1", name: "Example Funeral", location: "Baltimore, MD" }],
       savedFinalNumber: "6-063-36",
-      printPreferences: { certificate: { scale: 1, offsetXInches: 0, offsetYInches: 0 }, envelope: { scale: 1, offsetXInches: 0, offsetYInches: 0 } },
+      printPreferences: {
+        certificate: { scale: 1, offsetXInches: 0, offsetYInches: 0, deviceName: "Cremation-A5" },
+        envelope: { scale: 1, offsetXInches: 0, offsetYInches: 0, deviceName: "Cremation-A5" },
+      },
       labelReadiness: { ready: true, bpacInstalled: true, driverInstalled: true, templateAvailable: true, printerName: "Brother PT-D610BT", message: "Ready" },
+      printingReadiness: {
+        certificate: { ready: true, scriptAvailable: true, printerConfigured: true, printerInstalled: true, message: "Ready to print through Cremation-A5." },
+        envelope: { ready: true, scriptAvailable: true, printerConfigured: true, printerInstalled: true, message: "Ready to print through Cremation-A5." },
+      },
       savedBatch: null,
     })),
     saveCremationFuneralHome: vi.fn(async (input) => [{ id: input.id ?? "home-2", name: input.name, location: input.location }]),
     deleteCremationFuneralHome: vi.fn(async () => []),
     saveCremationFinalNumber: vi.fn(async (value) => value),
     saveCremationPrintPreference: vi.fn(async (_kind, preference) => preference),
-    printCremationDocument: vi.fn(async () => ({ success: true })),
+    printCremationDocument: vi.fn(async (_kind, rows: Array<{ id: string }>) => ({ printedIds: rows.map((row) => row.id) })),
+    listCremationPrinters: vi.fn(async () => [{ name: "Cremation-A5", displayName: "Cremation Printer (A5 tray)", paperSources: ["Tray 1"] }]),
+    checkCremationPrintingReadiness: vi.fn(async () => ({ ready: true, scriptAvailable: true, printerConfigured: true, printerInstalled: true, message: "Ready to print through Cremation-A5." })),
     checkCremationLabelReadiness: vi.fn(async () => ({ ready: true, bpacInstalled: true, driverInstalled: true, templateAvailable: true, printerName: "Brother PT-D610BT", message: "Ready" })),
     printCremationLabels: vi.fn(async (items: Array<{ id: string; displayName: string }>) => ({ printedIds: items.map((item) => item.id) })),
     saveCremationBatch: vi.fn(async () => {}),
@@ -84,7 +93,7 @@ describe("CremationWorkspace", () => {
     await completeFirstRow();
 
     printOutput("Certificates");
-    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate", expect.any(Array), expect.any(String)));
     await waitFor(() => expect(screen.getByText("Printed")).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText("Full name 1"), { target: { value: "Mary Jane Smith" } });
@@ -114,11 +123,11 @@ describe("CremationWorkspace", () => {
     await completeFirstRow();
 
     printOutput("Certificates");
-    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate", expect.any(Array), expect.any(String)));
     expect(screen.getByLabelText("Select row 1")).toBeChecked();
 
     printOutput("Envelopes");
-    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("envelope"));
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("envelope", expect.any(Array), expect.any(String)));
     expect(screen.getByLabelText("Select row 1")).toBeChecked();
 
     printOutput("Labels");
@@ -138,7 +147,7 @@ describe("CremationWorkspace", () => {
 
     expect(screen.getByLabelText("City and state 1")).toHaveValue("");
     printOutput("Certificates");
-    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate"));
+    await waitFor(() => expect(api.printCremationDocument).toHaveBeenCalledWith("certificate", expect.any(Array), expect.any(String)));
   });
 
   it("marks only labels accepted before a partial Brother failure", async () => {

@@ -1,0 +1,11 @@
+{
+  "name": "night-shift-report-runtime",
+  "version": "2.0.1",
+  "private": true,
+  "type": "module",
+  "productName": "Night Shift Report",
+  "main": "out/main/index.js",
+  "dependencies": {
+    "electron": "43.2.0"
+  }
+}

@@ -386,7 +386,7 @@ export class PrismaReportRepository implements ReportRepository {
     const read = (kind: CremationDocumentKind) => {
       const preference = saved.find((item) => item.kind === kind);
       return preference
-        ? { scale: preference.scale, offsetXInches: preference.offsetXInches, offsetYInches: preference.offsetYInches }
+        ? { scale: preference.scale, offsetXInches: preference.offsetXInches, offsetYInches: preference.offsetYInches, deviceName: preference.deviceName ?? undefined, paperSource: preference.paperSource ?? undefined }
         : DEFAULT_CREMATION_PRINT_PREFERENCE;
     };
     return { certificate: read("certificate"), envelope: read("envelope") };
@@ -398,7 +398,7 @@ export class PrismaReportRepository implements ReportRepository {
       create: { kind, ...preference },
       update: preference,
     });
-    return { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches };
+    return { scale: saved.scale, offsetXInches: saved.offsetXInches, offsetYInches: saved.offsetYInches, deviceName: saved.deviceName ?? undefined, paperSource: saved.paperSource ?? undefined };
   }
 
   async readFirstCallLookupCache(kind: FirstCallLookupKind, queryKey: string): Promise<FirstCallLookupCandidate[] | null> {

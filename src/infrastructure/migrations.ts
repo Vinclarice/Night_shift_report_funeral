@@ -148,6 +148,8 @@ const addedColumns: Array<{ table: string; column: string; definition: string }>
   { table: "FirstCallFacility", column: "favorite", definition: `BOOLEAN NOT NULL DEFAULT false` },
   { table: "FirstCallFacility", column: "useCount", definition: `INTEGER NOT NULL DEFAULT 0` },
   { table: "FirstCallFacility", column: "lastUsedAt", definition: `DATETIME` },
+  { table: "CremationPrintPreference", column: "deviceName", definition: `TEXT` },
+  { table: "CremationPrintPreference", column: "paperSource", definition: `TEXT` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {

@@ -16,7 +16,9 @@ import type {
   CremationDocumentKind,
   CremationFuneralHome,
   CremationLabelReadiness,
+  CremationPrintingReadiness,
   CremationPrintPreference,
+  PrinterCapability,
 } from "@/domain/cremation";
 
 export interface FuneralHomeOption { id: string; name: string }
@@ -44,6 +46,7 @@ export interface CremationWorkspaceData {
   savedFinalNumber: string | null;
   printPreferences: Record<CremationDocumentKind, CremationPrintPreference>;
   labelReadiness: CremationLabelReadiness;
+  printingReadiness: Record<CremationDocumentKind, CremationPrintingReadiness>;
   /** The batch left over from last time, or null when there is nothing saved to resume. */
   savedBatch: CremationBatchSnapshot | null;
 }
@@ -111,7 +114,9 @@ export interface NightShiftApi {
   saveCremationPrintPreference(kind: CremationDocumentKind, preference: CremationPrintPreference): Promise<CremationPrintPreference>;
   saveCremationBatch(snapshot: CremationBatchSnapshot): Promise<void>;
   clearCremationBatch(): Promise<void>;
-  printCremationDocument(kind: CremationDocumentKind): Promise<{ success: boolean; failureReason?: string }>;
+  printCremationDocument(kind: CremationDocumentKind, rows: CremationBatchRow[], date: string): Promise<CremationLabelPrintResult>;
+  listCremationPrinters(): Promise<PrinterCapability[]>;
+  checkCremationPrintingReadiness(kind: CremationDocumentKind): Promise<CremationPrintingReadiness>;
   checkCremationLabelReadiness(): Promise<CremationLabelReadiness>;
   printCremationLabels(items: CremationLabelItem[]): Promise<CremationLabelPrintResult>;
   listReports(): Promise<ReportSummary[]>;

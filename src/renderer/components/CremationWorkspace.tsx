@@ -12,14 +12,16 @@ import type {
   CremationBatchRow,
   CremationDocumentKind,
   CremationFuneralHome,
+  CremationPrintingReadiness,
   CremationPrintPreference,
   CremationPrintState,
+  PrinterCapability,
 } from "@/domain/cremation";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { useToast } from "../ui/Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { CremationCertificatePage, CremationEnvelopePage, CremationPrintPages } from "./CremationPages";
+import { CremationCertificatePage, CremationEnvelopePage } from "./CremationPages";
 import { WindowControls } from "./TitleBar";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import type { WorkspaceMode } from "./WorkspaceTabs";
@@ -43,9 +45,7 @@ function statusTone(status: CremationPrintState): "neutral" | "success" | "warni
   return status === "printed" ? "success" : status === "stale" ? "warning" : "neutral";
 }
 
-function yieldForPrintLayout() {
-  return new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-}
+const CHECKING_PRINTING_READINESS: CremationPrintingReadiness = { ready: false, scriptAvailable: false, printerConfigured: false, printerInstalled: false, message: "Checking printer…" };
 
 interface ConfirmState {
   title: string;
@@ -73,7 +73,11 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
   const [printKind, setPrintKind] = useState<CremationDocumentKind | "label">("certificate");
   const [sidebarTab, setSidebarTab] = useState<"preview" | "printer" | "directory">("preview");
   const [labelReadiness, setLabelReadiness] = useState({ ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Checking Brother label printer…" });
-  const [activePrint, setActivePrint] = useState<{ kind: CremationDocumentKind; rows: CremationBatchRow[] } | null>(null);
+  const [printers, setPrinters] = useState<PrinterCapability[]>([]);
+  const [printingReadiness, setPrintingReadiness] = useState<Record<CremationDocumentKind, CremationPrintingReadiness>>({
+    certificate: CHECKING_PRINTING_READINESS,
+    envelope: CHECKING_PRINTING_READINESS,
+  });
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const nameInputs = useRef(new Map<string, HTMLInputElement>());
 
@@ -92,12 +96,23 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
       setFuneralHomes(data.funeralHomes);
       setPreferences(data.printPreferences);
       setLabelReadiness(data.labelReadiness);
+      setPrintingReadiness(data.printingReadiness);
       setLoading(false);
       void window.nightShift.checkCremationLabelReadiness().then((readiness) => {
         if (active) setLabelReadiness(readiness);
       }).catch(() => {
         if (active) setLabelReadiness({ ready: false, bpacInstalled: false, driverInstalled: false, templateAvailable: false, message: "Label readiness could not be checked. Certificates and envelopes are still available." });
       });
+      void window.nightShift.listCremationPrinters().then((available) => {
+        if (active) setPrinters(available);
+      }).catch(() => {});
+      for (const kind of ["certificate", "envelope"] as const) {
+        void window.nightShift.checkCremationPrintingReadiness(kind).then((readiness) => {
+          if (active) setPrintingReadiness((current) => ({ ...current, [kind]: readiness }));
+        }).catch(() => {
+          if (active) setPrintingReadiness((current) => ({ ...current, [kind]: { ready: false, scriptAvailable: false, printerConfigured: false, printerInstalled: false, message: "Printer readiness could not be checked." } }));
+        });
+      }
     }).catch((error: Error) => {
       if (!active) return;
       setLoading(false);
@@ -134,11 +149,26 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
       : row;
   }
 
+  // Electron shows no native confirmation for a cancelled beforeunload - silently preventing the
+  // close here would just make the window appear stuck. Instead, block it once, show the same
+  // confirm dialog used for in-app navigation, and re-issue the close (past the guard) if accepted.
   useEffect(() => {
+    let closeConfirmed = false;
     const warn = (event: BeforeUnloadEvent) => {
-      if (!hasUnsavedSequence) return;
+      if (!hasUnsavedSequence || closeConfirmed) return;
       event.preventDefault();
       event.returnValue = "";
+      setConfirm({
+        title: "Close without saving the final number?",
+        message: "The final cremation number has not been saved. Closing now will discard the batch rows and names for good.",
+        label: "Close app",
+        danger: true,
+        action: () => {
+          closeConfirmed = true;
+          setConfirm(null);
+          void window.nightShift.windowControl("close");
+        },
+      });
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
@@ -227,24 +257,16 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
   async function printDocuments(kind: CremationDocumentKind) {
     if (!validateBatch(kind === "envelope")) return;
     setBusy(true);
-    setActivePrint({ kind, rows: selectedRows.map((row) => ({ ...row })) });
-    document.body.dataset.printTarget = `cremation-${kind}`;
     try {
-      await yieldForPrintLayout();
-      const result = await window.nightShift.printCremationDocument(kind);
-      if (!result.success) {
-        toast.error(result.failureReason || `The ${kind} print job was canceled or failed.`);
-        return;
-      }
-      const ids = new Set(selectedRows.map((row) => row.id));
+      const result = await window.nightShift.printCremationDocument(kind, selectedRows, date);
+      const printed = new Set(result.printedIds);
       const key = kind === "certificate" ? "certificateStatus" : "envelopeStatus";
-      setRows((current) => current.map((row) => ids.has(row.id) ? unselectWhenAllOutputsPrinted({ ...row, [key]: "printed" }) : row));
-      toast.success(`${selectedRows.length} ${kind}${selectedRows.length === 1 ? "" : "s"} sent to the printer. You can print the remaining items for the same selected rows next.`);
+      setRows((current) => current.map((row) => printed.has(row.id) ? unselectWhenAllOutputsPrinted({ ...row, [key]: "printed" }) : row));
+      if (result.failureReason) toast.error(`${result.printedIds.length} ${kind}${result.printedIds.length === 1 ? "" : "s"} printed. ${result.failureReason}`);
+      else toast.success(`${result.printedIds.length} ${kind}${result.printedIds.length === 1 ? "" : "s"} sent to the printer. You can print the remaining items for the same selected rows next.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : `The ${kind} print job failed.`);
     } finally {
-      delete document.body.dataset.printTarget;
-      setActivePrint(null);
       setBusy(false);
     }
   }
@@ -364,9 +386,19 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
     finally { setBusy(false); }
   }
 
+  async function refreshPrintingReadiness(kind: CremationDocumentKind) {
+    setBusy(true);
+    try {
+      const readiness = await window.nightShift.checkCremationPrintingReadiness(kind);
+      setPrintingReadiness((current) => ({ ...current, [kind]: readiness }));
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Printer readiness could not be checked."); }
+    finally { setBusy(false); }
+  }
+
   if (loading) return <main className="loading-screen"><div className="loading-card"><span className="spinner" /><div><strong>Opening Cremation Batch</strong><small>Checking numbering and print setup…</small></div></div></main>;
 
   const pref = preferences[setupKind];
+  const selectedPrinter = printers.find((printer) => printer.name === pref.deviceName);
   return (
     <main className="cremation-shell">
       <header className="cremation-commandbar no-print">
@@ -398,7 +430,7 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
                   }}
                 >{kind === "certificate" ? "Certificates" : kind === "envelope" ? "Envelopes" : "Labels"}</button>)}
               </div>
-              <Button variant="print" busy={busy} disabled={printKind === "label" && !labelReadiness.ready} title={printKind === "label" ? labelReadiness.message : undefined} onClick={printSelected}>Print selected</Button>
+              <Button variant="print" busy={busy} disabled={printKind === "label" ? !labelReadiness.ready : !printingReadiness[printKind].ready} title={printKind === "label" ? labelReadiness.message : printingReadiness[printKind].message} onClick={printSelected}>Print selected</Button>
             </div>
           </div>
 
@@ -435,6 +467,27 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
             <div className="cremation-tabs"><button className={setupKind === "certificate" ? "active" : ""} onClick={() => { setSetupKind("certificate"); setPreviewKind("certificate"); }}>Certificate</button><button className={setupKind === "envelope" ? "active" : ""} onClick={() => { setSetupKind("envelope"); setPreviewKind("envelope"); }}>Envelope</button></div>
             <div className="cremation-preview"><div className={`cremation-preview-scale ${previewKind}`}>{previewKind === "certificate" ? <CremationCertificatePage row={previewRow} date={date} preference={preferences.certificate} /> : <CremationEnvelopePage row={previewRow} preference={preferences.envelope} />}</div></div>
             <div className="cremation-calibration">
+              <label>Printer
+                <select
+                  value={pref.deviceName ?? ""}
+                  onChange={(event) => setPreferences((current) => ({ ...current, [setupKind]: { ...current[setupKind], deviceName: event.target.value || undefined, paperSource: undefined } }))}
+                >
+                  <option value="">Select a printer…</option>
+                  {printers.map((printer) => <option key={printer.name} value={printer.name}>{printer.displayName}</option>)}
+                </select>
+              </label>
+              <label>Paper source / tray
+                <select
+                  value={pref.paperSource ?? ""}
+                  disabled={!selectedPrinter?.paperSources.length}
+                  onChange={(event) => setPreferences((current) => ({ ...current, [setupKind]: { ...current[setupKind], paperSource: event.target.value || undefined } }))}
+                >
+                  <option value="">Printer default</option>
+                  {selectedPrinter?.paperSources.map((source) => <option key={source} value={source}>{source}</option>)}
+                </select>
+              </label>
+              <small>Printing goes straight to this printer/tray with no dialog — no more hunting through Advanced settings for the {setupKind === "certificate" ? "A5 certificate" : "C5 envelope"} paper size every time.</small>
+              <div className="cremation-readiness-line"><Badge tone={printingReadiness[setupKind].ready ? "success" : "warning"}>{printingReadiness[setupKind].ready ? "Ready" : "Setup needed"}</Badge><small>{printingReadiness[setupKind].message}</small><Button variant="quiet" busy={busy} onClick={() => void refreshPrintingReadiness(setupKind)}>Check again</Button></div>
               {(["scale", "offsetXInches", "offsetYInches"] as const).map((field) => <label key={field}>{field === "scale" ? "Scale" : field === "offsetXInches" ? "Move left / right (inches)" : "Move up / down (inches)"}<input type="number" min={field === "scale" ? .9 : -.5} max={field === "scale" ? 1.1 : .5} step={field === "scale" ? .005 : .01} value={pref[field]} onChange={(event) => setPreferences((current) => ({ ...current, [setupKind]: { ...current[setupKind], [field]: Number(event.target.value) } }))} /></label>)}
               <div><Button variant="secondary" onClick={() => void savePreference(setupKind)}>Save calibration</Button><Button variant="quiet" onClick={() => setPreferences((current) => ({ ...current, [setupKind]: { ...DEFAULT_CREMATION_PRINT_PREFERENCE } }))}>Reset</Button></div>
             </div>
@@ -456,9 +509,6 @@ export function CremationWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
         </aside>
       </div>
 
-      <div className="cremation-print-only" aria-hidden={!activePrint}>
-        {activePrint && <CremationPrintPages kind={activePrint.kind} rows={activePrint.rows} date={date} preference={preferences[activePrint.kind]} />}
-      </div>
       {confirm && <ConfirmDialog title={confirm.title} message={confirm.message} confirmLabel={confirm.label} danger={confirm.danger} busy={busy} onCancel={() => setConfirm(null)} onConfirm={() => void confirm.action()} />}
     </main>
   );

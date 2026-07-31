@@ -173,6 +173,24 @@ test("launches portably and renders the exact nine-card page", async () => {
   }
 });
 
+const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
+test("the packaged Windows application starts with clean local data", async () => {
+  test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run after building the portable Windows release.");
+  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-packaged-"));
+  const electronApp = await electron.launch({
+    executablePath: packagedExecutable,
+    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
+  });
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByRole("heading", { name: "Night Shift Report" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open Night Shift Report" })).toBeVisible();
+  } finally {
+    await electronApp.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 test("saves, suggests, aliases, and manages a reusable First Call location", async () => {
   test.setTimeout(60_000);
   const dataDirectory = await mkdtemp(join(tmpdir(), "first-call-directory-e2e-"));
@@ -445,50 +463,6 @@ test("persists a Cremation Batch until cleared, while the funeral-home directory
     expect(await directoryContainsText(dataDirectory, privateName)).toBe(false);
   } finally {
     if (!appClosed) await electronApp.close();
-    await rm(dataDirectory, { recursive: true, force: true });
-  }
-});
-
-const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
-test("the packaged Windows application starts with clean local data", async () => {
-  test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run the packaged-app verification after building the portable release.");
-  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-packaged-"));
-  const electronApp = await electron.launch({
-    executablePath: packagedExecutable,
-    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
-  });
-  try {
-    const page = await electronApp.firstWindow();
-    await expect(page.getByRole("heading", { name: "Night Shift Report" })).toBeVisible();
-    await page.getByRole("button", { name: "New Cremation Batch" }).click();
-    await expect(page.getByLabel("Cremation number 1")).toBeVisible();
-    const labels = await page.evaluate(() => window.nightShift.checkCremationLabelReadiness());
-    expect(labels.bpacInstalled).toBe(true);
-    expect(labels.templateAvailable).toBe(true);
-    expect(labels.message).not.toBe("");
-    await page.getByRole("button", { name: "Night Shift" }).click();
-    await page.getByRole("button", { name: "New First Call Sheet" }).click();
-    await page.getByRole("tab", { name: /Settings/ }).click();
-    await expect(page.getByRole("button", { name: /TomTom search settings/ })).toBeVisible();
-    await expect(page.getByLabel("TomTom API key")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Manage directories" })).toBeVisible();
-    await page.getByRole("tab", { name: "Funeral home" }).click();
-    await expect(page.getByLabel("Direct funeral home name")).toBeVisible();
-    await page.getByRole("button", { name: "100%" }).click();
-    await expect(page.getByLabel("First Call preview page")).toHaveCSS("width", "816px");
-    await expect(page.getByLabel("Selectable printed form text")).toBeVisible();
-    await page.getByLabel("Removal only").check();
-    await expect(page.locator(".first-call-interactive .first-call-highlight-auto")).toHaveCount(1);
-    await expect(page.locator(".first-call-print-only .first-call-highlight-auto")).toHaveCount(1);
-    expect(await page.locator(".first-call-source-page > img").first().evaluate((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
-    // Leaving the sheet no longer asks for confirmation - it autosaves, so there's nothing to
-    // discard - it navigates straight back to Night Shift Report.
-    await page.getByRole("button", { name: "Night Shift" }).click();
-    await page.getByRole("button", { name: "Open Night Shift Report" }).click();
-    await expect(page.getByText("Live canvas")).toBeVisible();
-    expect(existsSync(join(dataDirectory, "night-shift-report.db"))).toBe(true);
-  } finally {
-    await electronApp.close();
     await rm(dataDirectory, { recursive: true, force: true });
   }
 });

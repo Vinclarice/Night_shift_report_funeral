@@ -665,9 +665,12 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .first-call-highlight { position: absolute; border-radius: 1.5pt; mix-blend-mode: multiply; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .first-call-highlight-auto { filter: saturate(.92); }
 .first-call-highlight-manual { filter: saturate(.86); }
-/* Redraws a checked box's label in solid black bold, on top of the highlight rectangle, so the
-   mix-blend-mode tint behind it never dulls the printed word into a harder-to-read gray. */
-.first-call-check-highlight-label { position: absolute; display: flex; align-items: center; overflow: visible; color: #000; font: 800 9pt/1 Arial, Helvetica, sans-serif; white-space: nowrap; }
+/* Redraws a checked box's label in solid black bold, on an opaque backing that fully covers the
+   original scanned word underneath. mix-blend-mode on the highlight rectangle below only tints -
+   it never hides - the scan, so without this opaque backing the faded original and the crisp
+   redraw show at once, doubled like a shadow. The backing color is the highlight yellow already
+   composited over white paper, so it still reads as "highlighted" while staying legible. */
+.first-call-check-highlight-label { position: absolute; display: flex; align-items: center; overflow: visible; border-radius: 1.5pt; color: #000; background: #fff2ac; font: 800 9pt/1 Arial, Helvetica, sans-serif; white-space: nowrap; }
 .first-call-field-layer { z-index: 3; pointer-events: none; }
 .first-call-input, .first-call-value { position: absolute; z-index: 3; margin: 0; padding: 0 1.5pt 1pt; overflow: hidden; border: 1px solid transparent; border-radius: 2px; color: #050505; background: transparent; font: var(--field-font-weight, 400) var(--field-font-size)/1 Arial, Helvetica, sans-serif; white-space: nowrap; pointer-events: auto; }
 .first-call-input:hover { background: rgb(32 170 126 / 5%); }
@@ -778,7 +781,6 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .envelope-name { top: 74mm; font-size: 22pt; font-style: italic; font-weight: 400; }
 .envelope-funeral-home { top: 88mm; font-size: 12pt; font-weight: 400; }
 .envelope-location { top: 94mm; font-size: 11pt; }
-.cremation-print-only { display: none; }
 
 @media (max-width: 1320px) {
   .first-call-workspace { grid-template-columns: 300px minmax(0, 1fr); }
@@ -806,9 +808,4 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
   .first-call-letter { box-shadow: none; margin: 0; }
   .section-card { box-shadow: none; }
   .width-handle { display: none !important; }
-  html:has(body[data-print-target^="cremation-"]), body[data-print-target^="cremation-"], body[data-print-target^="cremation-"] #root, body[data-print-target^="cremation-"] .cremation-shell { width: auto; height: auto; overflow: visible; background: white; }
-  body[data-print-target^="cremation-"] .cremation-print-only { display: block; width: auto; height: auto; }
-  body[data-print-target^="cremation-"] .print-only { display: none; }
-  body[data-print-target^="cremation-"] .cremation-document-page { margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
-  body[data-print-target^="cremation-"] .cremation-document-page:last-child { break-after: auto; page-break-after: auto; }
 }

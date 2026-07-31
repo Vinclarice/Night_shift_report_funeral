@@ -220,6 +220,19 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
     toast.success("Highlight applied to the selected form text.");
   }
 
+  function toggleLabelHighlight(rect: Omit<FirstCallHighlight, "id" | "color">) {
+    setDraft((current) => {
+      const existingIndex = current.highlights.findIndex((highlight) =>
+        Math.abs(highlight.x - rect.x) < 2 && Math.abs(highlight.y - rect.y) < 2 && Math.abs(highlight.width - rect.width) < 2 && Math.abs(highlight.height - rect.height) < 2,
+      );
+      if (existingIndex >= 0) return { ...current, highlights: current.highlights.filter((_, index) => index !== existingIndex) };
+      return {
+        ...current,
+        highlights: [...current.highlights, { ...rect, id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: highlightColor }],
+      };
+    });
+  }
+
   function undoLastHighlight() {
     setDraft((current) => ({ ...current, highlights: current.highlights.slice(0, -1) }));
   }
@@ -618,6 +631,7 @@ export function FirstCallWorkspace({ onBack, onNavigate = () => {} }: { onBack: 
               autoHighlightChecks={autoHighlightChecks}
               selectionColor={highlightColor}
               onSemanticSelection={setPendingHighlightRects}
+              onSemanticLabelClick={toggleLabelHighlight}
               funeralHomeNames={directories.funeralHomes.map((item) => item.name)}
               facilityNames={directories.facilities.map((item) => item.name)}
             /></div>}

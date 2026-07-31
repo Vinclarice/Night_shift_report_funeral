@@ -139,6 +139,7 @@ interface Props {
   autoHighlightChecks?: boolean;
   selectionColor?: FirstCallHighlightColor;
   onSemanticSelection?: (rects: Array<Omit<FirstCallHighlight, "id" | "color">>) => void;
+  onSemanticLabelClick?: (rect: Omit<FirstCallHighlight, "id" | "color">) => void;
   funeralHomeNames?: string[];
   facilityNames?: string[];
 }
@@ -155,7 +156,7 @@ function semanticSelectionColor(color: FirstCallHighlightColor) {
   return HIGHLIGHT_COLORS[color].replace(/\.[0-9]+\)$/, ".7)");
 }
 
-export function FirstCallPage({ draft, preference, interactive = false, onTextChange, onCheckChange, autoHighlightChecks = true, selectionColor = "yellow", onSemanticSelection, funeralHomeNames = [], facilityNames = [] }: Props) {
+export function FirstCallPage({ draft, preference, interactive = false, onTextChange, onCheckChange, autoHighlightChecks = true, selectionColor = "yellow", onSemanticSelection, onSemanticLabelClick, funeralHomeNames = [], facilityNames = [] }: Props) {
   const pageStyle = {
     "--first-call-scale": String(preference.scale),
     "--first-call-offset-x": `${preference.offsetXInches}in`,
@@ -164,8 +165,27 @@ export function FirstCallPage({ draft, preference, interactive = false, onTextCh
 
   function captureSemanticSelection(event: MouseEvent<HTMLDivElement>) {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.rangeCount) { onSemanticSelection?.([]); return; }
     const layer = event.currentTarget;
+    if (!selection || selection.isCollapsed || !selection.rangeCount) {
+      onSemanticSelection?.([]);
+      // A plain click (no drag) on one printed label toggles a highlight on it immediately,
+      // instead of requiring a drag-select plus a separate Apply click.
+      const target = event.target as HTMLElement;
+      if (onSemanticLabelClick && target !== layer && layer.contains(target)) {
+        const layerRect = layer.getBoundingClientRect();
+        if (!layerRect.width || !layerRect.height) return;
+        const targetRect = target.getBoundingClientRect();
+        const scaleX = 576.6 / layerRect.width;
+        const scaleY = 770.28 / layerRect.height;
+        onSemanticLabelClick({
+          x: Math.max(0, (targetRect.left - layerRect.left) * scaleX - 1),
+          y: Math.max(0, (targetRect.top - layerRect.top) * scaleY + 1),
+          width: Math.min(576.6, targetRect.width * scaleX + 2),
+          height: Math.min(770.28, Math.max(7, targetRect.height * scaleY - 1)),
+        });
+      }
+      return;
+    }
     if (!selection.anchorNode || !selection.focusNode || !layer.contains(selection.anchorNode) || !layer.contains(selection.focusNode)) return;
     const layerRect = layer.getBoundingClientRect();
     if (!layerRect.width || !layerRect.height) return;
