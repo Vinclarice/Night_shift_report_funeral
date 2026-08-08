@@ -249,12 +249,24 @@ export function reorderEntry(section: ReportSection, entryId: string, beforeEntr
 }
 
 function parsePerson(value: string): DeceasedPerson {
-  const matches = [...value.trim().matchAll(/\(([^)]+)\)/g)].map((match) => match[1].trim());
-  const explicitRequests = [...value.trim().matchAll(/\[([^\]]+)\]/g)].map((match) => match[1].trim());
-  const name = titleCaseName(value.replace(/\s*\([^)]+\)/g, "").replace(/\s*\[[^\]]+\]/g, ""));
-  const rushIndex = matches.findIndex((detail) => /rush/i.test(detail));
-  const specialRequest = explicitRequests[0] ?? (rushIndex >= 0 ? matches[rushIndex] : matches[1] ?? "");
-  const locationCode = matches.find((_, index) => index !== rushIndex) ?? "";
+  const trimmed = value.trim();
+  const explicitRequests = [...trimmed.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1].trim());
+  const withoutBrackets = trimmed.replace(/\s*\[[^\]]+\]/g, "").trim();
+  const parens = [...withoutBrackets.matchAll(/\(([^)]+)\)/g)];
+  const parenContents = parens.map((match) => match[1].trim());
+  const rushIndex = parenContents.findIndex((detail) => /rush/i.test(detail));
+
+  // A complete line reads "deceased (loc) special request" — free text typed straight after the
+  // last parenthetical, with no delimiter of its own, is that trailing special request. A lone
+  // paren with nothing after it stays read as the location code: parsePerson still can't tell a
+  // short code from a bracket-free note with only one paren to go on (see the "captures a single
+  // free-text parenthetical..." test below), so that existing ambiguity is left alone.
+  const lastParen = parens.at(-1);
+  const trailingText = lastParen ? withoutBrackets.slice(lastParen.index! + lastParen[0].length).trim() : "";
+
+  const name = titleCaseName(parens[0] ? withoutBrackets.slice(0, parens[0].index) : withoutBrackets);
+  const specialRequest = explicitRequests[0] ?? (rushIndex >= 0 ? parenContents[rushIndex] : trailingText || (parenContents[1] ?? ""));
+  const locationCode = parenContents.find((_, index) => index !== rushIndex) ?? "";
   return { id: crypto.randomUUID(), name, locationCode, specialRequest };
 }
 

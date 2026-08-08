@@ -7,6 +7,7 @@ import {
   removeEntry,
   reorderEntry,
   replaceEntryInPlace,
+  sharedSpecialRequest,
   sortEntriesForSection,
   titleCaseName,
   toggleEntryRush,
@@ -298,6 +299,24 @@ describe("parses every line format from the reference night shift report", () =>
 
     const hernandez = parsePastedLines("Beltway Crem \u2013 Hernandez (FH will call)")[0].entry as FuneralEntry;
     expect(hernandez.deceased[0]).toMatchObject({ name: "Hernandez", locationCode: "FH will call", specialRequest: "" });
+  });
+
+  it("reads free text typed after the location code as the special request", () => {
+    const entry = parsePastedLines("Greene \u2013 Williams (13A) Hold AM")[0].entry as FuneralEntry;
+    expect(entry.funeralHome).toBe("Greene");
+    expect(entry.deceased[0]).toMatchObject({ name: "Williams", locationCode: "13A", specialRequest: "Hold AM" });
+  });
+
+  it("keeps a trailing special request scoped to its own deceased, not the next one after a '+'", () => {
+    const entry = parsePastedLines("NMS \u2013 Nicholas (13A) Hold AM + Zhang (17B)")[0].entry as FuneralEntry;
+    expect(entry.deceased[0]).toMatchObject({ name: "Nicholas", locationCode: "13A", specialRequest: "Hold AM" });
+    expect(entry.deceased[1]).toMatchObject({ name: "Zhang", locationCode: "17B", specialRequest: "" });
+  });
+
+  it("combines an identical trailing request typed on both deceased so it prints once after the last one", () => {
+    const entry = parsePastedLines("NMS \u2013 Nicholas (13A) Hold AM + Zhang (17B) Hold AM")[0].entry as FuneralEntry;
+    expect(entry.deceased.map((person) => person.specialRequest)).toEqual(["Hold AM", "Hold AM"]);
+    expect(sharedSpecialRequest(entry.deceased)).toBe("Hold AM");
   });
 
   it("keeps a note dash inside the parenthetical from being mistaken for the funeral-home separator", () => {
