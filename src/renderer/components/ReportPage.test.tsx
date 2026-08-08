@@ -70,7 +70,7 @@ describe("print report", () => {
     expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
   });
 
-  it("prints three trailing free rows in the specified HR cards and one for Airport Drops", () => {
+  it("prints the configured number of trailing free rows per section", () => {
     const report = createEmptyReport("2026-07-26");
     report.sections.find((section) => section.key === "human-fdp")!.entries.push({
       id: "entry-one", type: "plain", text: "Existing entry", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
@@ -79,8 +79,8 @@ describe("print report", () => {
 
     expect(container.querySelector('[data-section-key="human-deliver"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
     expect(container.querySelector('[data-section-key="human-fdp"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
-    expect(container.querySelector('[data-section-key="human-pending"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
-    expect(container.querySelector('[data-section-key="human-ship-outs"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
+    expect(container.querySelector('[data-section-key="human-pending"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(2);
+    expect(container.querySelector('[data-section-key="human-ship-outs"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
     expect(container.querySelector('[data-section-key="human-airport"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
   });
 
@@ -129,7 +129,7 @@ describe("print report", () => {
     fireEvent.dragStart(screen.getByRole("button", { name: /Edit Human Remains HR DEL/ }), { dataTransfer });
     fireEvent.drop(container.querySelector('[data-section-key="human-deliver"]')!, { dataTransfer });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-pending", "human-deliver", "move-me");
+    expect(onEntryMove).toHaveBeenCalledWith("human-pending", "human-deliver", "move-me", undefined, undefined);
   });
 });
 
@@ -182,7 +182,7 @@ describe("drag to reorder", () => {
     // Released on the top half of "Beta", so the dragged entry lands above it.
     dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 4);
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", "entry-Beta");
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", "entry-Beta", undefined);
   });
 
   it("targets the following row when released on the bottom half", () => {
@@ -194,7 +194,7 @@ describe("drag to reorder", () => {
     dropAt(rows[0], { sectionKey: "human-deliver", entryId: "entry-Gamma" }, 16);
 
     // Below the midpoint of "Alpha" means "after Alpha", which is above the next row, "Beta".
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Gamma", "entry-Beta");
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Gamma", "entry-Beta", undefined);
   });
 
   it("pins when released on the bottom half of the last row, matching the drag-to-bottom rule", () => {
@@ -205,7 +205,7 @@ describe("drag to reorder", () => {
     stubHeight(rows[1]);
     dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 16);
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null, undefined);
   });
 
   it("requests a pin when an entry is dropped on the blank row past the end", () => {
@@ -215,7 +215,7 @@ describe("drag to reorder", () => {
     const blank = screen.getByRole("button", { name: "Type in Human Remains DELIVER" });
     fireEvent.drop(blank, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null, undefined);
   });
 
   it("leaves position unspecified for a drop on the card body so nothing is pinned by accident", () => {
@@ -225,7 +225,7 @@ describe("drag to reorder", () => {
     const card = container.querySelector('[data-section-key="human-fdp"]')!;
     fireEvent.drop(card, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "entry-Alpha");
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "entry-Alpha", undefined, undefined);
   });
 
   it("ignores a drop of the entry onto itself", () => {
@@ -247,5 +247,47 @@ describe("drag to reorder", () => {
     const rows = container.querySelectorAll('[data-section-key="human-deliver"] .report-row');
     expect(rows[0]).not.toHaveClass("pinned-row");
     expect(rows[1]).toHaveClass("pinned-row");
+  });
+
+  function twoPersonReport() {
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "merged", type: "funeral", funeralHome: "McGuire",
+      deceased: [
+        { id: "smith", name: "Smith", locationCode: "13A", specialRequest: "" },
+        { id: "jones", name: "Jones", locationCode: "17B", specialRequest: "" },
+      ],
+      rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    return report;
+  }
+
+  it("makes a deceased name its own drag source, carrying just their person id, when the entry has more than one", () => {
+    const onEntryMove = vi.fn();
+    const { container } = render(<ReportPage report={twoPersonReport()} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={onEntryMove} />);
+
+    const values = new Map<string, string>();
+    const dataTransfer = { setData: (type: string, value: string) => values.set(type, value), getData: (type: string) => values.get(type) ?? "", effectAllowed: "move", dropEffect: "move" };
+    const jones = screen.getByText("Jones").closest(".deceased-person")!;
+    expect(jones).toHaveAttribute("draggable", "true");
+
+    fireEvent.dragStart(jones, { dataTransfer });
+    fireEvent.drop(container.querySelector('[data-section-key="human-fdp"]')!, { dataTransfer });
+
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "merged", undefined, "jones");
+  });
+
+  it("does not make a lone deceased's name separately draggable, since it's the same as dragging the row", () => {
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "solo", type: "funeral", funeralHome: "McGuire",
+      deceased: [{ id: "smith", name: "Smith", locationCode: "13A", specialRequest: "" }],
+      rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    const { container } = render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={vi.fn()} />);
+
+    const smith = container.querySelector(".deceased-person")!;
+    expect(smith).not.toHaveClass("draggable-person");
+    expect(smith).toHaveAttribute("draggable", "false");
   });
 });

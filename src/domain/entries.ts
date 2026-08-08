@@ -76,10 +76,17 @@ export function isExactDuplicate(entry: FuneralEntry, person: DeceasedPerson): b
   );
 }
 
-export function addEntry(section: ReportSection, entry: ReportEntry): void {
+/**
+ * Folds `entry` into a compatible existing entry already in `section`, if one exists — same
+ * funeral home, rush, and pinned state, and neither side marked to stay separate. A pinned entry
+ * never merges into an unpinned one (or vice versa): pinning exists precisely to hold a line apart
+ * from the section's main list, so folding them together would undo it. Returns whether a merge
+ * happened, so callers that only want to fall back to a plain insert when nothing matched (a fresh
+ * `addEntry`) and callers that want a merge to pre-empt an explicit drop position (dragging an
+ * entry, or one split-off person, directly onto a matching row) can both build on the same rule.
+ */
+function tryMerge(section: ReportSection, entry: ReportEntry): boolean {
   if (entry.type === "funeral" && !entry.keepSeparate) {
-    // A pinned entry never merges into an unpinned one (or vice versa): pinning exists precisely to
-    // hold a line apart from the section's main list, so folding them together would undo it.
     const existing = section.entries.find(
       (candidate): candidate is FuneralEntry =>
         candidate.type === "funeral" &&
@@ -92,7 +99,7 @@ export function addEntry(section: ReportSection, entry: ReportEntry): void {
       for (const person of entry.deceased) {
         if (!isExactDuplicate(existing, person)) existing.deceased.push(person);
       }
-      return;
+      return true;
     }
   }
 
@@ -105,9 +112,14 @@ export function addEntry(section: ReportSection, entry: ReportEntry): void {
         candidate.pinnedBottom === entry.pinnedBottom &&
         normalizeFuneralHome(candidate.funeralHome) === normalizeFuneralHome(entry.funeralHome),
     );
-    if (exists) return;
+    if (exists) return true;
   }
 
+  return false;
+}
+
+export function addEntry(section: ReportSection, entry: ReportEntry): void {
+  if (tryMerge(section, entry)) return;
   section.entries.push(entry);
   section.entries = sortEntriesForSection(section.key, section.entries);
 }
@@ -170,6 +182,10 @@ export function moveEntry(report: NightReport, sourceKey: SectionKey, targetKey:
 
   if (beforeEntryId) {
     entry.pinnedBottom = false;
+    // Dropped directly onto a row for the same funeral home: combine into that line instead of
+    // inserting a second one beside it — the requested position doesn't apply once two rows
+    // become one.
+    if (tryMerge(target, entry)) return true;
     const at = target.entries.findIndex((candidate) => candidate.id === beforeEntryId);
     if (at >= 0) {
       target.entries.splice(at, 0, entry);
@@ -178,6 +194,61 @@ export function moveEntry(report: NightReport, sourceKey: SectionKey, targetKey:
     }
   }
   addEntry(target, entry);
+  return true;
+}
+
+/**
+ * Splits one deceased person off a multi-person funeral entry and moves just them to another
+ * section (or elsewhere in the same one), leaving the rest of the people behind under the
+ * original entry. The split-off person becomes their own entry carrying the source entry's
+ * funeral home, rush, and keep-separate flags, and merges into a matching entry already sitting
+ * in the target section exactly like a normal drag-and-drop would (see `addEntry`) — so splitting
+ * a person onto a section that already has an entry for the same funeral home joins them there
+ * instead of creating a second line for it.
+ */
+export function movePerson(report: NightReport, sourceKey: SectionKey, targetKey: SectionKey, entryId: string, personId: string, beforeEntryId?: string | null): boolean {
+  const source = report.sections.find((section) => section.key === sourceKey);
+  const target = report.sections.find((section) => section.key === targetKey);
+  if (!source || !target) return false;
+  // A drop with no explicit target row inside the same section is a no-op, matching moveEntry.
+  if (sourceKey === targetKey && beforeEntryId === undefined) return false;
+
+  const original = source.entries.find((entry) => entry.id === entryId);
+  if (!original || original.type !== "funeral" || original.deceased.length < 2) return false;
+  const person = original.deceased.find((candidate) => candidate.id === personId);
+  if (!person) return false;
+
+  if (!removeEntry(source, entryId, personId)) return false;
+
+  const split: FuneralEntry = {
+    id: crypto.randomUUID(),
+    type: "funeral",
+    funeralHome: original.funeralHome,
+    deceased: [person],
+    rush: original.rush,
+    keepSeparate: original.keepSeparate,
+    pinnedBottom: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (beforeEntryId === null) {
+    split.pinnedBottom = true;
+    addEntry(target, split);
+    return true;
+  }
+
+  if (beforeEntryId) {
+    // Dropped directly onto a row for the same funeral home: join that line instead of inserting
+    // a second one beside it, matching moveEntry's row-drop behavior.
+    if (tryMerge(target, split)) return true;
+    const at = target.entries.findIndex((candidate) => candidate.id === beforeEntryId);
+    if (at >= 0) {
+      target.entries.splice(at, 0, split);
+      target.entries = sortEntriesForSection(target.key, target.entries);
+      return true;
+    }
+  }
+  addEntry(target, split);
   return true;
 }
 
@@ -235,6 +306,11 @@ export function reorderEntry(section: ReportSection, entryId: string, beforeEntr
   if (from < 0 || entryId === beforeEntryId) return false;
 
   const [entry] = section.entries.splice(from, 1);
+
+  // Dropped directly onto another row for the same funeral home: combine into that line instead
+  // of just reordering next to it, matching a cross-section drop's merge-on-row-drop behavior.
+  if (beforeEntryId && tryMerge(section, entry)) return true;
+
   const target = beforeEntryId ? section.entries.findIndex((candidate) => candidate.id === beforeEntryId) : -1;
   if (beforeEntryId && target < 0) {
     section.entries.splice(from, 0, entry);

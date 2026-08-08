@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CSSProperties } from "react";
 
 import { formatEntryLine, sharedSpecialRequest } from "@/domain/entries";
@@ -18,8 +18,10 @@ interface Props {
   /**
    * `beforeEntryId` is the row to land above, `null` means the end of the section (which pins the
    * entry there), and omitting it means no particular position — used for a drop on the card body.
+   * `personId` is present only when just one deceased person was dragged off a multi-person entry
+   * rather than the whole row.
    */
-  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null) => void;
+  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null, personId?: string) => void;
   selectedSectionKey?: ReportSection["key"];
   selectedEntryId?: string;
   onSelectSection?: (key: ReportSection["key"]) => void;
@@ -27,12 +29,13 @@ interface Props {
   onEntryContextMenu?: (key: ReportSection["key"], entryId: string, x: number, y: number) => void;
 }
 
-const THREE_FREE_ROW_SECTIONS = new Set<ReportSection["key"]>([
-  "human-deliver",
-  "human-fdp",
-  "human-pending",
-  "human-ship-outs",
-]);
+/** Blank rows past the last entry, for typing directly onto the page. Sections not listed get one. */
+const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
+  "human-deliver": 3,
+  "human-fdp": 3,
+  "human-pending": 2,
+  "human-ship-outs": 1,
+};
 
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -45,16 +48,25 @@ function displayDate(value: string): string {
     .toUpperCase();
 }
 
-const EntryLine = memo(function EntryLine({ entry }: { entry: ReportEntry }) {
+const EntryLine = memo(function EntryLine({ entry, onPersonDragStart }: { entry: ReportEntry; onPersonDragStart?: (personId: string) => (event: ReactDragEvent<HTMLElement>) => void }) {
   if (entry.type === "funeral") {
     const hasVisibleRush = entry.deceased.some((person) => /rush/i.test(person.specialRequest));
     const shared = sharedSpecialRequest(entry.deceased);
+    // Only worth grabbing a single name apart from the row when there's more than one person to
+    // split it from — with just one, dragging them is exactly the same as dragging the whole row.
+    const draggablePersons = onPersonDragStart && entry.deceased.length > 1;
     return (
       <span className="entry-line-content">
         <strong className="entry-primary">{entry.funeralHome}</strong>
         <span className="entry-separator" aria-hidden="true"> – </span>
         {entry.deceased.map((person, index) => (
-          <span className="deceased-person" key={person.id}>
+          <span
+            className={`deceased-person${draggablePersons ? " draggable-person" : ""}`}
+            key={person.id}
+            draggable={draggablePersons}
+            onDragStart={draggablePersons ? onPersonDragStart(person.id) : undefined}
+            title={draggablePersons ? "Drag to move just this person to another section" : undefined}
+          >
             {index > 0 && <span className="entry-separator" aria-hidden="true"> + </span>}
             <span className="deceased-name">{person.name}</span>
             {person.locationCode && <span className="location-code">{person.locationCode}</span>}
@@ -117,7 +129,7 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
     }
   }
 
-  const { beginDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange);
+  const { beginDrag, beginPersonDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange);
 
   function handleContextMenu(event: ReactMouseEvent<HTMLButtonElement>) {
     // Blank/free rows have nothing to act on, so the browser's default menu is left alone there.
@@ -144,7 +156,7 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
       title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
       {...dragProps}
     >
-      {entry ? <EntryLine entry={entry} /> : <>&nbsp;</>}
+      {entry ? <EntryLine entry={entry} onPersonDragStart={onEntryMove ? beginPersonDrag : undefined} /> : <>&nbsp;</>}
     </button>
   );
 }
@@ -177,7 +189,7 @@ const SectionCard = memo(function SectionCard({
   onEntryContextMenu?: Props["onEntryContextMenu"];
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
-  const freeRows = THREE_FREE_ROW_SECTIONS.has(section.key) ? 3 : 1;
+  const freeRows = FREE_ROW_COUNTS[section.key] ?? 1;
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
 

@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-import { addEntry, moveEntry, parsePastedLines, removeEntry, replaceEntryInPlace, toggleEntryRush } from "@/domain/entries";
+import { addEntry, moveEntry, movePerson, parsePastedLines, removeEntry, replaceEntryInPlace, toggleEntryRush } from "@/domain/entries";
 import type { NightReport, SectionKey } from "@/domain/types";
 import { IconFlag, IconMinus, IconPencil, IconPlus, IconTrash } from "../icons";
 import { useReportController } from "../state/ReportController";
@@ -82,9 +82,12 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     if (parseWarning) toast.warning(parseWarning);
   }, [report, controller, dispatch, toast]);
 
-  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null) {
+  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null, personId?: string) {
     const next = structuredClone(report);
-    if (!moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId)) return;
+    const moved = personId
+      ? movePerson(next, sourceKey, targetKey, entryId, personId, beforeEntryId)
+      : moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId);
+    if (!moved) return;
     dispatch({ type: "SELECT_SECTION", sectionKey: targetKey, mode: "browse" });
     void controller.persist(next);
   }, [report, controller, dispatch]);

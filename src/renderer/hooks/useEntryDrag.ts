@@ -5,7 +5,9 @@ import type { ReportEntry, ReportSection } from "@/domain/types";
 
 const DRAG_MIME = "application/x-night-shift-entry";
 
-interface DragPayload { sectionKey: ReportSection["key"]; entryId: string }
+/** `personId` is present only when the drag started from one deceased person within a
+ * multi-person funeral entry, rather than the row (whole entry) itself. */
+interface DragPayload { sectionKey: ReportSection["key"]; entryId: string; personId?: string }
 
 function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null {
   try {
@@ -16,7 +18,7 @@ function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null
   }
 }
 
-type EntryMoveHandler = (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null) => void;
+type EntryMoveHandler = (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null, personId?: string) => void;
 
 /**
  * Drag-and-drop for a single report row: starting a drag on an entry row, and accepting a drop on
@@ -35,6 +37,17 @@ export function useEntryDrag(
     if (!entry || !onEntryMove) return;
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id } satisfies DragPayload));
+  }, [section.key, entry, onEntryMove]);
+
+  // A separate drag source for one deceased person within a multi-person entry, so grabbing their
+  // name splits just them off instead of dragging the whole row — see EntryLine, the only caller.
+  // Nested inside the row's own draggable button, but the browser resolves drag gestures to the
+  // innermost draggable ancestor of the pointer, so this never also fires the row's beginDrag.
+  const beginPersonDrag = useCallback((personId: string) => (event: ReactDragEvent<HTMLElement>) => {
+    if (!entry || !onEntryMove) return;
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id, personId } satisfies DragPayload));
   }, [section.key, entry, onEntryMove]);
 
   // Dropping onto the top half of a row lands above it; the bottom half lands above the next row.
@@ -63,7 +76,7 @@ export function useEntryDrag(
       event.stopPropagation();
       const payload = readDragPayload(event);
       onDropBeforeChange?.(null);
-      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, null);
+      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, null, payload.personId);
     },
   } : {
     onDragOver: (event: ReactDragEvent<HTMLElement>) => {
@@ -78,11 +91,11 @@ export function useEntryDrag(
       const payload = readDragPayload(event);
       const before = pointerTarget(event);
       onDropBeforeChange?.(null);
-      if (payload && payload.entryId !== entry.id) onEntryMove(payload.sectionKey, section.key, payload.entryId, before);
+      if (payload && payload.entryId !== entry.id) onEntryMove(payload.sectionKey, section.key, payload.entryId, before, payload.personId);
     },
   };
 
-  return { beginDrag, dragProps };
+  return { beginDrag, beginPersonDrag, dragProps };
 }
 
 /**
@@ -101,7 +114,7 @@ export function useSectionDropZone(section: ReportSection, onEntryMove: EntryMov
     setDropBefore(null);
     if (!onEntryMove) return;
     const payload = readDragPayload(event);
-    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId);
+    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, undefined, payload.personId);
   }, [section.key, onEntryMove]);
 
   const cardDragProps = !onEntryMove ? {} : {

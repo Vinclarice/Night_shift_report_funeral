@@ -2,6 +2,7 @@ import {
   addEntry,
   formatEntryLine,
   moveEntry,
+  movePerson,
   normalizeFuneralHome,
   parsePastedLines,
   removeEntry,
@@ -440,6 +441,20 @@ describe("reorderEntry", () => {
 
     expect(ids(target.entries)).toEqual(["a", "b"]);
   });
+
+  it("combines into a matching row instead of just reordering beside it when dropped directly on it", () => {
+    const target = section("human-fdp");
+    target.entries.push(
+      funeral({ id: "keep", funeralHome: "McGuire", deceased: [{ id: "willoughby", name: "Willoughby", locationCode: "", specialRequest: "" }] }),
+      funeral({ id: "loose", funeralHome: "McGuire", deceased: [{ id: "smith", name: "Smith", locationCode: "", specialRequest: "" }] }),
+    );
+
+    expect(reorderEntry(target, "loose", "keep")).toBe(true);
+
+    expect(target.entries).toHaveLength(1);
+    expect(target.entries[0].id).toBe("keep");
+    expect((target.entries[0] as FuneralEntry).deceased.map((person) => person.name)).toEqual(["Willoughby", "Smith"]);
+  });
 });
 
 describe("moveEntry positioning", () => {
@@ -470,6 +485,20 @@ describe("moveEntry positioning", () => {
     expect(target.entries.at(-1)!.pinnedBottom).toBe(true);
   });
 
+  it("combines into a matching row across sections instead of inserting beside it", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-airport")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(funeral({ id: "moving", funeralHome: "McGuire", deceased: [{ id: "smith", name: "Smith", locationCode: "", specialRequest: "" }] }));
+    target.entries.push(funeral({ id: "existing", funeralHome: "McGuire", deceased: [{ id: "willoughby", name: "Willoughby", locationCode: "", specialRequest: "" }] }));
+
+    expect(moveEntry(report, "human-airport", "human-fdp", "moving", "existing")).toBe(true);
+
+    expect(target.entries).toHaveLength(1);
+    expect((target.entries[0] as FuneralEntry).deceased.map((person) => person.name)).toEqual(["Willoughby", "Smith"]);
+    expect(source.entries).toHaveLength(0);
+  });
+
   it("treats a same-section drop with no target row as a no-op so nothing is pinned by accident", () => {
     const report = createEmptyReport("2026-07-26");
     const target = report.sections.find((section) => section.key === "human-fdp")!;
@@ -479,5 +508,113 @@ describe("moveEntry positioning", () => {
 
     expect(target.entries.map((entry) => entry.id)).toEqual(["a", "b"]);
     expect(target.entries[0].pinnedBottom).toBe(false);
+  });
+});
+
+describe("movePerson", () => {
+  function twoPersonEntry(overrides: Partial<FuneralEntry> = {}): FuneralEntry {
+    return funeral({
+      id: "merged",
+      funeralHome: "McGuire",
+      deceased: [
+        { id: "smith", name: "Smith", locationCode: "13A", specialRequest: "" },
+        { id: "jones", name: "Jones", locationCode: "17B", specialRequest: "" },
+      ],
+      ...overrides,
+    });
+  }
+
+  it("splits one deceased into their own entry in another section, leaving the rest behind", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(twoPersonEntry());
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "merged", "jones")).toBe(true);
+
+    expect(source.entries).toHaveLength(1);
+    expect(source.entries[0]).toMatchObject({ id: "merged", deceased: [{ name: "Smith" }] });
+    expect(target.entries).toHaveLength(1);
+    expect(target.entries[0]).toMatchObject({
+      funeralHome: "McGuire",
+      deceased: [{ name: "Jones", locationCode: "17B" }],
+    });
+    expect(target.entries[0].id).not.toBe("merged");
+  });
+
+  it("joins a matching entry already in the target section instead of duplicating the funeral home", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(twoPersonEntry());
+    target.entries.push(funeral({ id: "existing", funeralHome: "McGuire", deceased: [{ id: "willoughby", name: "Willoughby", locationCode: "", specialRequest: "" }] }));
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "merged", "jones")).toBe(true);
+
+    expect(target.entries).toHaveLength(1);
+    expect((target.entries[0] as FuneralEntry).deceased.map((person) => person.name)).toEqual(["Willoughby", "Jones"]);
+  });
+
+  it("joins a matching row even when dropped directly on it, rather than inserting beside it", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(twoPersonEntry());
+    target.entries.push(funeral({ id: "existing", funeralHome: "McGuire", deceased: [{ id: "willoughby", name: "Willoughby", locationCode: "", specialRequest: "" }] }));
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "merged", "jones", "existing")).toBe(true);
+
+    expect(target.entries).toHaveLength(1);
+    expect(target.entries[0].id).toBe("existing");
+    expect((target.entries[0] as FuneralEntry).deceased.map((person) => person.name)).toEqual(["Willoughby", "Jones"]);
+  });
+
+  it("carries the source entry's rush flag onto the split-off person", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(twoPersonEntry({ rush: true }));
+
+    movePerson(report, "human-deliver", "human-fdp", "merged", "jones");
+
+    expect(target.entries[0].rush).toBe(true);
+  });
+
+  it("pins the split-off person when dropped at the end of the target section", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    const target = report.sections.find((section) => section.key === "human-fdp")!;
+    source.entries.push(twoPersonEntry());
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "merged", "jones", null)).toBe(true);
+
+    expect(target.entries[0].pinnedBottom).toBe(true);
+  });
+
+  it("refuses to split a single-person entry, since there is no one left behind", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    source.entries.push(funeral({ id: "solo", deceased: [{ id: "only", name: "Smith", locationCode: "", specialRequest: "" }] }));
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "solo", "only")).toBe(false);
+    expect(source.entries).toHaveLength(1);
+  });
+
+  it("does nothing for a person id that isn't on the entry", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    source.entries.push(twoPersonEntry());
+
+    expect(movePerson(report, "human-deliver", "human-fdp", "merged", "missing")).toBe(false);
+    expect((source.entries[0] as FuneralEntry).deceased).toHaveLength(2);
+  });
+
+  it("treats a same-section drop with no target row as a no-op", () => {
+    const report = createEmptyReport("2026-07-26");
+    const source = report.sections.find((section) => section.key === "human-deliver")!;
+    source.entries.push(twoPersonEntry());
+
+    expect(movePerson(report, "human-deliver", "human-deliver", "merged", "jones")).toBe(false);
+    expect((source.entries[0] as FuneralEntry).deceased).toHaveLength(2);
   });
 });
