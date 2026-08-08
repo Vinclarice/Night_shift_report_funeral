@@ -1,12 +1,8 @@
-import { useState } from "react";
 import { Studio } from "./components/Studio";
-import { FirstCallWorkspace } from "./components/FirstCallWorkspace";
-import { CremationWorkspace } from "./components/CremationWorkspace";
 import { ReportControllerProvider, useReportController } from "./state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState, WorkspaceProvider } from "./state/WorkspaceContext";
 import { Button } from "./ui/Button";
 import { ToastProvider, useToast } from "./ui/Toast";
-import type { WorkspaceMode } from "./components/WorkspaceTabs";
 import { WindowControls } from "./components/TitleBar";
 
 function formatResumeDate(value: string) {
@@ -40,8 +36,6 @@ function WelcomeScreen({
   onContinueFromLast,
   onStartEmpty,
   onBack,
-  onOpenFirstCall,
-  onOpenCremation,
 }: {
   resumable?: { reportDate: string; entryCount: number };
   latestFinalized?: boolean;
@@ -49,8 +43,6 @@ function WelcomeScreen({
   onContinueFromLast?: () => void;
   onStartEmpty?: () => void;
   onBack?: () => void;
-  onOpenFirstCall: () => void;
-  onOpenCremation: () => void;
 }) {
   return (
     <main className="start-screen">
@@ -73,8 +65,6 @@ function WelcomeScreen({
           {onBack && <Button variant="primary" onClick={onBack}>Back to report</Button>}
           {!onBack && resumable && <Button variant="primary" onClick={onResume}>Resume unfinished report</Button>}
           {!onBack && <button className="start-workspace-card primary" aria-label="Open Night Shift Report" onClick={onStartEmpty}><span className="start-workspace-icon">NS</span><span><strong>Night Shift Report</strong><small>Prepare and finalize tonight’s report</small></span></button>}
-          <button className="start-workspace-card" onClick={onOpenFirstCall}><span className="start-workspace-icon">FC</span><span><strong>New First Call Sheet</strong><small>Open a private temporary sheet</small></span></button>
-          <button className="start-workspace-card" onClick={onOpenCremation}><span className="start-workspace-icon">CB</span><span><strong>New Cremation Batch</strong><small>Enter, print, and track batch output</small></span></button>
           {!onBack && latestFinalized && <Button variant="quiet" onClick={onContinueFromLast}>Continue from last report</Button>}
         </div>
       </section>
@@ -83,7 +73,6 @@ function WelcomeScreen({
 }
 
 function AppContent() {
-  const [mode, setMode] = useState<WorkspaceMode>("report");
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -97,9 +86,6 @@ function AppContent() {
     );
   }
 
-  if (mode === "firstCall") return <FirstCallWorkspace onBack={() => setMode("report")} onNavigate={setMode} />;
-  if (mode === "cremation") return <CremationWorkspace onBack={() => setMode("report")} onNavigate={setMode} />;
-
   if (!controller.report) {
     const resumable = controller.bootstrap.resumableDraft;
     const entryCount = resumable?.sections.reduce((total, section) => total + section.entries.length, 0) ?? 0;
@@ -110,15 +96,13 @@ function AppContent() {
         onResume={controller.resumeDraft}
         onContinueFromLast={() => void controller.createDraft("clone").catch((error: Error) => toast.error(error.message))}
         onStartEmpty={() => void controller.createDraft("empty").catch((error: Error) => toast.error(error.message))}
-        onOpenFirstCall={() => setMode("firstCall")}
-        onOpenCremation={() => setMode("cremation")}
       />
     );
   }
 
   if (workspace.viewingStart) {
-    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} onOpenFirstCall={() => setMode("firstCall")} onOpenCremation={() => setMode("cremation")} />;
+    return <WelcomeScreen onBack={() => dispatch({ type: "SET_VIEWING_START", viewing: false })} />;
   }
 
-  return <Studio onOpenFirstCall={() => setMode("firstCall")} onOpenCremation={() => setMode("cremation")} />;
+  return <Studio />;
 }

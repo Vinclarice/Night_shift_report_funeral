@@ -66,70 +66,22 @@ const statements = [
     "offsetYInches" REAL NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS "AppSetting" ("key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL)`,
-  `CREATE TABLE IF NOT EXISTS "FirstCallFuneralHome" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "normalizedName" TEXT NOT NULL,
-    "address" TEXT NOT NULL DEFAULT '',
-    "phone" TEXT NOT NULL DEFAULT '',
-    "fax" TEXT NOT NULL DEFAULT '',
-    "email" TEXT NOT NULL DEFAULT '',
-    "aliasesJson" TEXT NOT NULL DEFAULT '[]',
-    "favorite" BOOLEAN NOT NULL DEFAULT false,
-    "useCount" INTEGER NOT NULL DEFAULT 0,
-    "lastUsedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL,
-    "updatedAt" DATETIME NOT NULL
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "FirstCallFuneralHome_normalizedName_key" ON "FirstCallFuneralHome"("normalizedName")`,
-  `CREATE TABLE IF NOT EXISTS "FirstCallFacility" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "normalizedName" TEXT NOT NULL,
-    "address" TEXT NOT NULL DEFAULT '',
-    "phone" TEXT NOT NULL DEFAULT '',
-    "aliasesJson" TEXT NOT NULL DEFAULT '[]',
-    "favorite" BOOLEAN NOT NULL DEFAULT false,
-    "useCount" INTEGER NOT NULL DEFAULT 0,
-    "lastUsedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL,
-    "updatedAt" DATETIME NOT NULL
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "FirstCallFacility_normalizedName_key" ON "FirstCallFacility"("normalizedName")`,
-  `CREATE TABLE IF NOT EXISTS "FirstCallLookupCache" (
-    "queryKey" TEXT NOT NULL PRIMARY KEY,
-    "kind" TEXT NOT NULL,
-    "responseJson" TEXT NOT NULL,
-    "fetchedAt" DATETIME NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS "FirstCallPrintPreference" (
-    "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
-    "scale" REAL NOT NULL DEFAULT 1,
-    "offsetXInches" REAL NOT NULL DEFAULT 0,
-    "offsetYInches" REAL NOT NULL DEFAULT 0
-  )`,
-  `CREATE TABLE IF NOT EXISTS "CremationFuneralHome" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "normalizedName" TEXT NOT NULL,
-    "location" TEXT NOT NULL DEFAULT '',
-    "createdAt" DATETIME NOT NULL,
-    "updatedAt" DATETIME NOT NULL
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "CremationFuneralHome_normalizedName_key" ON "CremationFuneralHome"("normalizedName")`,
-  `CREATE TABLE IF NOT EXISTS "CremationSequenceState" (
-    "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
-    "major" INTEGER,
-    "middle" INTEGER,
-    "minor" INTEGER,
-    "updatedAt" DATETIME NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS "CremationPrintPreference" (
-    "kind" TEXT NOT NULL PRIMARY KEY,
-    "scale" REAL NOT NULL DEFAULT 1,
-    "offsetXInches" REAL NOT NULL DEFAULT 0,
-    "offsetYInches" REAL NOT NULL DEFAULT 0
-  )`,
+];
+
+/**
+ * First Call and Cremation Batch were removed after that work moved to a separate program.
+ * These statements drop their tables from any existing local database on next launch, rather
+ * than leaving them behind as orphaned data. The generic "AppSetting" table stays — it's also
+ * used by the core starter-funeral-home seeding flag.
+ */
+const droppedTables = [
+  "FirstCallFuneralHome",
+  "FirstCallFacility",
+  "FirstCallLookupCache",
+  "FirstCallPrintPreference",
+  "CremationFuneralHome",
+  "CremationSequenceState",
+  "CremationPrintPreference",
 ];
 
 /**
@@ -140,16 +92,6 @@ const statements = [
  */
 const addedColumns: Array<{ table: string; column: string; definition: string }> = [
   { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
-  { table: "FirstCallFuneralHome", column: "aliasesJson", definition: `TEXT NOT NULL DEFAULT '[]'` },
-  { table: "FirstCallFuneralHome", column: "favorite", definition: `BOOLEAN NOT NULL DEFAULT false` },
-  { table: "FirstCallFuneralHome", column: "useCount", definition: `INTEGER NOT NULL DEFAULT 0` },
-  { table: "FirstCallFuneralHome", column: "lastUsedAt", definition: `DATETIME` },
-  { table: "FirstCallFacility", column: "aliasesJson", definition: `TEXT NOT NULL DEFAULT '[]'` },
-  { table: "FirstCallFacility", column: "favorite", definition: `BOOLEAN NOT NULL DEFAULT false` },
-  { table: "FirstCallFacility", column: "useCount", definition: `INTEGER NOT NULL DEFAULT 0` },
-  { table: "FirstCallFacility", column: "lastUsedAt", definition: `DATETIME` },
-  { table: "CremationPrintPreference", column: "deviceName", definition: `TEXT` },
-  { table: "CremationPrintPreference", column: "paperSource", definition: `TEXT` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {
@@ -164,10 +106,6 @@ export async function migrate(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe("PRAGMA foreign_keys = ON");
   for (const statement of statements) await client.$executeRawUnsafe(statement);
   await applyAddedColumns(client);
+  for (const table of droppedTables) await client.$executeRawUnsafe(`DROP TABLE IF EXISTS "${table}"`);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
-  await client.firstCallPrintPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
-  await client.cremationSequenceState.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
-  for (const kind of ["certificate", "envelope"]) {
-    await client.cremationPrintPreference.upsert({ where: { kind }, update: {}, create: { kind } });
-  }
 }

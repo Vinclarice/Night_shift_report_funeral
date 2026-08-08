@@ -8,7 +8,6 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { WindowControls } from "./TitleBar";
-import { WorkspaceTabs } from "./WorkspaceTabs";
 
 function formatReportDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -20,7 +19,7 @@ function formatReportDate(value: string) {
  * (undo/redo, inspector toggle, secondary-tools menu, finalize/print) on the right, with the empty
  * space between doubling as the frameless window's drag handle.
  */
-export function CommandBar({ report, onOpenFirstCall, onOpenCremation }: { report: NightReport; onOpenFirstCall: () => void; onOpenCremation: () => void }) {
+export function CommandBar({ report }: { report: NightReport }) {
   const controller = useReportController();
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
@@ -48,10 +47,6 @@ export function CommandBar({ report, onOpenFirstCall, onOpenCremation }: { repor
         <div><p>Night Shift Report</p><strong>{formatReportDate(report.reportDate)}</strong></div>
         <Badge tone={report.status === "finalized" ? "success" : "warning"}>{report.status === "finalized" ? "Finalized" : "Draft"}</Badge>
       </div>
-      <WorkspaceTabs active="report" onNavigate={(mode) => {
-        if (mode === "firstCall") onOpenFirstCall();
-        if (mode === "cremation") onOpenCremation();
-      }} />
       {/* Empty space between the two clusters is the window drag handle. */}
       <div className="command-drag-region" aria-hidden="true" />
       <div className="command-actions">

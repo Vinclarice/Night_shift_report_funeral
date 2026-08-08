@@ -11,6 +11,5 @@ coverage/
 *.db-shm
 playwright-report/
 test-results/
-resources/cremation/cremation-label.lbx
 src/generated/
 .e2e-data/

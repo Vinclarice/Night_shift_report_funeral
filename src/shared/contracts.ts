@@ -1,57 +1,8 @@
 import type { LayoutSettings, NightReport, SectionKey } from "@/domain/types";
-import type {
-  FirstCallDirectories,
-  FirstCallDraft,
-  FirstCallFacility,
-  FirstCallFuneralHome,
-  FirstCallLookupCandidate,
-  FirstCallLookupKind,
-  FirstCallDirectoryKind,
-  FirstCallPrintPreference,
-  FirstCallSearchSettings,
-} from "@/domain/firstCall";
 import type { RevisionSummary } from "@/application/repository";
-import type {
-  CremationBatchRow,
-  CremationDocumentKind,
-  CremationFuneralHome,
-  CremationLabelReadiness,
-  CremationPrintingReadiness,
-  CremationPrintPreference,
-  PrinterCapability,
-} from "@/domain/cremation";
 
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
-
-export type FirstCallFuneralHomeInput = Pick<FirstCallFuneralHome, "name" | "address" | "phone" | "fax" | "email"> & Partial<Pick<FirstCallFuneralHome, "aliases" | "favorite">> & { id?: string };
-export type FirstCallFacilityInput = Pick<FirstCallFacility, "name" | "address" | "phone"> & Partial<Pick<FirstCallFacility, "aliases" | "favorite">> & { id?: string };
-export interface FirstCallDirectoryImportResult extends FirstCallDirectories { canceled: boolean; imported: number }
-export interface FirstCallDirectoryExportResult { canceled: boolean; path?: string }
-export interface FirstCallWorkspaceData extends FirstCallDirectories {
-  printPreference: FirstCallPrintPreference;
-  searchSettings: FirstCallSearchSettings;
-  /** The sheet left over from last time, or null when there is nothing saved to resume. */
-  savedDraft: FirstCallDraft | null;
-}
-
-export type CremationFuneralHomeInput = Pick<CremationFuneralHome, "name" | "location"> & { id?: string };
-/** The full in-progress batch, saved as one unit so it can be resumed exactly as it was left. */
-export interface CremationBatchSnapshot {
-  date: string;
-  rows: CremationBatchRow[];
-}
-export interface CremationWorkspaceData {
-  funeralHomes: CremationFuneralHome[];
-  savedFinalNumber: string | null;
-  printPreferences: Record<CremationDocumentKind, CremationPrintPreference>;
-  labelReadiness: CremationLabelReadiness;
-  printingReadiness: Record<CremationDocumentKind, CremationPrintingReadiness>;
-  /** The batch left over from last time, or null when there is nothing saved to resume. */
-  savedBatch: CremationBatchSnapshot | null;
-}
-export interface CremationLabelItem { id: string; displayName: string }
-export interface CremationLabelPrintResult { printedIds: string[]; failureReason?: string }
 
 /** A past report as listed in the read-only archive. Deliberately does not carry entries. */
 export interface ReportSummary {
@@ -92,33 +43,6 @@ export interface NightShiftApi {
   listBackups(): Promise<BackupSummary[]>;
   restoreBackup(name: string): Promise<void>;
   printReport(): Promise<{ success: boolean; failureReason?: string }>;
-  loadFirstCallWorkspace(): Promise<FirstCallWorkspaceData>;
-  saveFirstCallFuneralHome(input: FirstCallFuneralHomeInput): Promise<FirstCallDirectories>;
-  deleteFirstCallFuneralHome(id: string): Promise<FirstCallDirectories>;
-  saveFirstCallFacility(input: FirstCallFacilityInput): Promise<FirstCallDirectories>;
-  deleteFirstCallFacility(id: string): Promise<FirstCallDirectories>;
-  useFirstCallDirectory(kind: FirstCallDirectoryKind, id: string): Promise<FirstCallDirectories>;
-  mergeFirstCallDirectory(kind: FirstCallDirectoryKind, sourceId: string, targetId: string): Promise<FirstCallDirectories>;
-  exportFirstCallDirectories(): Promise<FirstCallDirectoryExportResult>;
-  importFirstCallDirectories(): Promise<FirstCallDirectoryImportResult>;
-  searchFirstCallPlaces(kind: FirstCallLookupKind, query: string): Promise<FirstCallLookupCandidate[]>;
-  saveFirstCallTomTomApiKey(apiKey: string): Promise<FirstCallSearchSettings>;
-  saveFirstCallPrintPreference(preference: FirstCallPrintPreference): Promise<FirstCallPrintPreference>;
-  printFirstCall(): Promise<{ success: boolean; failureReason?: string }>;
-  saveFirstCallDraft(draft: FirstCallDraft): Promise<void>;
-  clearFirstCallDraft(): Promise<void>;
-  loadCremationWorkspace(): Promise<CremationWorkspaceData>;
-  saveCremationFuneralHome(input: CremationFuneralHomeInput): Promise<CremationFuneralHome[]>;
-  deleteCremationFuneralHome(id: string): Promise<CremationFuneralHome[]>;
-  saveCremationFinalNumber(value: string): Promise<string>;
-  saveCremationPrintPreference(kind: CremationDocumentKind, preference: CremationPrintPreference): Promise<CremationPrintPreference>;
-  saveCremationBatch(snapshot: CremationBatchSnapshot): Promise<void>;
-  clearCremationBatch(): Promise<void>;
-  printCremationDocument(kind: CremationDocumentKind, rows: CremationBatchRow[], date: string): Promise<CremationLabelPrintResult>;
-  listCremationPrinters(): Promise<PrinterCapability[]>;
-  checkCremationPrintingReadiness(kind: CremationDocumentKind): Promise<CremationPrintingReadiness>;
-  checkCremationLabelReadiness(): Promise<CremationLabelReadiness>;
-  printCremationLabels(items: CremationLabelItem[]): Promise<CremationLabelPrintResult>;
   listReports(): Promise<ReportSummary[]>;
   loadReport(id: string): Promise<NightReport | null>;
   windowControl(action: WindowControl): Promise<void>;

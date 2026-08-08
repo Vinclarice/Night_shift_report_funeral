@@ -1,6 +1,6 @@
 {
   "name": "night-shift-report",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "Print-first Windows night shift report application",
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "start": "electron .",
-    "build": "prisma generate && node scripts/materialize-cremation-label.mjs && electron-vite build && node scripts/stage-runtime-assets.mjs",
+    "build": "prisma generate && electron-vite build && node scripts/stage-runtime-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
