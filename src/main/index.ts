@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
 import type { LayoutSettings, NightReport } from "../domain/types";
-import { nextReportDate } from "../domain/report";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 
 const hasLock = process.env.NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE === "1" || app.requestSingleInstanceLock();
@@ -124,26 +123,30 @@ const reportSectionSchema = z.object({
   entries: z.array(reportEntrySchema),
 });
 
-const reportSchema = z.object({ id: z.string(), reportDate: z.string(), status: z.enum(["draft", "finalized"]), version: z.number().int(), finalizedAt: z.string().nullable(), sections: z.array(reportSectionSchema) });
+const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {
   if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Untrusted application request.");
 }
 
-function dateDaysAgo(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return nextReportDate(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1));
-}
-
 async function bootstrap() {
-  await repository.purgeOlderThan(dateDaysAgo(90));
-  await backups.purge(14);
-  const [report, latestFinalized, resumableDraft, layout, funeralHomes, backupItems] = await Promise.all([
-    service.loadTonight(), service.latestFinalized(), service.resumableDraft(), repository.loadLayout(), repository.listFuneralHomes(), backups.list(),
+  const { report, created } = await service.resolveTonight();
+  try {
+    // A newly created report means a genuinely new night started — the one routine backup
+    // checkpoint left now that finalize no longer triggers one. Retention/backup-purge are
+    // best-effort maintenance from here on: if either fails, the renderer should still get the
+    // report it just resolved rather than an error.
+    if (created) await backups.create("nightly");
+    await repository.purgeExcept(report.id);
+    await backups.purge(14);
+  } catch (error) {
+    await logError("post-bootstrap-maintenance", error);
+  }
+  const [layout, funeralHomes, backupItems] = await Promise.all([
+    repository.loadLayout(), repository.listFuneralHomes(), backups.list(),
   ]);
-  return { report, latestFinalized, resumableDraft, layout, funeralHomes, backups: backupItems };
+  return { report, layout, funeralHomes, backups: backupItems };
 }
 
 function registerIpc() {
@@ -151,26 +154,7 @@ function registerIpc() {
     ipcMain.handle(channel, async (event, ...args) => { validateSender(event); return handler(event, ...(args as T)); });
   };
   handle("workspace:bootstrap", () => bootstrap());
-  handle("report:create", (_event, mode: "empty" | "clone") => service.createTonight(z.enum(["empty", "clone"]).parse(mode)));
   handle("report:save", (_event, report: NightReport, expectedVersion: number) => service.save(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion)));
-  handle("report:finalize", async (_event, report: NightReport, expectedVersion: number) => {
-    const final = await service.finalize(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion));
-    // The finalize write above is the durable, user-facing operation, and it already succeeded.
-    // Backups and retention are best-effort maintenance from here on — if either fails, the
-    // renderer should still see finalize as successful rather than an error for a report that's
-    // already safely finalized on disk.
-    try {
-      await backups.create("finalized");
-      await repository.purgeOlderThan(dateDaysAgo(90));
-      await backups.purge(14);
-    } catch (error) {
-      await logError("post-finalize-maintenance", error);
-    }
-    return final;
-  });
-  handle("report:reopen", (_event, report: NightReport, expectedVersion: number) => service.reopen(reportSchema.parse(report) as NightReport, z.number().int().parse(expectedVersion)));
-  handle("revision:list", (_event, reportId: string) => service.listRevisions(z.string().parse(reportId)));
-  handle("revision:restore", (_event, reportId: string, revisionId: string, expectedVersion: number) => service.restoreRevision(z.string().parse(reportId), z.string().parse(revisionId), z.number().int().parse(expectedVersion)));
   handle("layout:save", (_event, layout: LayoutSettings) => repository.saveLayout(layoutSchema.parse(layout)));
   handle("funeral:rename", (_event, id: string, name: string) => repository.renameFuneralHome(z.string().parse(id), z.string().min(1).parse(name)));
   handle("funeral:merge", (_event, sourceId: string, targetId: string) => repository.mergeFuneralHomes(z.string().parse(sourceId), z.string().parse(targetId)));
@@ -183,8 +167,6 @@ function registerIpc() {
       mainWindow!.webContents.print({ silent: false, printBackground: true, margins: { marginType: "none" }, pageSize: "Letter" }, (success, failureReason) => resolve({ success, failureReason: failureReason || undefined }));
     });
   });
-  handle("report:list", () => repository.listReports());
-  handle("report:load", (_event, id: string) => repository.findById(z.string().min(1).parse(id)));
   handle("window:control", (_event, action: string) => {
     if (!mainWindow) return;
     switch (z.enum(["minimize", "maximize", "close"]).parse(action)) {

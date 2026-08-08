@@ -259,7 +259,6 @@ export const ReportPage = memo(function ReportPage({ report, layout, compactLeve
       // silently break overflow detection.
       data-role={interactive ? "live-report-page" : undefined}
     >
-      {report.status === "draft" && <div className="draft-watermark">DRAFT</div>}
       <div className="report-content">
         <header className="report-header">
           <h1>NIGHT SHIFT REPORT</h1>

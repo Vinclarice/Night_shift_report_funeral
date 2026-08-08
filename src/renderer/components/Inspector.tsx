@@ -135,7 +135,6 @@ export function Inspector({ report }: { report: NightReport }) {
   const section = report.sections.find((candidate) => candidate.key === workspace.selection.sectionKey)!;
   const [pasteText, setPasteText] = useState("");
   const [pasteReview, setPasteReview] = useState<Array<ParsedLine & { include: boolean }> | null>(null);
-  const readOnly = report.status === "finalized";
 
   const selection = workspace.selection;
   const selectedEntry = selection.kind === "entry"
@@ -181,41 +180,35 @@ export function Inspector({ report }: { report: NightReport }) {
         <IconButton icon={<IconX />} aria-label="Close inspector" title="Close inspector" onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: false })} />
       </header>
 
-      {readOnly ? (
-        <div className="inspector-readonly"><Badge tone="success">Finalized</Badge><h3>This report is locked</h3><p>Reopen the report from the command bar to make changes.</p></div>
+      {workspace.inspectorMode === "paste" ? (
+        <section className="inspector-block paste-workspace">
+          <div className="block-title-row"><div><p className="studio-kicker">Quick paste</p><h3>Review multiple lines</h3></div><Button variant="quiet" onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "create" })}>Back</Button></div>
+          <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="Paste one entry per line…" rows={8} />
+          <Button variant="primary" full disabled={!pasteText.trim()} onClick={reviewPaste}>Review paste</Button>
+        </section>
       ) : (
-        <>
-          {workspace.inspectorMode === "paste" ? (
-            <section className="inspector-block paste-workspace">
-              <div className="block-title-row"><div><p className="studio-kicker">Quick paste</p><h3>Review multiple lines</h3></div><Button variant="quiet" onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "create" })}>Back</Button></div>
-              <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="Paste one entry per line…" rows={8} />
-              <Button variant="primary" full disabled={!pasteText.trim()} onClick={reviewPaste}>Review paste</Button>
-            </section>
-          ) : (
-            <EntryFormPanel key={formKey} report={report} section={section} seed={formSeed} />
-          )}
-
-          <section className="inspector-block entry-browser">
-            <div className="block-title-row"><div><p className="studio-kicker">Section queue</p><h3>Current entries</h3></div><Button variant="quiet" icon={<IconPlus />} onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "paste" })}>Paste</Button></div>
-            <h3 className="sr-only">{section.entries.length}</h3>
-            {!section.entries.length && <div className="studio-empty"><span>+</span><p>No entries yet — add one above.</p><small>You can also type directly on the page.</small></div>}
-            {section.entries.map((entry) => (
-              <Card className={`inspector-entry${workspace.selection.kind === "entry" && workspace.selection.entryId === entry.id ? " selected" : ""}`} hoverable key={entry.id}>
-                <div className="inspector-entry-title">
-                  <span>{entry.rush && <Badge tone="danger">Rush</Badge>}{entrySummary(entry)}</span>
-                  {entry.type !== "funeral" && <div><IconButton icon={<IconPencil />} aria-label="Edit entry" title="Edit" onClick={() => dispatch({ type: "SELECT_ENTRY", sectionKey: section.key, entryId: entry.id })} /><IconButton icon={<IconTrash />} tone="danger" aria-label="Delete entry" title="Delete" onClick={() => deleteEntry(entry.id)} /></div>}
-                </div>
-                {entry.type === "funeral" && entry.deceased.map((person) => (
-                  <div className="inspector-person" key={person.id}>
-                    <span>{person.name}{person.locationCode && ` · ${person.locationCode}`}</span>
-                    <div><IconButton icon={<IconPencil />} aria-label={`Edit ${person.name}`} title="Edit" onClick={() => dispatch({ type: "SELECT_ENTRY", sectionKey: section.key, entryId: entry.id, personId: person.id })} /><IconButton icon={<IconTrash />} tone="danger" aria-label={`Remove ${person.name}`} title="Remove" onClick={() => deleteEntry(entry.id, person.id)} /></div>
-                  </div>
-                ))}
-              </Card>
-            ))}
-          </section>
-        </>
+        <EntryFormPanel key={formKey} report={report} section={section} seed={formSeed} />
       )}
+
+      <section className="inspector-block entry-browser">
+        <div className="block-title-row"><div><p className="studio-kicker">Section queue</p><h3>Current entries</h3></div><Button variant="quiet" icon={<IconPlus />} onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "paste" })}>Paste</Button></div>
+        <h3 className="sr-only">{section.entries.length}</h3>
+        {!section.entries.length && <div className="studio-empty"><span>+</span><p>No entries yet — add one above.</p><small>You can also type directly on the page.</small></div>}
+        {section.entries.map((entry) => (
+          <Card className={`inspector-entry${workspace.selection.kind === "entry" && workspace.selection.entryId === entry.id ? " selected" : ""}`} hoverable key={entry.id}>
+            <div className="inspector-entry-title">
+              <span>{entry.rush && <Badge tone="danger">Rush</Badge>}{entrySummary(entry)}</span>
+              {entry.type !== "funeral" && <div><IconButton icon={<IconPencil />} aria-label="Edit entry" title="Edit" onClick={() => dispatch({ type: "SELECT_ENTRY", sectionKey: section.key, entryId: entry.id })} /><IconButton icon={<IconTrash />} tone="danger" aria-label="Delete entry" title="Delete" onClick={() => deleteEntry(entry.id)} /></div>}
+            </div>
+            {entry.type === "funeral" && entry.deceased.map((person) => (
+              <div className="inspector-person" key={person.id}>
+                <span>{person.name}{person.locationCode && ` · ${person.locationCode}`}</span>
+                <div><IconButton icon={<IconPencil />} aria-label={`Edit ${person.name}`} title="Edit" onClick={() => dispatch({ type: "SELECT_ENTRY", sectionKey: section.key, entryId: entry.id, personId: person.id })} /><IconButton icon={<IconTrash />} tone="danger" aria-label={`Remove ${person.name}`} title="Remove" onClick={() => deleteEntry(entry.id, person.id)} /></div>
+              </div>
+            ))}
+          </Card>
+        ))}
+      </section>
 
       {pasteReview && <PasteReviewModal lines={pasteReview} onToggle={(index, include) => setPasteReview((current) => current!.map((line, candidate) => candidate === index ? { ...line, include } : line))} onCancel={() => setPasteReview(null)} onConfirm={commitPaste} />}
     </aside>

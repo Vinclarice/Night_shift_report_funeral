@@ -10,16 +10,12 @@ datasource db {
 }
 
 model Report {
-  id              String    @id @default(cuid())
-  reportDate      String    @unique
-  status          String    @default("draft")
-  version         Int       @default(0)
-  basedOnReportId String?
-  finalizedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  entries         Entry[]
-  revisions       Revision[]
+  id         String   @id @default(cuid())
+  reportDate String   @unique
+  version    Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  entries    Entry[]
 }
 
 model Entry {
@@ -61,17 +57,6 @@ model FuneralHome {
   normalizedName String  @unique
   createdAt      DateTime @default(now())
   entries        Entry[]
-}
-
-model Revision {
-  id             String   @id @default(cuid())
-  reportId       String
-  revisionNumber Int
-  snapshotJson   String
-  finalizedAt    DateTime @default(now())
-  report         Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@unique([reportId, revisionNumber])
 }
 
 model LayoutPreference {

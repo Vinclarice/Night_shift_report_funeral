@@ -6,7 +6,6 @@ import type { NightReport, SectionKey } from "@/domain/types";
 import { IconFlag, IconMinus, IconPencil, IconPlus, IconTrash } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
-import { Badge } from "../ui/Badge";
 import { ContextMenu } from "../ui/ContextMenu";
 import { IconButton } from "../ui/IconButton";
 import { useToast } from "../ui/Toast";
@@ -49,7 +48,6 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, []);
 
   const commitPreviewLine = useCallback(function commitPreviewLine(sectionKey: SectionKey, entryId: string | null, value: string) {
-    if (report.status !== "draft") return;
     const next = structuredClone(report);
     const section = next.sections.find((item) => item.key === sectionKey)!;
     const existingIndex = entryId ? section.entries.findIndex((entry) => entry.id === entryId) : -1;
@@ -85,7 +83,6 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, [report, controller, dispatch, toast]);
 
   const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null) {
-    if (report.status !== "draft") return;
     const next = structuredClone(report);
     if (!moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId)) return;
     dispatch({ type: "SELECT_SECTION", sectionKey: targetKey, mode: "browse" });
@@ -101,14 +98,12 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, [dispatch]);
 
   const toggleContextEntryRush = useCallback((sectionKey: SectionKey, entryId: string) => {
-    if (report.status !== "draft") return;
     const next = structuredClone(report);
     if (!toggleEntryRush(next.sections.find((item) => item.key === sectionKey)!, entryId)) return;
     void controller.persist(next);
   }, [report, controller]);
 
   const deleteContextEntry = useCallback((sectionKey: SectionKey, entryId: string) => {
-    if (report.status !== "draft") return;
     const next = structuredClone(report);
     if (!removeEntry(next.sections.find((item) => item.key === sectionKey)!, entryId)) return;
     void controller.persist(next);
@@ -131,7 +126,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, [controller]);
 
   return (
-    <section className={`studio-canvas ${report.status}`} ref={canvasRef}>
+    <section className="studio-canvas" ref={canvasRef}>
       <div className="canvas-toolbar no-print">
         <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · drag entries between cards</span></div>
         <div className="canvas-controls">
@@ -140,7 +135,6 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
             <button type="button" className={workspace.zoomMode === "fit" ? "active" : ""} onClick={() => dispatch({ type: "FIT_ZOOM" })}>{workspace.zoomMode === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}</button>
             <IconButton icon={<IconPlus />} aria-label="Zoom in" title="Zoom in" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom + 0.05 })} />
           </div>
-          <Badge tone={report.status === "finalized" ? "success" : "warning"} dot>{report.status === "finalized" ? "Finalized" : "Draft canvas"}</Badge>
         </div>
       </div>
       <div className="canvas-scroll">
@@ -152,9 +146,9 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
               selectedEntryId={workspace.selection.kind === "entry" ? workspace.selection.entryId : undefined}
               onSelectSection={handleSelectSection}
               onSelectEntry={handleSelectEntry}
-              onLineCommit={report.status === "draft" ? commitPreviewLine : undefined}
-              onEntryMove={report.status === "draft" ? movePreviewEntry : undefined}
-              onEntryContextMenu={report.status === "draft" ? handleEntryContextMenu : undefined}
+              onLineCommit={commitPreviewLine}
+              onEntryMove={movePreviewEntry}
+              onEntryContextMenu={handleEntryContextMenu}
               onWidthChange={handleWidthChange}
               onWidthCommit={handleWidthCommit}
             />

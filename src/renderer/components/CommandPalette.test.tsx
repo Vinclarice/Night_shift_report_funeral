@@ -11,13 +11,8 @@ import { matchScore } from "./CommandPalette";
 function mockApi(initialReport: NightReport): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
-    createDraft: async () => current,
+    bootstrap: async () => ({ report: current, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
     saveReport: async (report, expectedVersion) => { current = { ...report, version: expectedVersion + 1 }; return current; },
-    finalizeReport: async (report, expectedVersion) => { current = { ...report, status: "finalized", version: expectedVersion + 1 }; return current; },
-    reopenReport: async (report, expectedVersion) => { current = { ...report, status: "draft", version: expectedVersion + 1 }; return current; },
-    listRevisions: async () => [],
-    restoreRevision: async () => current,
     saveLayout: async (layout) => layout,
     renameFuneralHome: async () => [],
     mergeFuneralHomes: async () => [],
@@ -25,8 +20,6 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     listBackups: async () => [],
     restoreBackup: async () => {},
     printReport: vi.fn(async () => ({ success: true })),
-    listReports: async () => [],
-    loadReport: async () => current,
     windowControl: async () => {},
     isWindowMaximized: async () => false,
     onWindowMaximizeChange: () => () => {},
@@ -86,11 +79,11 @@ describe("CommandPalette", () => {
     await screen.findByText("Night Shift Report");
     await openPalette();
 
-    fireEvent.change(paletteInput(), { target: { value: "archive" } });
+    fireEvent.change(paletteInput(), { target: { value: "directory" } });
 
     const options = paletteOptions();
     expect(options).toHaveLength(1);
-    expect(options[0]).toHaveTextContent("Open report archive");
+    expect(options[0]).toHaveTextContent("Open funeral home directory");
   });
 
   it("runs the selected command on Enter and closes", async () => {
@@ -98,11 +91,11 @@ describe("CommandPalette", () => {
     await screen.findByText("Night Shift Report");
     await openPalette();
 
-    fireEvent.change(paletteInput(), { target: { value: "archive" } });
+    fireEvent.change(paletteInput(), { target: { value: "directory" } });
     fireEvent.keyDown(paletteInput(), { key: "Enter" });
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("dialog", { name: "Report archive" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Funeral home directory" })).toBeInTheDocument();
   });
 
   it("moves the active option with the arrow keys", async () => {

@@ -13,13 +13,8 @@ import { ToastProvider } from "../ui/Toast";
 function mockApi(initialReport: NightReport): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [{ id: "fh-1", name: "Bellweather" }], backups: [] }),
-    createDraft: async () => current,
+    bootstrap: async () => ({ report: current, layout: DEFAULT_LAYOUT, funeralHomes: [{ id: "fh-1", name: "Bellweather" }], backups: [] }),
     saveReport: async (report, expectedVersion) => { current = { ...report, version: expectedVersion + 1 }; return current; },
-    finalizeReport: async (report, expectedVersion) => { current = { ...report, status: "finalized", version: expectedVersion + 1 }; return current; },
-    reopenReport: async (report, expectedVersion) => { current = { ...report, status: "draft", version: expectedVersion + 1 }; return current; },
-    listRevisions: async () => [],
-    restoreRevision: async () => current,
     saveLayout: async (layout) => layout,
     renameFuneralHome: async () => [],
     mergeFuneralHomes: async () => [],
@@ -27,8 +22,6 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     listBackups: async () => [],
     restoreBackup: async () => {},
     printReport: async () => ({ success: true }),
-    listReports: async () => [],
-    loadReport: async () => current,
     windowControl: async () => {},
     isWindowMaximized: async () => false,
     onWindowMaximizeChange: () => () => {},
@@ -51,7 +44,7 @@ function ActionsOnlyConsumer() {
     renders.actions += 1;
     seenActions.push(actions);
   });
-  return <button onClick={() => void actions.createDraft("empty")}>make draft</button>;
+  return <button onClick={() => void actions.refreshSupportingData()}>refresh supporting data</button>;
 }
 
 function StateConsumer() {
@@ -87,11 +80,11 @@ describe("ReportController contexts", () => {
     render(<Harness />);
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
 
-    fireEvent.click(screen.getByRole("button", { name: "make draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "refresh supporting data" }));
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
 
-    // Bootstrap plus a draft creation churned state repeatedly; every actions value seen must be
-    // the same object, otherwise memoized consumers would re-render on unrelated state changes.
+    // Bootstrap plus a supporting-data refresh churned state repeatedly; every actions value seen
+    // must be the same object, otherwise memoized consumers would re-render on unrelated changes.
     expect(seenActions.length).toBeGreaterThan(0);
     expect(new Set(seenActions).size).toBe(1);
   });
@@ -101,7 +94,7 @@ describe("ReportController contexts", () => {
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
     const afterBootstrap = renders.actions;
 
-    fireEvent.click(screen.getByRole("button", { name: "make draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "refresh supporting data" }));
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
 
     expect(renders.actions).toBe(afterBootstrap);
@@ -121,7 +114,7 @@ describe("ReportController contexts", () => {
     const api = mockApi(report);
     let savedLayout: Parameters<NightShiftApi["saveLayout"]>[0] | null = null;
     api.bootstrap = async () => ({
-      report, latestFinalized: null, resumableDraft: null,
+      report,
       layout: { ...DEFAULT_LAYOUT, sectionWidths: { "human-deliver": 2.75 } },
       funeralHomes: [], backups: [],
     });

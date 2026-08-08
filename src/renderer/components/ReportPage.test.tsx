@@ -5,7 +5,7 @@ import { createEmptyReport } from "@/domain/report";
 import { ReportPage } from "./ReportPage";
 
 describe("print report", () => {
-  it("renders all independent section cards and a draft watermark", () => {
+  it("renders all independent section cards", () => {
     render(
       <ReportPage
         report={createEmptyReport("2026-07-26")}
@@ -15,7 +15,6 @@ describe("print report", () => {
     expect(screen.getByText("NIGHT SHIFT REPORT")).toBeInTheDocument();
     expect(screen.getByText("JULY 26, 2026")).toBeInTheDocument();
     expect(screen.getAllByTestId("section-card")).toHaveLength(9);
-    expect(screen.getByText("DRAFT")).toBeInTheDocument();
   });
 
   it("applies the requested print compaction level to the shared page", () => {

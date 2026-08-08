@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconArchive, IconBuilding, IconHistory, IconPrinter, IconRedo, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
+import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportActions, useReportState } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import type { ReactNode } from "react";
@@ -59,10 +59,7 @@ export function useCommands(report: NightReport | null): Command[] {
       run: () => dispatch({ type: "SELECT_SECTION", sectionKey: section.key as SectionKey, mode: "create" }),
     }));
 
-    // Finalize and reopen are deliberately absent: they are the two actions where firing by muscle
-    // memory from a fuzzy search would be genuinely annoying to walk back.
     const actionCommands: Command[] = [
-      { id: "utility:archive", label: "Open report archive", group: "Tools", icon: <IconArchive />, run: () => dispatch({ type: "SET_UTILITY", utility: "archive" }) },
       { id: "utility:directory", label: "Open funeral home directory", group: "Tools", icon: <IconBuilding />, run: () => dispatch({ type: "SET_UTILITY", utility: "directory" }) },
       { id: "utility:recovery", label: "Open recovery center", group: "Tools", icon: <IconHistory />, run: () => dispatch({ type: "SET_UTILITY", utility: "recovery" }) },
       { id: "utility:print", label: "Open print setup", group: "Tools", icon: <IconSliders />, run: () => dispatch({ type: "SET_UTILITY", utility: "print" }) },
@@ -78,7 +75,7 @@ export function useCommands(report: NightReport | null): Command[] {
       { id: "edit:redo", label: "Redo", group: "Edit", hint: "Ctrl+Y", icon: <IconRedo />, disabled: !state.redoAvailable, run: actions.redo },
       {
         id: "report:print",
-        label: report.status === "draft" ? "Print draft" : "Print report",
+        label: "Print report",
         group: "Report",
         icon: <IconPrinter />,
         disabled: state.overflow,

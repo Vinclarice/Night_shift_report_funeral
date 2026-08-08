@@ -1,5 +1,3 @@
-export type ReportStatus = "draft" | "finalized";
-
 export type SectionKey =
   | "human-deliver"
   | "human-airport"
@@ -77,9 +75,7 @@ export interface ReportSection {
 export interface NightReport {
   id: string;
   reportDate: string;
-  status: ReportStatus;
   version: number;
-  finalizedAt: string | null;
   sections: ReportSection[];
 }
 

@@ -10,22 +10,11 @@ import { App } from "./App";
 function mockApi(initialReport: NightReport): NightShiftApi {
   let current = initialReport;
   return {
-    bootstrap: async () => ({ report: current, latestFinalized: null, resumableDraft: null, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
-    createDraft: async () => current,
+    bootstrap: async () => ({ report: current, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }),
     saveReport: async (report, expectedVersion) => {
       current = { ...report, version: expectedVersion + 1 };
       return current;
     },
-    finalizeReport: async (report, expectedVersion) => {
-      current = { ...report, status: "finalized", version: expectedVersion + 1 };
-      return current;
-    },
-    reopenReport: async (report, expectedVersion) => {
-      current = { ...report, status: "draft", version: expectedVersion + 1 };
-      return current;
-    },
-    listRevisions: async () => [],
-    restoreRevision: async () => current,
     saveLayout: async (layout) => layout,
     renameFuneralHome: async () => [],
     mergeFuneralHomes: async () => [],
@@ -33,64 +22,11 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     listBackups: async () => [],
     restoreBackup: async () => {},
     printReport: async () => ({ success: true }),
-    listReports: async () => [],
-    loadReport: async () => current,
     windowControl: async () => {},
     isWindowMaximized: async () => false,
     onWindowMaximizeChange: () => () => {},
   };
 }
-
-describe("resuming a draft stranded by the date rollover", () => {
-  function strandedDraft() {
-    const draft = createEmptyReport("2026-07-28");
-    draft.sections.find((section) => section.key === "human-deliver")!.entries.push({
-      id: "carried", type: "plain", text: "Started before midnight", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-27T22:00:00.000Z",
-    });
-    return draft;
-  }
-
-  beforeEach(() => {
-    window.localStorage.clear();
-    const draft = strandedDraft();
-    // No report for tonight, because the calendar day advanced mid-shift.
-    window.nightShift = { ...mockApi(createEmptyReport("2026-07-29")), bootstrap: async () => ({ report: null, latestFinalized: null, resumableDraft: draft, layout: DEFAULT_LAYOUT, funeralHomes: [], backups: [] }) };
-  });
-
-  it("surfaces the stranded draft on the start screen with its date and size", async () => {
-    render(<App />);
-
-    expect(await screen.findByRole("heading", { name: "Night Shift Report" })).toBeVisible();
-    expect(screen.queryByText(/Build tonight|focused workspace|Local-first/i)).not.toBeInTheDocument();
-    expect(await screen.findByText(/Unfinished report for/)).toHaveTextContent("Tuesday, Jul 28");
-    expect(screen.getByText(/1 entry/)).toBeInTheDocument();
-  });
-
-  it("always exposes working window controls on the launch screen", async () => {
-    const windowControl = vi.fn(async () => {});
-    window.nightShift = { ...window.nightShift, windowControl };
-    render(<App />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Close" }));
-    expect(windowControl).toHaveBeenCalledWith("close");
-  });
-
-  it("opens that draft rather than creating a new report", async () => {
-    render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Resume unfinished report" }));
-
-    // The editor opens on the resumed draft, with the entry made earlier in the shift intact.
-    await screen.findByText("Night Shift Report");
-    expect(screen.getByRole("complementary", { name: "Report inspector" })).toHaveTextContent("Started before midnight");
-  });
-
-  it("still allows starting fresh instead", async () => {
-    render(<App />);
-    await screen.findByRole("button", { name: "Resume unfinished report" });
-
-    expect(screen.getByRole("button", { name: "Open Night Shift Report" })).toBeEnabled();
-  });
-});
 
 describe("App", () => {
   beforeEach(() => {
@@ -104,6 +40,21 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to report" }));
     await screen.findByRole("heading", { name: "1" });
   }
+
+  it("opens directly into the studio with no welcome screen or click required", async () => {
+    render(<App />);
+    expect(await screen.findByText("Night Shift Report")).toBeVisible();
+    expect(screen.getByText("No entries yet — add one above.")).toBeInTheDocument();
+  });
+
+  it("always exposes working window controls", async () => {
+    const windowControl = vi.fn(async () => {});
+    window.nightShift = { ...window.nightShift, windowControl };
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Close" }));
+    expect(windowControl).toHaveBeenCalledWith("close");
+  });
 
   it("undo restores the report to its state before the last edit, and becomes unavailable once history is exhausted", async () => {
     render(<App />);
@@ -190,11 +141,14 @@ describe("App", () => {
     await screen.findByText(/Kept as plain text/);
   });
 
-  it("keeps the navigator and contextual inspector synchronized", async () => {
+  it("keeps the command palette section jump and contextual inspector synchronized", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
 
-    fireEvent.click(screen.getByRole("button", { name: "Human remains FDP" }));
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const paletteInput = screen.getByRole("combobox", { name: "Search commands" });
+    fireEvent.change(paletteInput, { target: { value: "Human remains — FDP" } });
+    fireEvent.keyDown(paletteInput, { key: "Enter" });
 
     const inspector = screen.getByRole("complementary", { name: "Report inspector" });
     expect(inspector).toHaveTextContent("FDP");
@@ -244,42 +198,12 @@ describe("App", () => {
     expect(screen.getByRole("dialog", { name: "Print setup" })).toBeInTheDocument();
   });
 
-  it("places the inspector between the navigator and the canvas", async () => {
+  it("places the inspector beside the canvas", async () => {
     const { container } = render(<App />);
     await screen.findByText("Night Shift Report");
 
-    // Section list and entry form are used on every entry, so they sit adjacent; asserting DOM
-    // order because the grid places these three in source order.
     const columns = [...container.querySelectorAll(".studio-workspace > *")].map((element) => element.className.split(" ")[0]);
 
-    expect(columns).toEqual(["report-navigator", "studio-inspector", "studio-canvas"]);
-  });
-
-  it("peeks back at the welcome screen without losing the open report", async () => {
-    render(<App />);
-    await screen.findByText("Night Shift Report");
-
-    await addEntry("Greene", "Johnson");
-    fireEvent.click(screen.getByRole("button", { name: "Back to welcome screen" }));
-
-    // The welcome screen shows again, but as a peek rather than the initial create-draft flow —
-    // no start actions, just a way back to the report already in progress.
-    await screen.findByRole("heading", { name: "Night Shift Report" });
-    expect(screen.queryByRole("button", { name: "Open Night Shift Report" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Back to report" }));
-
-    // The entry added before peeking away is still there.
-    await screen.findByRole("heading", { name: "1" });
-  });
-
-  it("switches the inspector to read-only after finalization", async () => {
-    render(<App />);
-    await screen.findByText("Night Shift Report");
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalize" }));
-
-    await screen.findByText("This report is locked");
-    expect(screen.getByRole("button", { name: "Reopen" })).toBeEnabled();
+    expect(columns).toEqual(["studio-inspector", "studio-canvas"]);
   });
 });

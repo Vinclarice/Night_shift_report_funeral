@@ -1,4 +1,4 @@
-import { createEmptyReport, nextReportDate } from "@/domain/report";
+import { createEmptyReport, nextReportDate, previousReportDate } from "@/domain/report";
 import type { NightReport, ReportEntry } from "@/domain/types";
 import type { ReportRepository } from "./repository";
 
@@ -24,52 +24,35 @@ export class ReportService {
 
   get tonightDate() { return nextReportDate(this.clock()); }
 
-  loadTonight() { return this.repository.findByDate(this.tonightDate); }
-
-  latestFinalized() { return this.repository.latestFinalized(); }
-
   /**
-   * A shift runs across midnight, so the "next calendar day" that names the report changes partway
-   * through it. If the app is restarted after midnight, no report exists for the new tonight-date
-   * and the draft built earlier in the same shift would otherwise be unreachable — it stays in the
-   * database but the editor only ever looks up by date. This surfaces that draft so it can be
-   * resumed. Only drafts dated on or before tonight qualify: a later date would be a real future
-   * report rather than a stranded one.
+   * Resolves the report that should be open right now, creating or cloning one if needed, so the
+   * app always has something ready to edit with no manual "start a report" step.
    */
-  async resumableDraft(): Promise<NightReport | null> {
-    if (await this.loadTonight()) return null;
-    return this.repository.latestDraft(this.tonightDate);
-  }
+  async resolveTonight(): Promise<{ report: NightReport; created: boolean }> {
+    const tonightDate = this.tonightDate;
+    const existing = await this.repository.findByDate(tonightDate);
+    if (existing) return { report: existing, created: false };
 
-  async createTonight(mode: "empty" | "clone"): Promise<NightReport> {
-    const report = createEmptyReport(this.tonightDate);
-    if (mode === "clone") {
-      const prior = await this.repository.latestFinalized();
-      if (prior) {
-        report.sections = report.sections.map((section) => {
-          const old = prior.sections.find((candidate) => candidate.key === section.key);
-          return { ...section, entries: (old?.entries ?? []).map(cloneEntry) };
-        });
-      }
+    // A shift runs across midnight, so the "next calendar day" that names the report changes
+    // partway through it. A report dated exactly "yesterday" relative to a fresh tonightDate is
+    // almost certainly this same shift's unfinished work from before midnight rolled the date
+    // over (reports are always dated "tomorrow" from creation time) — resume it in place,
+    // unchanged, rather than cloning it into a duplicate.
+    const stranded = await this.repository.findByDate(previousReportDate(tonightDate));
+    if (stranded) return { report: stranded, created: false };
+
+    const report = createEmptyReport(tonightDate);
+    const prior = await this.repository.mostRecent();
+    if (prior) {
+      report.sections = report.sections.map((section) => {
+        const old = prior.sections.find((candidate) => candidate.key === section.key);
+        return { ...section, entries: (old?.entries ?? []).map(cloneEntry) };
+      });
     }
-    return this.repository.create(report);
+    return { report: await this.repository.create(report), created: true };
   }
 
   save(report: NightReport, expectedVersion: number) {
     return this.repository.save(report, expectedVersion);
-  }
-
-  finalize(report: NightReport, expectedVersion: number) {
-    return this.repository.finalize(report, expectedVersion, this.clock());
-  }
-
-  reopen(report: NightReport, expectedVersion: number) {
-    return this.repository.save({ ...report, status: "draft", finalizedAt: null }, expectedVersion);
-  }
-
-  listRevisions(reportId: string) { return this.repository.listRevisions(reportId); }
-
-  restoreRevision(reportId: string, revisionId: string, expectedVersion: number) {
-    return this.repository.restoreRevision(reportId, revisionId, expectedVersion);
   }
 }

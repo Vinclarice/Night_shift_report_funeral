@@ -42,14 +42,17 @@ describe("PrismaReportRepository", () => {
     await expect(repository.save(loaded!, 99)).rejects.toBeInstanceOf(VersionConflictError);
   });
 
-  it("creates and restores finalized revisions", async () => {
-    const report = await repository.create(createEmptyReport("2026-07-26"));
-    const final = await repository.finalize(report, 0, new Date("2026-07-25T23:00:00Z"));
-    const revisions = await repository.listRevisions(final.id);
-    expect(revisions).toHaveLength(1);
-    const restored = await repository.restoreRevision(final.id, revisions[0].id, final.version);
-    expect(restored.status).toBe("draft");
-    expect(restored.version).toBe(2);
+  it("retains only the most recent report after purging", async () => {
+    await repository.create(createEmptyReport("2026-07-24"));
+    await repository.create(createEmptyReport("2026-07-25"));
+    const latest = await repository.create(createEmptyReport("2026-07-26"));
+
+    expect((await repository.mostRecent())?.id).toBe(latest.id);
+    const purged = await repository.purgeExcept(latest.id);
+    expect(purged).toBe(2);
+    expect(await repository.findByDate("2026-07-24")).toBeNull();
+    expect(await repository.findByDate("2026-07-25")).toBeNull();
+    expect(await repository.findByDate("2026-07-26")).not.toBeNull();
   });
 
   it("preloads the regular funeral-home suggestions on first launch", async () => {

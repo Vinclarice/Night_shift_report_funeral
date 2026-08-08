@@ -24,6 +24,13 @@ export function nextReportDate(now: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** The calendar day immediately before the supplied report date. */
+export function previousReportDate(reportDate: string): string {
+  const [year, month, day] = reportDate.split("-").map(Number);
+  const previous = new Date(year, month - 1, day - 1);
+  return `${String(previous.getFullYear()).padStart(4, "0")}-${String(previous.getMonth() + 1).padStart(2, "0")}-${String(previous.getDate()).padStart(2, "0")}`;
+}
+
 export function createEmptyReport(reportDate: string): NightReport {
   const sections: ReportSection[] = REPORT_SECTIONS.map((section) => ({
     ...section,
@@ -32,9 +39,7 @@ export function createEmptyReport(reportDate: string): NightReport {
   return {
     id: crypto.randomUUID(),
     reportDate,
-    status: "draft",
     version: 0,
-    finalizedAt: null,
     sections,
   };
 }

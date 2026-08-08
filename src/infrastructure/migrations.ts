@@ -4,10 +4,7 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS "Report" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "reportDate" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'draft',
     "version" INTEGER NOT NULL DEFAULT 0,
-    "basedOnReportId" TEXT,
-    "finalizedAt" DATETIME,
     "createdAt" DATETIME NOT NULL,
     "updatedAt" DATETIME NOT NULL
   )`,
@@ -48,15 +45,6 @@ const statements = [
     "position" INTEGER NOT NULL,
     CONSTRAINT "Deceased_entryId_fkey" FOREIGN KEY ("entryId") REFERENCES "Entry" ("id") ON DELETE CASCADE
   )`,
-  `CREATE TABLE IF NOT EXISTS "Revision" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "reportId" TEXT NOT NULL,
-    "revisionNumber" INTEGER NOT NULL,
-    "snapshotJson" TEXT NOT NULL,
-    "finalizedAt" DATETIME NOT NULL,
-    CONSTRAINT "Revision_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "Report" ("id") ON DELETE CASCADE
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "Revision_reportId_revisionNumber_key" ON "Revision"("reportId", "revisionNumber")`,
   `CREATE TABLE IF NOT EXISTS "LayoutPreference" ("sectionKey" TEXT NOT NULL PRIMARY KEY, "widthInches" REAL)`,
   `CREATE TABLE IF NOT EXISTS "PrintPreference" (
     "id" INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
@@ -69,10 +57,11 @@ const statements = [
 ];
 
 /**
- * First Call and Cremation Batch were removed after that work moved to a separate program.
- * These statements drop their tables from any existing local database on next launch, rather
- * than leaving them behind as orphaned data. The generic "AppSetting" table stays — it's also
- * used by the core starter-funeral-home seeding flag.
+ * Tables that used to exist but no longer do. These statements drop them from any existing local
+ * database on next launch, rather than leaving them behind as orphaned data. First Call and
+ * Cremation Batch were removed after that work moved to a separate program; Revision was removed
+ * along with the finalize/lock system, which was its only source. The generic "AppSetting" table
+ * stays — it's also used by the core starter-funeral-home seeding flag.
  */
 const droppedTables = [
   "FirstCallFuneralHome",
@@ -82,7 +71,23 @@ const droppedTables = [
   "CremationFuneralHome",
   "CremationSequenceState",
   "CremationPrintPreference",
+  "Revision",
 ];
+
+/** Columns that used to exist on a table that's kept. SQLite has no "DROP COLUMN IF EXISTS". */
+const droppedColumns: Array<{ table: string; column: string }> = [
+  { table: "Report", column: "status" },
+  { table: "Report", column: "finalizedAt" },
+  { table: "Report", column: "basedOnReportId" },
+];
+
+async function applyDroppedColumns(client: PrismaClient): Promise<void> {
+  for (const { table, column } of droppedColumns) {
+    const columns = await client.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info("${table}")`);
+    if (!columns.some((existing) => existing.name === column)) continue;
+    await client.$executeRawUnsafe(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
+  }
+}
 
 /**
  * Columns added after the first release. The CREATE TABLE statements above only run on a fresh
@@ -106,6 +111,7 @@ export async function migrate(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe("PRAGMA foreign_keys = ON");
   for (const statement of statements) await client.$executeRawUnsafe(statement);
   await applyAddedColumns(client);
+  await applyDroppedColumns(client);
   for (const table of droppedTables) await client.$executeRawUnsafe(`DROP TABLE IF EXISTS "${table}"`);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 }

@@ -5,7 +5,7 @@ import { PrismaClient } from "@/generated/prisma-client";
 import type { Prisma } from "@/generated/prisma-client";
 
 import { VersionConflictError } from "@/application/reportService";
-import type { ReportRepository, RevisionSummary } from "@/application/repository";
+import type { ReportRepository } from "@/application/repository";
 import { normalizeFuneralHome } from "@/domain/entries";
 import { createEmptyReport } from "@/domain/report";
 import type { LayoutSettings, NightReport, ReportEntry } from "@/domain/types";
@@ -79,33 +79,8 @@ export class PrismaReportRepository implements ReportRepository {
 
   findByDate(date: string) { return this.loadedBy({ reportDate: date }); }
 
-  findById(id: string) { return this.loadedBy({ id }); }
-
-  /** Summaries only — the archive list never needs entry bodies, just a count per report. */
-  async listReports() {
-    const items = await this.client.report.findMany({
-      orderBy: { reportDate: "desc" },
-      select: { id: true, reportDate: true, status: true, finalizedAt: true, _count: { select: { entries: true } } },
-    });
-    return items.map((item) => ({
-      id: item.id,
-      reportDate: item.reportDate,
-      status: item.status === "finalized" ? "finalized" as const : "draft" as const,
-      entryCount: item._count.entries,
-      finalizedAt: item.finalizedAt ? item.finalizedAt.toISOString() : null,
-    }));
-  }
-
-  async latestFinalized() {
-    const item = await this.client.report.findFirst({ where: { status: "finalized" }, orderBy: { reportDate: "desc" } });
-    return item ? this.loadedBy({ id: item.id }) : null;
-  }
-
-  async latestDraft(onOrBefore: string) {
-    const item = await this.client.report.findFirst({
-      where: { status: "draft", reportDate: { lte: onOrBefore } },
-      orderBy: { reportDate: "desc" },
-    });
+  async mostRecent() {
+    const item = await this.client.report.findFirst({ orderBy: { reportDate: "desc" } });
     return item ? this.loadedBy({ id: item.id }) : null;
   }
 
@@ -114,9 +89,7 @@ export class PrismaReportRepository implements ReportRepository {
       await tx.report.create({ data: {
         id: report.id,
         reportDate: report.reportDate,
-        status: report.status,
         version: report.version,
-        finalizedAt: report.finalizedAt ? new Date(report.finalizedAt) : null,
       } });
       await this.writeEntries(tx, report);
     });
@@ -128,11 +101,7 @@ export class PrismaReportRepository implements ReportRepository {
     await this.client.$transaction(async (tx) => {
       const changed = await tx.report.updateMany({
         where: { id: report.id, version: expectedVersion },
-        data: {
-          status: report.status,
-          version: nextVersion,
-          finalizedAt: report.finalizedAt ? new Date(report.finalizedAt) : null,
-        },
+        data: { version: nextVersion },
       });
       if (changed.count !== 1) throw new VersionConflictError();
       await tx.entry.deleteMany({ where: { reportId: report.id } });
@@ -141,50 +110,13 @@ export class PrismaReportRepository implements ReportRepository {
     return (await this.loadedBy({ id: report.id }))!;
   }
 
-  async finalize(report: NightReport, expectedVersion: number, finalizedAt: Date) {
-    const finalSnapshot: NightReport = {
-      ...structuredClone(report),
-      status: "finalized",
-      finalizedAt: finalizedAt.toISOString(),
-      version: expectedVersion + 1,
-    };
-    await this.client.$transaction(async (tx) => {
-      const changed = await tx.report.updateMany({
-        where: { id: report.id, version: expectedVersion },
-        data: { status: "finalized", finalizedAt, version: finalSnapshot.version },
-      });
-      if (changed.count !== 1) throw new VersionConflictError();
-      await tx.entry.deleteMany({ where: { reportId: report.id } });
-      await this.writeEntries(tx, finalSnapshot);
-      const count = await tx.revision.count({ where: { reportId: report.id } });
-      await tx.revision.create({ data: {
-        reportId: report.id,
-        revisionNumber: count + 1,
-        snapshotJson: JSON.stringify(finalSnapshot),
-        finalizedAt,
-      } });
-    });
-    return (await this.loadedBy({ id: report.id }))!;
-  }
-
-  async listRevisions(reportId: string): Promise<RevisionSummary[]> {
-    return (await this.client.revision.findMany({ where: { reportId }, orderBy: { revisionNumber: "desc" } }))
-      .map((item) => ({ id: item.id, revisionNumber: item.revisionNumber, finalizedAt: item.finalizedAt.toISOString() }));
-  }
-
-  async restoreRevision(reportId: string, revisionId: string, expectedVersion: number) {
-    const revision = await this.client.revision.findFirstOrThrow({ where: { id: revisionId, reportId } });
-    const current = await this.loadedBy({ id: reportId });
-    if (!current) throw new Error("Report no longer exists.");
-    const snapshot = JSON.parse(revision.snapshotJson) as NightReport;
-    return this.save({ ...snapshot, id: reportId, reportDate: current.reportDate, status: "draft", finalizedAt: null }, expectedVersion);
-  }
-
-  async purgeOlderThan(cutoffDate: string) {
-    const result = await this.client.report.deleteMany({ where: { reportDate: { lt: cutoffDate } } });
+  async purgeExcept(id: string) {
+    const result = await this.client.report.deleteMany({ where: { id: { not: id } } });
     if (result.count) {
-      await this.client.$executeRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
-      await this.client.$executeRawUnsafe("PRAGMA secure_delete = ON");
+      // Both PRAGMAs return a row in SQLite (the checkpoint result, the new setting value), so
+      // they need $queryRawUnsafe — $executeRawUnsafe rejects any statement that returns results.
+      await this.client.$queryRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
+      await this.client.$queryRawUnsafe("PRAGMA secure_delete = ON");
     }
     return result.count;
   }
@@ -265,9 +197,7 @@ export class PrismaReportRepository implements ReportRepository {
   private toDomain(loaded: LoadedReport): NightReport {
     const report = createEmptyReport(loaded.reportDate);
     report.id = loaded.id;
-    report.status = loaded.status as NightReport["status"];
     report.version = loaded.version;
-    report.finalizedAt = loaded.finalizedAt?.toISOString() ?? null;
     for (const section of report.sections) {
       section.entries = loaded.entries.filter((entry) => entry.sectionKey === section.key).map((entry): ReportEntry => {
         const base = { id: entry.id, rush: entry.rush, keepSeparate: entry.keepSeparate, pinnedBottom: entry.pinnedBottom, createdAt: entry.createdAt.toISOString() };

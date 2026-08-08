@@ -3,18 +3,15 @@ import type { ReactNode } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
 import type { LayoutSettings, NightReport } from "@/domain/types";
-import type { BootstrapData, ReportSummary } from "@/shared/contracts";
+import type { BootstrapData } from "@/shared/contracts";
 import { useOverflowCompaction } from "../hooks/useOverflowCompaction";
 import { useToast } from "../ui/Toast";
-import type { ArchiveActions } from "./useArchiveActions";
-import { useArchiveActions } from "./useArchiveActions";
 import type { DraftActions } from "./useDraftActions";
 import { useDraftActions } from "./useDraftActions";
 import type { LayoutActions } from "./useLayoutActions";
 import { useLayoutActions } from "./useLayoutActions";
 
 export type SaveStatus = "loading" | "saved" | "saving" | "error";
-export type RevisionSummary = { id: string; revisionNumber: number; finalizedAt: string };
 
 /**
  * State changes on nearly every interaction; actions never do. They are split into two contexts
@@ -28,21 +25,18 @@ export interface ReportState {
   status: SaveStatus;
   lastSavedAt: Date | null;
   calibration: boolean;
-  revisions: RevisionSummary[];
   undoAvailable: boolean;
   redoAvailable: boolean;
   compactLevel: 0 | 1;
   overflow: boolean;
-  archive: ReportSummary[];
-  archiveReport: NightReport | null;
 }
 
 /**
- * The full action surface, composed from three focused hooks below — draft persistence/undo,
- * layout, and archive browsing. Consumers only ever see this combined interface; which hook
- * actually owns a given action is an implementation detail of the provider.
+ * The full action surface, composed from two focused hooks below — draft persistence/undo and
+ * layout. Consumers only ever see this combined interface; which hook actually owns a given
+ * action is an implementation detail of the provider.
  */
-export type ReportActions = DraftActions & LayoutActions & ArchiveActions;
+export type ReportActions = DraftActions & LayoutActions;
 
 const ReportStateContext = createContext<ReportState | null>(null);
 const ReportActionsContext = createContext<ReportActions | null>(null);
@@ -55,11 +49,8 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [calibration, setCalibration] = useState(false);
-  const [revisions, setRevisions] = useState<RevisionSummary[]>([]);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [redoAvailable, setRedoAvailable] = useState(false);
-  const [archive, setArchive] = useState<ReportSummary[]>([]);
-  const [archiveReport, setArchiveReport] = useState<NightReport | null>(null);
   const queue = useMemo(() => new MutationQueue(), []);
   const versionRef = useRef(0);
   const reportRef = useRef<NightReport | null>(null);
@@ -77,14 +68,13 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
 
   const draftActions = useDraftActions({
     queue, versionRef, reportRef, bootstrapRef, undoStackRef, redoStackRef,
-    setBootstrap, setReport, setStatus, setLastSavedAt, setUndoAvailable, setRedoAvailable, setRevisions,
+    setBootstrap, setReport, setStatus, setLastSavedAt, setUndoAvailable, setRedoAvailable,
   });
   const layoutActions = useLayoutActions({ layoutRef, setLayout, setCalibration });
-  const archiveActions = useArchiveActions({ setArchive, setArchiveReport });
 
   const actions = useMemo<ReportActions>(
-    () => ({ ...draftActions, ...layoutActions, ...archiveActions }),
-    [draftActions, layoutActions, archiveActions],
+    () => ({ ...draftActions, ...layoutActions }),
+    [draftActions, layoutActions],
   );
 
   useEffect(() => {
@@ -95,7 +85,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
       bootstrapRef.current = data;
       setReport(data.report);
       reportRef.current = data.report;
-      versionRef.current = data.report?.version ?? 0;
+      versionRef.current = data.report.version;
       setLayout(data.layout);
       layoutRef.current = data.layout;
       undoStackRef.current = [];
@@ -129,9 +119,9 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   }, [actions]);
 
   const state = useMemo<ReportState>(() => ({
-    bootstrap, report, layout, status, lastSavedAt, calibration, revisions,
-    undoAvailable, redoAvailable, compactLevel, overflow, archive, archiveReport,
-  }), [bootstrap, report, layout, status, lastSavedAt, calibration, revisions, undoAvailable, redoAvailable, compactLevel, overflow, archive, archiveReport]);
+    bootstrap, report, layout, status, lastSavedAt, calibration,
+    undoAvailable, redoAvailable, compactLevel, overflow,
+  }), [bootstrap, report, layout, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
 
   return (
     <ReportStateContext.Provider value={state}>

@@ -15,19 +15,13 @@ test("launches portably and renders the exact nine-card page", async () => {
   try {
     const page = await electronApp.firstWindow();
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
-    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
     await page.screenshot({ path: "test-results/version-2-launch.png" });
-    await page.getByRole("button", { name: "Open Night Shift Report" }).click();
+    // The app opens directly into tonight's report — no welcome screen or click required.
     await expect(page.getByText("Live canvas")).toBeVisible();
     await page.screenshot({ path: "test-results/studio-empty.png" });
-    await page.getByRole("button", { name: "Finalize" }).click();
-    await expect(page.getByText("This report is locked")).toBeVisible();
-    await page.screenshot({ path: "test-results/studio-finalized.png" });
-    await page.getByRole("button", { name: "Reopen" }).click();
-    await expect(page.getByRole("button", { name: "Finalize" })).toBeVisible();
     const preview = page.locator(".report-page").first();
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
-    await expect(page.getByText("DRAFT").first()).toBeVisible();
     await page.evaluate(() => { for (const element of document.querySelectorAll<HTMLElement>("*")) element.scrollTop = 0; window.scrollTo(0, 0); });
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
@@ -154,7 +148,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     });
     await page.reload();
     await expect(page.getByText(/Printing is paused/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Print draft" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Print report" })).toBeDisabled();
   } finally {
     await electronApp.close();
     await rm(dataDirectory, { recursive: true, force: true });
@@ -171,8 +165,11 @@ test("the packaged Windows application starts with clean local data", async () =
   });
   try {
     const page = await electronApp.firstWindow();
-    await expect(page.getByRole("heading", { name: "Night Shift Report" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open Night Shift Report" })).toBeVisible();
+    // A fresh install has no prior report to clone from, so the app opens directly into a clean,
+    // empty report for tonight rather than any kind of welcome screen.
+    await expect(page.getByText("Live canvas")).toBeVisible();
+    const preview = page.locator(".report-page").first();
+    await expect(preview.getByTestId("section-card")).toHaveCount(9);
   } finally {
     await electronApp.close();
     await rm(dataDirectory, { recursive: true, force: true });

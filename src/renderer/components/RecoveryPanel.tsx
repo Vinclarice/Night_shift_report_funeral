@@ -9,12 +9,9 @@ function formatBytes(size: number) {
 
 interface Props {
   backups: BackupSummary[];
-  revisions: Array<{ id: string; revisionNumber: number; finalizedAt: string }>;
-  onLoadRevisions: () => Promise<void>;
-  onRestoreRevision: (id: string) => Promise<void>;
 }
 
-export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRevision }: Props) {
+export function RecoveryPanel({ backups }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pendingBackup, setPendingBackup] = useState<BackupSummary | null>(null);
@@ -33,16 +30,7 @@ export function RecoveryPanel({ backups, revisions, onLoadRevisions, onRestoreRe
 
   return (
     <>
-      <button className="secondary full" disabled={busy} onClick={() => void run(onLoadRevisions)}>
-        {busy ? "Loading…" : "Load report revisions"}
-      </button>
       {error && <p className="muted" role="alert">{error}</p>}
-      {revisions.map((revision) => (
-        <div className="recovery-row" key={revision.id}>
-          <span>Revision {revision.revisionNumber}<small>{new Date(revision.finalizedAt).toLocaleString()}</small></span>
-          <button disabled={busy} onClick={() => void run(() => onRestoreRevision(revision.id))}>Restore</button>
-        </div>
-      ))}
       <h3>Database backups</h3>
       {backups.map((backup) => (
         <div className="recovery-row" key={backup.name}>
