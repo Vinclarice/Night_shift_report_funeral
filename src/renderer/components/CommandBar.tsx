@@ -24,11 +24,16 @@ export function CommandBar({ report }: { report: NightReport }) {
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const dateRef = useRef<HTMLDivElement>(null);
+  const shownDate = controller.dateOverride ?? report.reportDate;
+  const overridden = controller.dateOverride !== null && controller.dateOverride !== report.reportDate;
 
   useEffect(() => {
     function close(event: PointerEvent) {
       if (!toolsRef.current?.contains(event.target as Node)) setToolsOpen(false);
+      if (!dateRef.current?.contains(event.target as Node)) setDateOpen(false);
     }
     window.addEventListener("pointerdown", close);
     return () => window.removeEventListener("pointerdown", close);
@@ -43,7 +48,34 @@ export function CommandBar({ report }: { report: NightReport }) {
     <header className="studio-commandbar no-print">
       <div className="command-report-meta">
         <span className="command-glow" aria-hidden="true" />
-        <div><p>Night Shift Report</p><strong>{formatReportDate(report.reportDate)}</strong></div>
+        {/* The date is normally set by the clock; clicking it opens the manual override for the
+            nights that lands on the wrong day. The override is session-only by design — see
+            ReportState.dateOverride. */}
+        <div className="command-date" ref={dateRef}>
+          <p>Night Shift Report</p>
+          <button type="button" className={`command-date-button${overridden ? " overridden" : ""}`} aria-expanded={dateOpen} title="Change the date on this report" onClick={() => setDateOpen((open) => !open)}>
+            <span className="command-date-line">
+              <strong>{formatReportDate(shownDate)}</strong>
+              {overridden && <span className="command-date-flag">Manual</span>}
+            </span>
+            {/* Standing hint rather than an on-hover one: whoever comes in mid-shift needs to see
+                that the date can be changed without knowing to go looking for it. */}
+            <small className="command-date-hint">manual date override</small>
+          </button>
+          {dateOpen && (
+            <div className="date-popover">
+              <label htmlFor="report-date-override">Report date</label>
+              <input
+                id="report-date-override"
+                type="date"
+                value={shownDate}
+                onChange={(event) => controller.setDateOverride(event.target.value || null)}
+              />
+              <p>Changes the date shown on the page and on print. It is not saved — reopening the app puts it back to {formatReportDate(report.reportDate)}.</p>
+              <Button variant="quiet" disabled={!overridden} onClick={() => controller.setDateOverride(null)}>Reset to {formatReportDate(report.reportDate)}</Button>
+            </div>
+          )}
+        </div>
       </div>
       {/* Empty space between the two clusters is the window drag handle. */}
       <div className="command-drag-region" aria-hidden="true" />

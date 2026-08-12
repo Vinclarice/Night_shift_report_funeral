@@ -22,6 +22,12 @@ export interface ReportState {
   bootstrap: BootstrapData | null;
   report: NightReport | null;
   layout: LayoutSettings | null;
+  /**
+   * A hand-typed date shown in place of the report's own, for the nights when the automatic one is
+   * wrong. Deliberately kept out of the report and off disk: it lives only in this provider, so
+   * closing the app drops it and the report goes back to being dated by the clock.
+   */
+  dateOverride: string | null;
   status: SaveStatus;
   lastSavedAt: Date | null;
   calibration: boolean;
@@ -36,7 +42,10 @@ export interface ReportState {
  * layout. Consumers only ever see this combined interface; which hook actually owns a given
  * action is an implementation detail of the provider.
  */
-export type ReportActions = DraftActions & LayoutActions;
+export type ReportActions = DraftActions & LayoutActions & {
+  /** Pass null to drop the manual date and go back to the report's own. */
+  setDateOverride: (date: string | null) => void;
+};
 
 const ReportStateContext = createContext<ReportState | null>(null);
 const ReportActionsContext = createContext<ReportActions | null>(null);
@@ -46,6 +55,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [report, setReport] = useState<NightReport | null>(null);
   const [layout, setLayout] = useState<LayoutSettings | null>(null);
+  const [dateOverride, setDateOverride] = useState<string | null>(null);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [calibration, setCalibration] = useState(false);
@@ -73,7 +83,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const layoutActions = useLayoutActions({ layoutRef, setLayout, setCalibration });
 
   const actions = useMemo<ReportActions>(
-    () => ({ ...draftActions, ...layoutActions }),
+    () => ({ ...draftActions, ...layoutActions, setDateOverride }),
     [draftActions, layoutActions],
   );
 
@@ -119,9 +129,9 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   }, [actions]);
 
   const state = useMemo<ReportState>(() => ({
-    bootstrap, report, layout, status, lastSavedAt, calibration,
+    bootstrap, report, layout, dateOverride, status, lastSavedAt, calibration,
     undoAvailable, redoAvailable, compactLevel, overflow,
-  }), [bootstrap, report, layout, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
+  }), [bootstrap, report, layout, dateOverride, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
 
   return (
     <ReportStateContext.Provider value={state}>

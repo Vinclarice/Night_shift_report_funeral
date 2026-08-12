@@ -17,6 +17,18 @@ describe("print report", () => {
     expect(screen.getAllByTestId("section-card")).toHaveLength(9);
   });
 
+  it("prints the manual date override in place of the report's own date", () => {
+    render(
+      <ReportPage
+        report={createEmptyReport("2026-07-26")}
+        layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
+        dateOverride="2026-07-24"
+      />,
+    );
+    expect(screen.getByText("JULY 24, 2026")).toBeInTheDocument();
+    expect(screen.queryByText("JULY 26, 2026")).not.toBeInTheDocument();
+  });
+
   it("applies the requested print compaction level to the shared page", () => {
     const { container } = render(
       <ReportPage

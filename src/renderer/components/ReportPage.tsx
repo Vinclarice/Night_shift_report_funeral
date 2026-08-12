@@ -9,6 +9,8 @@ import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 interface Props {
   report: NightReport;
   layout: LayoutSettings;
+  /** Hand-typed date to print instead of the report's own; see ReportState.dateOverride. */
+  dateOverride?: string | null;
   compactLevel?: 0 | 1;
   calibration?: boolean;
   interactive?: boolean;
@@ -250,7 +252,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -274,7 +276,7 @@ export const ReportPage = memo(function ReportPage({ report, layout, compactLeve
       <div className="report-content">
         <header className="report-header">
           <h1>NIGHT SHIFT REPORT</h1>
-          <div><strong>DATE:</strong> <span>{displayDate(report.reportDate)}</span></div>
+          <div><strong>DATE:</strong> <span>{displayDate(dateOverride ?? report.reportDate)}</span></div>
         </header>
         <div className="report-columns">
           <div className="report-column human-column">

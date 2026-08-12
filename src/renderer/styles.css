@@ -357,6 +357,20 @@ button.print-button:hover { background: white; transform: translateY(-1px); }
 .command-report-meta p { margin: 0; color: #87938e; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 .command-report-meta strong { color: white; font-size: 15px; letter-spacing: -.01em; }
 .command-glow { width: 9px; height: 30px; border-radius: 99px; background: linear-gradient(var(--studio-emerald), var(--studio-violet)); box-shadow: 0 0 20px rgb(33 230 164 / 45%); }
+.command-date { position: relative; justify-items: start; }
+.command-date-button { display: grid; gap: 1px; justify-items: start; margin: -2px -5px; padding: 2px 5px; border-radius: 7px; background: transparent; }
+.command-date-button:hover { background: rgb(255 255 255 / 7%); }
+.command-date-line { display: flex; align-items: center; gap: 7px; }
+.command-date-hint { color: #6d7975; font-size: 9px; font-weight: 600; letter-spacing: .03em; }
+.command-date-button:hover .command-date-hint { color: #9aa7a2; }
+.command-date-button.overridden .command-date-hint { color: #c79a4d; }
+.command-date-button.overridden strong { color: #ffc767; }
+.command-date-flag { padding: 1px 5px; border-radius: 5px; color: #0c1118; background: #ffc767; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.date-popover { position: absolute; z-index: 70; top: calc(100% + 10px); left: 0; display: grid; gap: 7px; width: 250px; padding: 12px; border: 1px solid var(--studio-border-strong); border-radius: 14px; background: #151c25; box-shadow: 0 24px 65px rgb(0 0 0 / 48%); animation: studio-pop-in var(--duration-base) var(--ease); }
+.date-popover label { color: #87938e; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.date-popover input { width: 100%; padding: 8px 9px; border: 1px solid var(--studio-border-strong); border-radius: 9px; color: white; background: rgb(255 255 255 / 4%); font: inherit; font-size: 13px; }
+.date-popover input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .6; cursor: pointer; }
+.date-popover p { margin: 0; color: #7e8a85; font-size: 10px; font-weight: 500; line-height: 1.45; letter-spacing: 0; }
 .command-actions { gap: 8px; padding-right: 0; }
 .command-group { gap: 2px; padding: 3px; border: 1px solid var(--studio-border); border-radius: 10px; background: rgb(255 255 255 / 3%); }
 .command-primary { gap: 8px; margin-left: 3px; }

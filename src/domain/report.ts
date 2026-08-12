@@ -16,19 +16,31 @@ export const REPORT_SECTIONS: ReadonlyArray<{
   { key: "cremated-certs", category: "cremated", title: "CERTS/OTHER TO DEL" },
 ];
 
-export function nextReportDate(now: Date): string {
-  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const year = String(next.getFullYear()).padStart(4, "0");
-  const month = String(next.getMonth() + 1).padStart(2, "0");
-  const day = String(next.getDate()).padStart(2, "0");
+/**
+ * Local hour that ends a night shift. Before it, whoever is at the desk is still working the shift
+ * that began yesterday evening; from it on, the next report anyone opens is tonight's.
+ */
+export const SHIFT_END_HOUR = 8;
+
+function formatLocalDate(date: Date): string {
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
-/** The calendar day immediately before the supplied report date. */
-export function previousReportDate(reportDate: string): string {
-  const [year, month, day] = reportDate.split("-").map(Number);
-  const previous = new Date(year, month - 1, day - 1);
-  return `${String(previous.getFullYear()).padStart(4, "0")}-${String(previous.getMonth() + 1).padStart(2, "0")}-${String(previous.getDate()).padStart(2, "0")}`;
+export function nextReportDate(now: Date): string {
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+}
+
+/**
+ * The date the report belongs to for someone opening the app at `now`. A shift is named for the
+ * calendar day it ends on — the evening of the 11th writes the report dated the 12th — and that
+ * name has to hold steady across midnight, however far into the small hours the app is opened and
+ * whether or not the report already existed before midnight.
+ */
+export function shiftReportDate(now: Date): string {
+  return now.getHours() < SHIFT_END_HOUR ? formatLocalDate(now) : nextReportDate(now);
 }
 
 export function createEmptyReport(reportDate: string): NightReport {

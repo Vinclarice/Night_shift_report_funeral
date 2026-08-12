@@ -1,4 +1,4 @@
-import { createEmptyReport, nextReportDate, previousReportDate } from "@/domain/report";
+import { createEmptyReport, shiftReportDate } from "@/domain/report";
 import type { NightReport, ReportEntry } from "@/domain/types";
 import type { ReportRepository } from "./repository";
 
@@ -22,24 +22,18 @@ export class ReportService {
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
-  get tonightDate() { return nextReportDate(this.clock()); }
+  get tonightDate() { return shiftReportDate(this.clock()); }
 
   /**
    * Resolves the report that should be open right now, creating or cloning one if needed, so the
-   * app always has something ready to edit with no manual "start a report" step.
+   * app always has something ready to edit with no manual "start a report" step. Because
+   * shiftReportDate names the whole shift the same thing on both sides of midnight, reopening the
+   * app mid-shift finds that shift's own report and resumes it in place.
    */
   async resolveTonight(): Promise<{ report: NightReport; created: boolean }> {
     const tonightDate = this.tonightDate;
     const existing = await this.repository.findByDate(tonightDate);
     if (existing) return { report: existing, created: false };
-
-    // A shift runs across midnight, so the "next calendar day" that names the report changes
-    // partway through it. A report dated exactly "yesterday" relative to a fresh tonightDate is
-    // almost certainly this same shift's unfinished work from before midnight rolled the date
-    // over (reports are always dated "tomorrow" from creation time) — resume it in place,
-    // unchanged, rather than cloning it into a duplicate.
-    const stranded = await this.repository.findByDate(previousReportDate(tonightDate));
-    if (stranded) return { report: stranded, created: false };
 
     const report = createEmptyReport(tonightDate);
     const prior = await this.repository.mostRecent();

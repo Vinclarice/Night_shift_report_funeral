@@ -71,14 +71,54 @@ describe("ReportService.resolveTonight", () => {
     expect(report.sections[0].entries[0].id).toBe("mid-shift");
     expect(created).toBe(false);
   });
+
+  it("dates a shift first opened after midnight to the day it ends, not the day after", async () => {
+    const repository = new MemoryRepository();
+    // Only the previous shift's report is on hand — nobody opened the app before midnight tonight.
+    repository.reports.set("2026-07-27", createEmptyReport("2026-07-27"));
+
+    const { report, created } = await new ReportService(repository, () => new Date(2026, 6, 28, 2, 30)).resolveTonight();
+    expect(report.reportDate).toBe("2026-07-28");
+    expect(created).toBe(true);
+  });
+
+  it("stops resuming last night's report once the shift is over at 8am", async () => {
+    const repository = new MemoryRepository();
+    const yesterdays = createEmptyReport("2026-07-28");
+    repository.reports.set(yesterdays.reportDate, yesterdays);
+
+    const stillOnShift = await new ReportService(repository, () => new Date(2026, 6, 28, 7, 59)).resolveTonight();
+    expect(stillOnShift.report.id).toBe(yesterdays.id);
+
+    const shiftOver = await new ReportService(repository, () => new Date(2026, 6, 28, 8, 0)).resolveTonight();
+    expect(shiftOver.report.reportDate).toBe("2026-07-29");
+    expect(shiftOver.created).toBe(true);
+  });
+
+  it("rolls to a new date when last night's report is the only one left", async () => {
+    const lastNight = () => new Date(2026, 6, 27, 21, 0);
+    const tonight = () => new Date(2026, 6, 28, 21, 0);
+    const repository = new MemoryRepository();
+    const yesterdays = createEmptyReport("2026-07-28");
+    yesterdays.sections[0].entries.push({ id: "last-night", type: "plain", text: "Carry forward", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: lastNight().toISOString() });
+    repository.reports.set(yesterdays.reportDate, yesterdays);
+
+    const { report, created } = await new ReportService(repository, tonight).resolveTonight();
+    expect(report.reportDate).toBe("2026-07-29");
+    expect(report.id).not.toBe(yesterdays.id);
+    expect(report.sections[0].entries[0]).toMatchObject({ text: "Carry forward" });
+    expect(report.sections[0].entries[0].id).not.toBe("last-night");
+    expect(created).toBe(true);
+  });
 });
 
-describe("report date rolling over mid-shift", () => {
-  const beforeMidnight = () => new Date(2026, 6, 27, 21, 0);
-  const afterMidnight = () => new Date(2026, 6, 28, 1, 0);
-
-  it("names the report for the next calendar day, which changes partway through a night shift", () => {
-    expect(new ReportService(new MemoryRepository(), beforeMidnight).tonightDate).toBe("2026-07-28");
-    expect(new ReportService(new MemoryRepository(), afterMidnight).tonightDate).toBe("2026-07-29");
+describe("report date across midnight", () => {
+  it("keeps one shift on one date from the evening through to the end of the shift", () => {
+    const at = (...parts: [number, number, number, number, number]) => () => new Date(...parts);
+    expect(new ReportService(new MemoryRepository(), at(2026, 6, 27, 21, 0)).tonightDate).toBe("2026-07-28");
+    expect(new ReportService(new MemoryRepository(), at(2026, 6, 28, 1, 0)).tonightDate).toBe("2026-07-28");
+    expect(new ReportService(new MemoryRepository(), at(2026, 6, 28, 7, 59)).tonightDate).toBe("2026-07-28");
+    // 8am: the shift is over and the next report to open belongs to the coming night.
+    expect(new ReportService(new MemoryRepository(), at(2026, 6, 28, 8, 0)).tonightDate).toBe("2026-07-29");
   });
 });
