@@ -408,10 +408,10 @@ textarea { resize: vertical; line-height: 1.45; }
 .page-stage .section-card { box-shadow: 0 .025in .07in rgb(29 49 38 / 8%); }
 .section-card h3 em { float: right; font-style: normal; font-weight: 700; font-size: 8.5pt; letter-spacing: 0; opacity: .7; }
 .section-card h3 { height: .27in; margin: 0; padding: .035in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 9.5pt; font-weight: 760; line-height: .205in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }
-.report-row { min-height: .205in; padding: .012in .075in .006in; border-bottom: .45px solid #c3c8cf; color: var(--report-ink); font-size: 9.35pt; line-height: .19in; white-space: normal; overflow-wrap: anywhere; }
+.report-row { min-height: .205in; padding: .012in .075in .006in; border-bottom: .75px solid #8d97a3; color: var(--report-ink); font-size: 9.35pt; line-height: .19in; white-space: normal; overflow-wrap: anywhere; }
 .report-row:last-of-type { border-bottom: 0; }
 .section-card > .report-row:not(.blank-row):nth-child(odd) { background: color-mix(in srgb, var(--column-soft) 48%, white); }
-.blank-row { color: transparent; border-bottom-color: #d6dae0; }
+.blank-row { color: transparent; }
 .entry-line-content { display: inline; }
 .entry-primary { font-weight: 760; }
 /* In the Cremated columns a row is normally nothing but the funeral-home name, so bolding every
