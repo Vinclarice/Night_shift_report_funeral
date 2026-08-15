@@ -143,6 +143,19 @@ describe("App", () => {
     expect(screen.getByText("No entries yet — add one above.")).toBeInTheDocument();
   });
 
+  it("stamps the print time onto both the screen and the print copy", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+    expect(screen.queryByText(/^Printed /)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Print report" }));
+
+    // Both copies: the canvas one is what the operator sees, the hidden print-only one is what
+    // actually reaches the printer, and the stamp is worthless if it misses the latter.
+    const stamps = await screen.findAllByText(/^Printed /);
+    expect(stamps).toHaveLength(2);
+  });
+
   it("offers only the formats each column uses", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");

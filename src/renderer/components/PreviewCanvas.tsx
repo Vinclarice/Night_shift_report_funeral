@@ -153,7 +153,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
         <div className="page-stage" style={{ "--preview-scale": zoom } as CSSProperties}>
           <div className="page-stage-frame">
             <ReportPage
-              report={deferredReport} layout={deferredLayout} dateOverride={controller.dateOverride} compactLevel={controller.compactLevel} calibration={controller.calibration} interactive
+              report={deferredReport} layout={deferredLayout} dateOverride={controller.dateOverride} printedAt={controller.printedAt} compactLevel={controller.compactLevel} calibration={controller.calibration} interactive
               selectedSectionKey={workspace.selection.sectionKey}
               selectedEntryId={workspace.selection.kind === "entry" ? workspace.selection.entryId : undefined}
               onSelectSection={handleSelectSection}

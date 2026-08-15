@@ -438,8 +438,10 @@ textarea { resize: vertical; line-height: 1.45; }
 /* Writing space for the day-shift supervisor. Rarely used, so it stays quiet: a rule, a small
    label, and two ruled lines at the foot of the sheet. */
 .notes-block { position: absolute; left: 0; right: 0; bottom: 0; padding-top: .06in; border-top: 1px solid #8d97a3; }
-.notes-block p { margin: 0 0 .05in; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; letter-spacing: .16em; }
-.notes-block span { display: block; height: .26in; border-bottom: .5px solid #b6bfcb; }
+.notes-block p { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 .05in; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; letter-spacing: .16em; }
+.notes-block p span { letter-spacing: .1em; }
+/* Direct children only: the stamp above is also a span and must not become a ruled line. */
+.notes-block > span { display: block; height: .26in; border-bottom: .5px solid #b6bfcb; }
 .calibration-label { position: absolute; bottom: calc(var(--report-margin) + .03in); left: 0; right: 0; text-align: center; font-size: 7pt; color: #a22; }
 .report-page[data-calibration]::before { border: 1.5px dashed #c22; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }

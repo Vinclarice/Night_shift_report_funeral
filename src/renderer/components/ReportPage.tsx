@@ -11,6 +11,8 @@ interface Props {
   layout: LayoutSettings;
   /** Hand-typed date to print instead of the report's own; see ReportState.dateOverride. */
   dateOverride?: string | null;
+  /** Stamped into the footer so two printed copies of one night can be told apart. */
+  printedAt?: Date | null;
   compactLevel?: 0 | 1;
   calibration?: boolean;
   interactive?: boolean;
@@ -38,6 +40,9 @@ const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
   "human-pending": 2,
   "human-ship-outs": 1,
 };
+
+const printedTime = (value: Date): string =>
+  new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
 
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -270,7 +275,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -314,7 +319,7 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
             the floor, so a heavy night compacts instead of running the columns through it. */}
         <div className="notes-block">
-          <p>NOTES</p>
+          <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
           <span /><span />
         </div>
       </div>

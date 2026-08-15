@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { MutationQueue } from "@/application/mutationQueue";
@@ -28,6 +28,12 @@ export interface ReportState {
    * closing the app drops it and the report goes back to being dated by the clock.
    */
   dateOverride: string | null;
+  /**
+   * When the sheet was last sent to the printer, so two copies of the same night can be told
+   * apart. Session-only like dateOverride: a stamp carried over from a previous launch would
+   * describe a sheet nobody is holding.
+   */
+  printedAt: Date | null;
   status: SaveStatus;
   lastSavedAt: Date | null;
   calibration: boolean;
@@ -45,6 +51,8 @@ export interface ReportState {
 export type ReportActions = DraftActions & LayoutActions & {
   /** Pass null to drop the manual date and go back to the report's own. */
   setDateOverride: (date: string | null) => void;
+  /** Stamps the print time onto the page, then prints. */
+  printReport: () => Promise<void>;
 };
 
 const ReportStateContext = createContext<ReportState | null>(null);
@@ -56,6 +64,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const [report, setReport] = useState<NightReport | null>(null);
   const [layout, setLayout] = useState<LayoutSettings | null>(null);
   const [dateOverride, setDateOverride] = useState<string | null>(null);
+  const [printedAt, setPrintedAt] = useState<Date | null>(null);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [calibration, setCalibration] = useState(false);
@@ -82,9 +91,18 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   });
   const layoutActions = useLayoutActions({ layoutRef, setLayout, setCalibration });
 
+  // Chromium prints whatever is in the DOM when it is asked, so the stamp has to be committed
+  // and painted first — hence the two frames. Owning both halves here keeps the ordering in one
+  // place rather than leaving each caller to remember it.
+  const printReport = useCallback(async () => {
+    setPrintedAt(new Date());
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await window.nightShift.printReport();
+  }, []);
+
   const actions = useMemo<ReportActions>(
-    () => ({ ...draftActions, ...layoutActions, setDateOverride }),
-    [draftActions, layoutActions],
+    () => ({ ...draftActions, ...layoutActions, setDateOverride, printReport }),
+    [draftActions, layoutActions, printReport],
   );
 
   useEffect(() => {
@@ -129,9 +147,9 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   }, [actions]);
 
   const state = useMemo<ReportState>(() => ({
-    bootstrap, report, layout, dateOverride, status, lastSavedAt, calibration,
+    bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration,
     undoAvailable, redoAvailable, compactLevel, overflow,
-  }), [bootstrap, report, layout, dateOverride, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
+  }), [bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
 
   return (
     <ReportStateContext.Provider value={state}>

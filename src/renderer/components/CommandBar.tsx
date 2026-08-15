@@ -96,7 +96,7 @@ export function CommandBar({ report }: { report: NightReport }) {
           )}
         </div>
         <div className="command-primary">
-          <Button variant="print" icon={<IconPrinter />} disabled={controller.overflow} title={controller.overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void window.nightShift.printReport()}>Print report</Button>
+          <Button variant="print" icon={<IconPrinter />} disabled={controller.overflow} title={controller.overflow ? "Fit the report on one page before printing." : undefined} onClick={() => void controller.printReport()}>Print report</Button>
         </div>
         <WindowControls />
       </div>

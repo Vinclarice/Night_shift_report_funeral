@@ -37,7 +37,7 @@ export function Studio() {
       {/* Inspector, canvas. Picking a section and typing into it are the two things done on every
           entry, so they sit adjacent; the canvas is mostly read and is given the rest. */}
       <div className="studio-workspace no-print">{workspace.inspectorOpen && <Inspector report={report} />}<PreviewCanvas report={report} /></div>
-      <div className="print-only"><ReportPage report={report} layout={controller.layout!} dateOverride={controller.dateOverride} compactLevel={controller.compactLevel} calibration={controller.calibration} /></div>
+      <div className="print-only"><ReportPage report={report} layout={controller.layout!} dateOverride={controller.dateOverride} printedAt={controller.printedAt} compactLevel={controller.compactLevel} calibration={controller.calibration} /></div>
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
         {workspace.utility === "recovery" && <RecoveryPanel backups={controller.bootstrap!.backups} />}
