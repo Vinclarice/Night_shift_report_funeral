@@ -7,6 +7,21 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Build and gate scripts run in Node, and their page.evaluate callbacks are serialised into
+    // the renderer, so both sets of globals are legitimately in scope in one file.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        window: "readonly",
+        document: "readonly",
+        crypto: "readonly",
+      },
+    },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: { parserOptions: { projectService: true } },
     plugins: { "react-hooks": reactHooks },

@@ -13,3 +13,4 @@ playwright-report/
 test-results/
 src/generated/
 .e2e-data/
+print-gate/

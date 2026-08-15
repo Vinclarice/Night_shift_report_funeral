@@ -40,6 +40,11 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     const columns = page ? [...page.querySelectorAll<HTMLElement>(".report-column")] : [];
     if (!page || !content) return;
     const check = () => {
+      // The print stylesheet hides the whole workspace, so while printing the live page has no
+      // layout at all. Measuring then reads every rect as zero, which looks exactly like a page
+      // whose content sits below its bottom edge — the hook would escalate to compact-1 and the
+      // print-only copy would render compacted mid-print. Hold the current level instead.
+      if (page.offsetHeight === 0) return;
       const contentBottom = Math.max(content.getBoundingClientRect().bottom, ...columns.map((column) => column.getBoundingClientRect().bottom));
       const pageRect = page.getBoundingClientRect();
       // getBoundingClientRect reports post-transform pixels, and the canvas scales the page by the
