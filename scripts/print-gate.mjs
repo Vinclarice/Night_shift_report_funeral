@@ -117,6 +117,20 @@ const CASES = [
       "cremated-certs": [fhOnly("Reese")],
     },
   },
+  {
+    id: "08-notes-filled",
+    title: "Notes written in the footer",
+    why: "Typed notes take height from the columns, so the block has to read cleanly when full.",
+    notes: [
+      "Ron on 2nd truck; Jayden covering the airport run.",
+      "Call Beltway re: Hernandez before 07:00 — family collecting in person.",
+    ].join("\n"),
+    entries: {
+      "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],
+      "human-fdp": [fun("Greene", "Johnson", "TRL"), fun("Crescent", "Wanzer", "13A")],
+      "cremated-fdp": [count("Reese", 3), plain("Covenant")],
+    },
+  },
 ];
 
 /** Identical rows in five human sections, so each can carry a different hairline treatment. */
@@ -135,12 +149,13 @@ const RULE_WEIGHTS = [
   { label: "E — .75px #8d97a3", width: ".75px", color: "#8d97a3" },
 ];
 
-const seedInPage = (page, entriesByKey) => page.evaluate(async (byKey) => {
+const seedInPage = (page, entriesByKey, notes = "") => page.evaluate(async ({ byKey, notes }) => {
   const data = await window.nightShift.bootstrap();
   const report = data.report;
   for (const section of report.sections) section.entries = byKey[section.key] ?? [];
+  report.notes = notes;
   await window.nightShift.saveReport(report, report.version);
-}, entriesByKey);
+}, { byKey: entriesByKey, notes });
 
 /**
  * Everything about the rendered page that can be judged without paper. Deliberately measured on
@@ -190,7 +205,7 @@ const run = async () => {
     await page.waitForSelector(".studio-canvas");
 
     for (const testCase of CASES) {
-      await seedInPage(page, testCase.entries);
+      await seedInPage(page, testCase.entries, testCase.notes);
       await page.reload();
       await page.waitForSelector(".studio-canvas");
       await page.waitForTimeout(900);
@@ -268,15 +283,15 @@ const run = async () => {
     }, RULE_WEIGHTS);
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
-    await page.screenshot({ path: join(outDir, "08-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    await page.screenshot({ path: join(outDir, "09-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
     const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
       const contents = BrowserWindow.getAllWindows()[0].webContents;
       const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
       return buffer.toString("base64");
     });
-    await writeFile(join(outDir, "08-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await writeFile(join(outDir, "09-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
     await page.emulateMedia({ media: "screen" });
-    console.log("08-rule-weights      ok  (print and pick the hairline that reads best)");
+    console.log("09-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {

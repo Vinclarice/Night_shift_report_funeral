@@ -30,6 +30,14 @@ export type WorkspaceAction =
   | { type: "SET_ZOOM"; zoom: number }
   | { type: "FIT_ZOOM" };
 
+/**
+ * Manual zoom range. The old ceiling of 0.95 stopped just short of actual size, which is the one
+ * setting worth having when checking a 7.5pt location code against the paper.
+ */
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
+
 const PREFERENCES_KEY = "night-shift-workspace-v1";
 
 function readPreferences(): WorkspacePreferences {
@@ -41,7 +49,7 @@ function readPreferences(): WorkspacePreferences {
     return {
       inspectorOpen: value.inspectorOpen ?? fallback.inspectorOpen,
       zoomMode: value.zoomMode === "manual" ? "manual" : "fit",
-      zoom: typeof value.zoom === "number" ? Math.min(0.95, Math.max(0.5, value.zoom)) : fallback.zoom,
+      zoom: typeof value.zoom === "number" ? clampZoom(value.zoom) : fallback.zoom,
     };
   } catch {
     return fallback;
@@ -71,7 +79,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case "SET_UTILITY":
       return { ...state, utility: action.utility };
     case "SET_ZOOM":
-      return { ...state, zoomMode: "manual", zoom: Math.min(0.95, Math.max(0.5, action.zoom)) };
+      return { ...state, zoomMode: "manual", zoom: clampZoom(action.zoom) };
     case "FIT_ZOOM":
       return { ...state, zoomMode: "fit" };
     default:

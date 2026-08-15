@@ -27,8 +27,14 @@ describe("workspaceReducer", () => {
   });
 
   it("clamps manual zoom and can return to fit mode", () => {
+    // Actual size and above are the useful settings when checking small print, so 1.5 is kept
+    // rather than clipped; only the 0.5–2 bounds bite.
     const zoomed = workspaceReducer(initial, { type: "SET_ZOOM", zoom: 1.5 });
-    expect(zoomed).toMatchObject({ zoomMode: "manual", zoom: 0.95 });
+    expect(zoomed).toMatchObject({ zoomMode: "manual", zoom: 1.5 });
+    expect(workspaceReducer(initial, { type: "SET_ZOOM", zoom: 4 }).zoom).toBe(2);
+    expect(workspaceReducer(initial, { type: "SET_ZOOM", zoom: 0.1 }).zoom).toBe(0.5);
+    // Repeated 0.05 steps otherwise drift into 0.7500000000000001 and print as 75.00000000000001%.
+    expect(workspaceReducer(initial, { type: "SET_ZOOM", zoom: 0.1 + 0.65 }).zoom).toBe(0.75);
     expect(workspaceReducer(zoomed, { type: "FIT_ZOOM" }).zoomMode).toBe("fit");
   });
 });

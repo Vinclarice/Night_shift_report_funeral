@@ -33,6 +33,8 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   const deferredReport = useDeferredValue(report);
   const deferredLayout = useDeferredValue(controller.layout!);
   const entryCount = report.sections.reduce((total, section) => total + section.entries.length, 0);
+  // Coarser above actual size, so reaching 200% is a few clicks rather than twenty.
+  const zoomStep = zoom >= 1 ? 0.1 : 0.05;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,7 +42,9 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     const update = () => {
       const widthScale = (canvas.clientWidth - 72) / 816;
       const heightScale = (canvas.clientHeight - 104) / 1056;
-      setFitZoom(Math.min(0.9, Math.max(0.5, Math.min(widthScale, heightScale))));
+      // Fit means the whole page in view; capping it below actual size left a big monitor
+      // showing a needlessly small page.
+      setFitZoom(Math.min(1.5, Math.max(0.5, Math.min(widthScale, heightScale))));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -120,6 +124,12 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     ? report.sections.find((section) => section.key === contextMenu.sectionKey)?.entries.find((entry) => entry.id === contextMenu.entryId)
     : undefined;
 
+  const commitNotes = useCallback((value: string) => {
+    const next = structuredClone(report);
+    next.notes = value;
+    void controller.persist(next);
+  }, [report, controller]);
+
   const handleSelectSection = useCallback((sectionKey: SectionKey) => dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" }), [dispatch]);
   const handleSelectEntry = useCallback((sectionKey: SectionKey, entryId: string) => dispatch({ type: "SELECT_ENTRY", sectionKey, entryId }), [dispatch]);
   const handleWidthChange = useCallback((key: SectionKey, width: number) => {
@@ -143,9 +153,9 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
             {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
           </span>
           <div className="zoom-control" aria-label="Preview zoom">
-            <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - 0.05 })} />
+            <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - (zoom > 1 ? 0.1 : 0.05) })} />
             <button type="button" className={workspace.zoomMode === "fit" ? "active" : ""} onClick={() => dispatch({ type: "FIT_ZOOM" })}>{workspace.zoomMode === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}</button>
-            <IconButton icon={<IconPlus />} aria-label="Zoom in" title="Zoom in" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom + 0.05 })} />
+            <IconButton icon={<IconPlus />} aria-label="Zoom in" title="Zoom in" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom + zoomStep })} />
           </div>
         </div>
       </div>
@@ -159,6 +169,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
               onSelectSection={handleSelectSection}
               onSelectEntry={handleSelectEntry}
               onLineCommit={commitPreviewLine}
+              onNotesCommit={commitNotes}
               onEntryMove={movePreviewEntry}
               onEntryContextMenu={handleEntryContextMenu}
               onWidthChange={handleWidthChange}

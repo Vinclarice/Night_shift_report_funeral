@@ -52,6 +52,7 @@ export function createEmptyReport(reportDate: string): NightReport {
     id: crypto.randomUUID(),
     reportDate,
     version: 0,
+    notes: "",
     sections,
   };
 }

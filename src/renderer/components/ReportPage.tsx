@@ -19,6 +19,7 @@ interface Props {
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
   onWidthCommit?: (key: ReportSection["key"], width: number) => void;
   onLineCommit?: (key: ReportSection["key"], entryId: string | null, value: string) => void;
+  onNotesCommit?: (value: string) => void;
   /**
    * `beforeEntryId` is the row to land above, `null` means the end of the section (which pins the
    * entry there), and omitting it means no particular position — used for a drop on the card body.
@@ -178,6 +179,47 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
   );
 }
 
+/**
+ * The footer notes, typed straight on the page like the ruled rows above. Blur commits and Escape
+ * cancels; Enter inserts a newline, since this is prose rather than a one-line entry. Rendered
+ * read-only when no commit handler is supplied, which is how the hidden print copy gets it.
+ */
+function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(notes);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { if (editing) areaRef.current?.focus(); }, [editing]);
+
+  function finish() {
+    setEditing(false);
+    if (draft.trim() !== notes.trim()) onCommit?.(draft.trim());
+  }
+
+  return (
+    <div className="notes-block">
+      <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
+      {editing ? (
+        <textarea
+          ref={areaRef}
+          className="notes-body notes-input no-print"
+          aria-label="Report notes"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={finish}
+          onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setDraft(notes); setEditing(false); } }}
+        />
+      ) : onCommit ? (
+        <button type="button" className="notes-body notes-button no-print" title="Click to type a note" onClick={() => { setDraft(notes); setEditing(true); }}>
+          {notes}
+        </button>
+      ) : (
+        <div className="notes-body">{notes}</div>
+      )}
+    </div>
+  );
+}
+
 const SectionCard = memo(function SectionCard({
   section,
   width,
@@ -275,7 +317,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
@@ -317,11 +359,8 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
         </div>
         {/* Anchored to the foot of the content box so it lands in the same place every night
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
-            the floor, so a heavy night compacts instead of running the columns through it. */}
-        <div className="notes-block">
-          <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
-          <span /><span />
-        </div>
+            the floor, so typing enough here compacts the columns rather than colliding with them. */}
+        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>

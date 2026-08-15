@@ -81,6 +81,12 @@ export interface NightReport {
   id: string;
   reportDate: string;
   version: number;
+  /**
+   * Free text printed in the footer, typed on the canvas. Belongs to the night, so a new report
+   * starts empty rather than inheriting the previous one's — see ReportService.resolveTonight,
+   * which clones only the sections.
+   */
+  notes: string;
   sections: ReportSection[];
 }
 

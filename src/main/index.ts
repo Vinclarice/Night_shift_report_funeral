@@ -126,7 +126,8 @@ const reportSectionSchema = z.object({
   entries: z.array(reportEntrySchema),
 });
 
-const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), sections: z.array(reportSectionSchema) });
+// notes defaulted, not required, so a report saved by an older build still validates.
+const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), notes: z.string().default(""), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {

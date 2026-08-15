@@ -5,6 +5,7 @@ const statements = [
     "id" TEXT NOT NULL PRIMARY KEY,
     "reportDate" TEXT NOT NULL,
     "version" INTEGER NOT NULL DEFAULT 0,
+    "notes" TEXT,
     "createdAt" DATETIME NOT NULL,
     "updatedAt" DATETIME NOT NULL
   )`,
@@ -99,6 +100,7 @@ async function applyDroppedColumns(client: PrismaClient): Promise<void> {
 const addedColumns: Array<{ table: string; column: string; definition: string }> = [
   { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
   { table: "Entry", column: "rushBy", definition: `TEXT` },
+  { table: "Report", column: "notes", definition: `TEXT` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {
