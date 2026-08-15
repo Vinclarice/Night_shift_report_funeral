@@ -1,6 +1,8 @@
 import {
   addEntry,
+  entryItemCount,
   formatEntryLine,
+  sectionItemCount,
   moveEntry,
   movePerson,
   normalizeFuneralHome,
@@ -207,6 +209,33 @@ describe("toggleEntryRush", () => {
     const report = createEmptyReport("2026-07-26");
     const section = report.sections.find((item) => item.key === "human-deliver")!;
     expect(toggleEntryRush(section, "missing")).toBe(false);
+  });
+});
+
+describe("section totals count people, not rows", () => {
+  const b = { id: "x", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-08-15T00:00:00.000Z" } as const;
+  const person = (name: string) => ({ id: `${name}-id`, name, locationCode: "", specialRequest: "" });
+
+  it("counts every deceased on a merged funeral row", () => {
+    expect(entryItemCount({ ...b, type: "funeral", funeralHome: "Greene", deceased: [person("A"), person("B"), person("C")] })).toBe(3);
+  });
+
+  it("uses the multiplier on count and combined rows, and one for everything else", () => {
+    expect(entryItemCount({ ...b, type: "count", text: "Reese", count: 3 })).toBe(3);
+    expect(entryItemCount({ ...b, type: "combined", leftText: "McGuire", rightText: "JFC", count: 2 })).toBe(2);
+    expect(entryItemCount({ ...b, type: "funeralHomeOnly", funeralHome: "Collins" })).toBe(1);
+    expect(entryItemCount({ ...b, type: "plain", text: "Covenant" })).toBe(1);
+  });
+
+  it("totals a section across mixed row types", () => {
+    expect(sectionItemCount({
+      key: "cremated-fdp", category: "cremated", title: "FDP",
+      entries: [
+        { ...b, id: "1", type: "count", text: "Reese", count: 3 },
+        { ...b, id: "2", type: "combined", leftText: "McGuire", rightText: "JFC", count: 2 },
+        { ...b, id: "3", type: "plain", text: "Covenant" },
+      ],
+    })).toBe(6);
   });
 });
 

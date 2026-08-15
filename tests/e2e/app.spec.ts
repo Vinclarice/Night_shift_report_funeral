@@ -113,12 +113,12 @@ test("launches portably and renders the exact nine-card page", async () => {
       const section = (key: string) => report.sections.find((item) => item.key === key)!;
       section("human-deliver").entries.push(funeral("Metropolitan Memorial Services of Greater Washington", "Alexandria Catherine-Margaret Longsurname", "17B"));
       // The taller column decides compaction, and this fixture exists to prove the fallback
-      // actually engages. Layout tightening in 2.2.x reclaimed enough height that 8 rows here no
-      // longer overflowed, so the assertion below had been passing vacuously against compact-0.
-      for (let index = 1; index <= 14; index += 1) {
+      // actually engages and still fits. It is sized against the space actually available, which
+      // the notes block at the foot of the sheet reduced — hence fewer rows than it once needed.
+      for (let index = 1; index <= 6; index += 1) {
         section("human-fdp").entries.push(funeral(`Funeral Home ${index}`, `Family ${index}`, `${index}A`));
       }
-      for (let index = 1; index <= 10; index += 1) {
+      for (let index = 1; index <= 6; index += 1) {
         section("cremated-fdp").entries.push({ ...base(), type: "count" as const, text: `Additional cremains ${index}`, count: (index % 3) + 1 });
       }
       await window.nightShift.saveReport(report, report.version);

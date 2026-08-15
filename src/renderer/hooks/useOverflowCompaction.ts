@@ -45,7 +45,9 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       // whose content sits below its bottom edge — the hook would escalate to compact-1 and the
       // print-only copy would render compacted mid-print. Hold the current level instead.
       if (page.offsetHeight === 0) return;
-      const contentBottom = Math.max(content.getBoundingClientRect().bottom, ...columns.map((column) => column.getBoundingClientRect().bottom));
+      // Only the columns are measured. `.report-content` is absolutely positioned with a fixed
+      // inset, so its own box never grows with the entries and tells us nothing.
+      const contentBottom = Math.max(...columns.map((column) => column.getBoundingClientRect().bottom));
       const pageRect = page.getBoundingClientRect();
       // getBoundingClientRect reports post-transform pixels, and the canvas scales the page by the
       // preview zoom. Scaling the gutter by the same factor keeps the comparison in page space, so
@@ -53,7 +55,11 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       // Measured against page.offsetHeight, which is the untransformed 11in.
       const previewScale = page.offsetHeight > 0 ? pageRect.height / page.offsetHeight : 1;
       const gutter = BOTTOM_GUTTER_INCHES * PAGE_DPI * previewScale;
-      const exceedsPage = contentBottom > pageRect.bottom - gutter;
+      // The notes block sits at the foot of the content box, well above the paper's edge, so once
+      // it exists it — not the page bottom — is what the columns must stay clear of.
+      const notes = page.querySelector<HTMLElement>(".notes-block");
+      const floor = notes ? notes.getBoundingClientRect().top : pageRect.bottom;
+      const exceedsPage = contentBottom > floor - gutter;
       if (exceedsPage && compactLevel < 1) {
         setCompaction({ key: compactionKey, level: 1 });
         setOverflow(false);

@@ -65,7 +65,7 @@ const CASES = [
     expectCompact: true,
     entries: {
       "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],
-      "human-fdp": Array.from({ length: 21 }, (_, i) => fun(`Funeral Home ${i + 1}`, `Family ${i + 1}`, `${i + 1}A`)),
+      "human-fdp": Array.from({ length: 16 }, (_, i) => fun(`Funeral Home ${i + 1}`, `Family ${i + 1}`, `${i + 1}A`)),
       "human-pending": [fun("Brown/PA", "Helwig", "", "Roadtrip - Ron OK"), fun("Beltway Crem", "Hernandez", "", "FH will call")],
       "human-ship-outs": [fun("NMS", "Nicholas"), fun("NMS", "Curry", "", "FDP or S/O?")],
       "cremated-fdp": Array.from({ length: 10 }, (_, i) => count(`Additional cremains ${i + 1}`, (i % 3) + 1)),
@@ -117,6 +117,22 @@ const CASES = [
       "cremated-certs": [fhOnly("Reese")],
     },
   },
+];
+
+/** Identical rows in five human sections, so each can carry a different hairline treatment. */
+const RULE_SAMPLE = Object.fromEntries(
+  ["human-deliver", "human-airport", "human-fdp", "human-pending", "human-ship-outs"].map((key) => [
+    key,
+    [fun("Greene", "Johnson", "TRL"), fun("MD Crematory", "Rumer", "17B"), fun("Crescent", "Wanzer", "13A"), fun("Inman", "Lassahn", "SSR")],
+  ]),
+);
+
+const RULE_WEIGHTS = [
+  { label: "A — .45px #c3c8cf  (current)", width: ".45px", color: "#c3c8cf" },
+  { label: "B — .45px #a8b0ba", width: ".45px", color: "#a8b0ba" },
+  { label: "C — .6px  #a8b0ba", width: ".6px", color: "#a8b0ba" },
+  { label: "D — .6px  #8d97a3", width: ".6px", color: "#8d97a3" },
+  { label: "E — .75px #8d97a3", width: ".75px", color: "#8d97a3" },
 ];
 
 const seedInPage = (page, entriesByKey) => page.evaluate(async (byKey) => {
@@ -227,6 +243,40 @@ const run = async () => {
     });
     await writeFile(join(outDir, "00-calibration.pdf"), Buffer.from(calPdf, "base64"));
     console.log("00-calibration       ok  (print this first and confirm all four dashed edges)");
+
+    // Row-rule comparison: the same rows at several hairline treatments, labelled, so the choice
+    // is made on paper. A monitor flatters a 0.45px line that a laser printer renders differently.
+    // The calibration step above leaves print media emulated, which hides the whole workspace.
+    await page.emulateMedia({ media: "screen" });
+    await seedInPage(page, RULE_SAMPLE);
+    await page.reload();
+    await page.waitForSelector(".studio-canvas");
+    await page.waitForTimeout(700);
+    await page.evaluate((weights) => {
+      const keys = ["human-deliver", "human-airport", "human-fdp", "human-pending", "human-ship-outs"];
+      keys.forEach((key, index) => {
+        const spec = weights[index];
+        if (!spec) return;
+        for (const card of document.querySelectorAll(`[data-section-key="${key}"]`)) {
+          card.querySelector("h3").textContent = spec.label;
+          for (const row of card.querySelectorAll(".report-row")) {
+            row.style.borderBottomWidth = spec.width;
+            row.style.borderBottomColor = spec.color;
+          }
+        }
+      });
+    }, RULE_WEIGHTS);
+    await page.emulateMedia({ media: "print" });
+    await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
+    await page.screenshot({ path: join(outDir, "08-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()[0].webContents;
+      const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
+      return buffer.toString("base64");
+    });
+    await writeFile(join(outDir, "08-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await page.emulateMedia({ media: "screen" });
+    console.log("08-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {

@@ -394,18 +394,19 @@ textarea { resize: vertical; line-height: 1.45; }
    up with the cards beneath instead of overhanging them at the full 3.12in column width.
    margin-bottom cancels the column's .12in gap exactly, seating the first card's accent border
    flush against the banner — it used to be -.17in, which pulled the card .05in over the banner. */
-.report-column > h2 { width: fit-content; min-width: 2.42in; min-height: .3in; margin: 0 0 -.12in; padding: .055in .08in .035in; color: white; background: var(--column-accent); text-align: center; font-size: 10pt; font-weight: 760; line-height: .19in; letter-spacing: .075em; white-space: nowrap; }
+.report-column > h2 { width: fit-content; min-width: 2.42in; min-height: .32in; margin: 0 0 -.12in; padding: .06in .09in .04in; color: white; background: var(--column-accent); text-align: left; font-family: var(--font-display); font-stretch: 75%; font-size: 12pt; font-weight: 600; line-height: .21in; letter-spacing: .13em; white-space: nowrap; }
 /* Sized to fit its own text instead of stretched to the full column width, staying on one line and
    anchored to the column's right edge via the column's own flex-end alignment above. Height, font,
    and padding are otherwise identical to Human Remains — only the width shrinks. */
 /* Cremated cards start narrower, so its banner's floor is that column's own default card width
    rather than the Human column's. Anchored to the column's right edge by the flex-end alignment. */
-.cremated-column > h2 { min-width: 1.62in; }
+.cremated-column > h2 { min-width: 1.62in; text-align: right; }
 .section-card { position: relative; width: fit-content; min-width: 2.42in; max-width: 3.55in; overflow: hidden; border: .65px solid var(--column-rule); border-top: 2px solid var(--column-accent); border-radius: .025in; background: white; break-inside: avoid; }
 /* Cremated sections are usually just a funeral-home name, so they start much narrower. width is
    still fit-content, so an edge case carrying a deceased name expands the card as before. */
 .cremated-column .section-card { min-width: 1.62in; }
 .page-stage .section-card { box-shadow: 0 .025in .07in rgb(29 49 38 / 8%); }
+.section-card h3 em { float: right; font-style: normal; font-weight: 700; font-size: 8.5pt; letter-spacing: 0; opacity: .7; }
 .section-card h3 { height: .27in; margin: 0; padding: .035in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 9.5pt; font-weight: 760; line-height: .205in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }
 .report-row { min-height: .205in; padding: .012in .075in .006in; border-bottom: .45px solid #c3c8cf; color: var(--report-ink); font-size: 9.35pt; line-height: .19in; white-space: normal; overflow-wrap: anywhere; }
 .report-row:last-of-type { border-bottom: 0; }
@@ -434,6 +435,11 @@ textarea { resize: vertical; line-height: 1.45; }
 .pinned-row { border-top: .9px solid var(--column-rule); }
 .pinned-row + .pinned-row { border-top-width: .45px; }
 .rush-request { padding: 0 .04in; border: .65px solid #b03327; border-radius: .025in; color: #99271c; background: #fdf7f6; font-size: 6.8pt; font-style: normal; font-weight: 800; line-height: .135in; letter-spacing: .045em; }
+/* Writing space for the day-shift supervisor. Rarely used, so it stays quiet: a rule, a small
+   label, and two ruled lines at the foot of the sheet. */
+.notes-block { position: absolute; left: 0; right: 0; bottom: 0; padding-top: .06in; border-top: 1px solid #8d97a3; }
+.notes-block p { margin: 0 0 .05in; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; letter-spacing: .16em; }
+.notes-block span { display: block; height: .26in; border-bottom: .5px solid #b6bfcb; }
 .calibration-label { position: absolute; bottom: calc(var(--report-margin) + .03in); left: 0; right: 0; text-align: center; font-size: 7pt; color: #a22; }
 .report-page[data-calibration]::before { border: 1.5px dashed #c22; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }

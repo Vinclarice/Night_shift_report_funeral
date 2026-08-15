@@ -71,6 +71,21 @@ export function formatEntryLine(entry: ReportEntry): string {
   return entry.text;
 }
 
+/**
+ * How many people a row accounts for. Rows merge by funeral home, so one line routinely holds
+ * several deceased, and a count or combined row carries its own multiplier — a section's row count
+ * is therefore not the number of remains to move, which is the number a dispatcher needs.
+ */
+export function entryItemCount(entry: ReportEntry): number {
+  if (entry.type === "funeral") return entry.deceased.length;
+  if (entry.type === "count" || entry.type === "combined") return entry.count;
+  return 1;
+}
+
+export function sectionItemCount(section: ReportSection): number {
+  return section.entries.reduce((total, entry) => total + entryItemCount(entry), 0);
+}
+
 export function isExactDuplicate(entry: FuneralEntry, person: DeceasedPerson): boolean {
   const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
   return entry.deceased.some(

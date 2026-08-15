@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CSSProperties } from "react";
 
-import { formatEntryLine, sharedSpecialRequest } from "@/domain/entries";
+import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 
@@ -201,6 +201,7 @@ const SectionCard = memo(function SectionCard({
   onEntryContextMenu?: Props["onEntryContextMenu"];
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
+  const itemCount = sectionItemCount(section);
   const freeRows = FREE_ROW_COUNTS[section.key] ?? 1;
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
@@ -243,7 +244,10 @@ const SectionCard = memo(function SectionCard({
           for editing — so there was no way to just point the inspector at a section. The header
           does that. Interactive canvas only; the print copy keeps a plain heading. Keyboard users
           reach the same selection by tabbing to any row in the card. */}
-      <h3 onClick={interactive ? () => onSelectSection?.(section.key) : undefined} title={interactive ? `Show ${section.title} in the inspector` : undefined}>{section.title}</h3>
+      <h3 onClick={interactive ? () => onSelectSection?.(section.key) : undefined} title={interactive ? `Show ${section.title} in the inspector` : undefined}>
+        {section.title}
+        {itemCount > 0 && <em aria-label={`${itemCount} in this section`}>{itemCount}</em>}
+      </h3>
       {section.entries.map((entry) => (
         onLineCommit
           ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
@@ -305,6 +309,13 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
               <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
+        </div>
+        {/* Anchored to the foot of the content box so it lands in the same place every night
+            rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
+            the floor, so a heavy night compacts instead of running the columns through it. */}
+        <div className="notes-block">
+          <p>NOTES</p>
+          <span /><span />
         </div>
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
