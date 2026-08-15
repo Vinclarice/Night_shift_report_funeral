@@ -390,11 +390,17 @@ textarea { resize: vertical; line-height: 1.45; }
 .report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: .64in; padding: .08in .28in 0; align-items: start; }
 .report-column { --column-accent: #1b2a41; --column-soft: #eef1f5; --column-rule: #b6bfcb; display: flex; flex-direction: column; align-items: flex-start; gap: .12in; min-width: 0; }
 .cremated-column { --column-accent: #6f6959; --column-soft: #f3f2ee; --column-rule: #c5c1b6; align-items: flex-end; }
-.report-column > h2 { width: 100%; min-height: .3in; margin: 0 0 -.17in; padding: .055in .08in .035in; color: white; background: var(--column-accent); text-align: center; font-size: 10pt; font-weight: 760; line-height: .19in; letter-spacing: .075em; }
+/* The banner sizes to its own text but never narrower than the column's default card, so it lines
+   up with the cards beneath instead of overhanging them at the full 3.12in column width.
+   margin-bottom cancels the column's .12in gap exactly, seating the first card's accent border
+   flush against the banner — it used to be -.17in, which pulled the card .05in over the banner. */
+.report-column > h2 { width: fit-content; min-width: 2.42in; min-height: .3in; margin: 0 0 -.12in; padding: .055in .08in .035in; color: white; background: var(--column-accent); text-align: center; font-size: 10pt; font-weight: 760; line-height: .19in; letter-spacing: .075em; white-space: nowrap; }
 /* Sized to fit its own text instead of stretched to the full column width, staying on one line and
    anchored to the column's right edge via the column's own flex-end alignment above. Height, font,
    and padding are otherwise identical to Human Remains — only the width shrinks. */
-.cremated-column > h2 { width: fit-content; white-space: nowrap; }
+/* Cremated cards start narrower, so its banner's floor is that column's own default card width
+   rather than the Human column's. Anchored to the column's right edge by the flex-end alignment. */
+.cremated-column > h2 { min-width: 1.62in; }
 .section-card { position: relative; width: fit-content; min-width: 2.42in; max-width: 3.55in; overflow: hidden; border: .65px solid var(--column-rule); border-top: 2px solid var(--column-accent); border-radius: .025in; background: white; break-inside: avoid; }
 /* Cremated sections are usually just a funeral-home name, so they start much narrower. width is
    still fit-content, so an edge case carrying a deceased name expands the card as before. */
@@ -430,7 +436,8 @@ textarea { resize: vertical; line-height: 1.45; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }
 
 /* Single, light last-resort fallback: only engaged when wrapping + natural sizing still don't fit one page. */
-.report-page.compact-1 .report-column > h2 { margin-bottom: -.08in; }
+/* No banner-margin override here: at -.08in the compacted page left a .04in gap under the banner
+   while the normal page overlapped it by .05in, so the two modes disagreed. Both are flush now. */
 .report-page.compact-1 .section-card h3 { height: .22in; padding-top: .005in; font-size: 8.8pt; line-height: .17in; }
 .report-page.compact-1 .report-row { min-height: .19in; padding: .006in .075in .004in; font-size: 8.9pt; line-height: .165in; }
 .report-page.compact-1 .location-code, .report-page.compact-1 .entry-count, .report-page.compact-1 .special-request { line-height: .12in; }
