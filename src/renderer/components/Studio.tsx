@@ -41,7 +41,7 @@ export function Studio() {
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
         {workspace.utility === "recovery" && <RecoveryPanel backups={controller.bootstrap!.backups} />}
-        {workspace.utility === "print" && <PrintSettings layout={controller.layout!} calibration={controller.calibration} onCalibration={controller.setCalibration} onChange={(next) => void controller.saveLayout(next)} onResetSection={() => void controller.resetSectionWidth(selectedSection)} />}
+        {workspace.utility === "print" && <PrintSettings layout={controller.layout!} calibration={controller.calibration} onCalibration={controller.setCalibration} onChange={(next) => void controller.saveLayout(next)} onResetSection={() => void controller.resetSectionWidth(selectedSection)} onResetCardWidths={() => void controller.resetCardWidths()} onResetPrinterDefaults={() => void controller.resetPrinterDefaults()} customCardWidths={Object.keys(controller.layout!.sectionWidths).length} />}
       </Drawer>
       <CommandPalette report={report} />
     </main>
