@@ -8,6 +8,15 @@ import type { LayoutSettings, NightReport } from "@/domain/types";
  * single, light compaction pass as a rare last-resort fallback when the page still doesn't
  * fit after that, and reports `overflow` so printing can be paused if it truly never fits.
  */
+/**
+ * Clear space required between the bottom of the content and the paper's edge, in inches of page
+ * space. Expressed in the page's own units on purpose: the canvas renders the page under a
+ * user-controlled preview zoom, so a tolerance in screen pixels would mean a different tolerance on
+ * paper at every zoom level.
+ */
+const BOTTOM_GUTTER_INCHES = 0.18;
+const PAGE_DPI = 96;
+
 export function useOverflowCompaction(report: NightReport | null, layout: LayoutSettings | null) {
   const [compaction, setCompaction] = useState<{ key: string; level: 0 | 1 }>({ key: "", level: 0 });
   const [overflow, setOverflow] = useState(false);
@@ -32,7 +41,14 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     if (!page || !content) return;
     const check = () => {
       const contentBottom = Math.max(content.getBoundingClientRect().bottom, ...columns.map((column) => column.getBoundingClientRect().bottom));
-      const exceedsPage = contentBottom > page.getBoundingClientRect().bottom - 12;
+      const pageRect = page.getBoundingClientRect();
+      // getBoundingClientRect reports post-transform pixels, and the canvas scales the page by the
+      // preview zoom. Scaling the gutter by the same factor keeps the comparison in page space, so
+      // a report compacts (and therefore prints) identically whatever zoom the preview is at.
+      // Measured against page.offsetHeight, which is the untransformed 11in.
+      const previewScale = page.offsetHeight > 0 ? pageRect.height / page.offsetHeight : 1;
+      const gutter = BOTTOM_GUTTER_INCHES * PAGE_DPI * previewScale;
+      const exceedsPage = contentBottom > pageRect.bottom - gutter;
       if (exceedsPage && compactLevel < 1) {
         setCompaction({ key: compactionKey, level: 1 });
         setOverflow(false);

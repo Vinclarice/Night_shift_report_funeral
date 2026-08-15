@@ -112,7 +112,10 @@ test("launches portably and renders the exact nine-card page", async () => {
       const funeral = (home: string, name: string, code = "") => ({ ...base(), type: "funeral" as const, funeralHome: home, deceased: [{ id: crypto.randomUUID(), name, locationCode: code, specialRequest: "" }] });
       const section = (key: string) => report.sections.find((item) => item.key === key)!;
       section("human-deliver").entries.push(funeral("Metropolitan Memorial Services of Greater Washington", "Alexandria Catherine-Margaret Longsurname", "17B"));
-      for (let index = 1; index <= 8; index += 1) {
+      // The taller column decides compaction, and this fixture exists to prove the fallback
+      // actually engages. Layout tightening in 2.2.x reclaimed enough height that 8 rows here no
+      // longer overflowed, so the assertion below had been passing vacuously against compact-0.
+      for (let index = 1; index <= 14; index += 1) {
         section("human-fdp").entries.push(funeral(`Funeral Home ${index}`, `Family ${index}`, `${index}A`));
       }
       for (let index = 1; index <= 10; index += 1) {
@@ -122,7 +125,10 @@ test("launches portably and renders the exact nine-card page", async () => {
     });
     await page.reload();
     await expect(page.locator(".page-stage .report-page")).toBeVisible();
-    await expect(page.locator(".page-stage .report-page")).toHaveClass(/compact-[12]/);
+    // compact-1 exactly: there is one compaction level, so a `[12]` match could never fail usefully.
+    await expect(page.locator(".page-stage .report-page")).toHaveClass(/compact-1/);
+    // Compaction is a fallback that must make the report fit, not merely fire.
+    await expect(page.getByText(/Printing is paused/)).toHaveCount(0);
     await page.evaluate(() => { for (const element of document.querySelectorAll<HTMLElement>("*")) element.scrollTop = 0; window.scrollTo(0, 0); });
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
