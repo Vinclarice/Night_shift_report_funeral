@@ -50,6 +50,15 @@ function displayDate(value: string): string {
     .toUpperCase();
 }
 
+/**
+ * The rush chip's text. A deadline replaces the bare label rather than sitting beside it, so a
+ * rush line reads "RUSH BY 10:00 AM" or "RUSH FIRST TRIP" in one chip instead of two.
+ */
+function rushLabel(entry: ReportEntry, fallback: string): string {
+  const note = entry.rushBy?.trim();
+  return note ? `RUSH ${note}`.toUpperCase() : fallback;
+}
+
 const EntryLine = memo(function EntryLine({ entry, onPersonDragStart }: { entry: ReportEntry; onPersonDragStart?: (personId: string) => (event: ReactDragEvent<HTMLElement>) => void }) {
   if (entry.type === "funeral") {
     const hasVisibleRush = entry.deceased.some((person) => /rush/i.test(person.specialRequest));
@@ -76,7 +85,7 @@ const EntryLine = memo(function EntryLine({ entry, onPersonDragStart }: { entry:
           </span>
         ))}
         {shared && <strong className={`special-request${/rush/i.test(shared) ? " rush-request" : ""}`}>{shared.toUpperCase()}</strong>}
-        {entry.rush && !hasVisibleRush && <strong className="special-request rush-request">RUSH</strong>}
+        {entry.rush && (entry.rushBy?.trim() || !hasVisibleRush) && <strong className="special-request rush-request">{rushLabel(entry, "RUSH")}</strong>}
       </span>
     );
   }
@@ -84,12 +93,13 @@ const EntryLine = memo(function EntryLine({ entry, onPersonDragStart }: { entry:
     return (
       <span className="entry-line-content">
         <strong className="entry-primary">{entry.funeralHome}</strong>
-        {entry.rush && <strong className="special-request rush-request">RUSH DELIVERY</strong>}
+        {entry.rush && <strong className="special-request rush-request">{rushLabel(entry, "RUSH DELIVERY")}</strong>}
       </span>
     );
   }
-  if (entry.type === "count") return <span className="entry-line-content"><span>{entry.text}</span><strong className="entry-count">x {entry.count}</strong></span>;
-  if (entry.type === "combined") return <span className="entry-line-content"><span>{entry.leftText}</span><span className="entry-separator"> // </span><span>{entry.rightText}</span><strong className="entry-count">x {entry.count}</strong></span>;
+  // A count of one is what a bare line already means, so the "x 1" chip only adds noise.
+  if (entry.type === "count") return <span className="entry-line-content"><span>{entry.text}</span>{entry.count > 1 && <strong className="entry-count">x {entry.count}</strong>}</span>;
+  if (entry.type === "combined") return <span className="entry-line-content"><span>{entry.leftText}</span><span className="entry-separator combined-separator"> // </span><span>{entry.rightText}</span>{entry.count > 1 && <strong className="entry-count">x {entry.count}</strong>}</span>;
   return <span className="entry-line-content"><span>{entry.text}</span></span>;
 });
 

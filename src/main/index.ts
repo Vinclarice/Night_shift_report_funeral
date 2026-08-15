@@ -93,6 +93,9 @@ const baseEntryFields = {
   keepSeparate: z.boolean(),
   // Defaulted rather than required so a report saved by an older build still validates.
   pinnedBottom: z.boolean().default(false),
+  // Optional for the same reason. It must be declared: zod strips keys it does not know about, so
+  // omitting it here silently dropped the field in transit even though every other layer stored it.
+  rushBy: z.string().optional(),
   createdAt: z.string(),
 };
 

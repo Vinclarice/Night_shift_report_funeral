@@ -5,7 +5,7 @@ import { addEntry, normalizeFuneralHome, parsePastedLines, removeEntry, replaceE
 import type { NightReport, ParsedLine, ReportEntry, ReportSection } from "@/domain/types";
 import { entrySummary } from "../entrySummary";
 import { useEntryForm } from "../hooks/useEntryForm";
-import type { EntryFormSeed } from "../hooks/useEntryForm";
+import type { EntryFormSeed, EntryKind } from "../hooks/useEntryForm";
 import { IconPencil, IconPlus, IconTrash, IconX } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
@@ -14,7 +14,7 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { IconButton } from "../ui/IconButton";
 import { useToast } from "../ui/Toast";
-import { EntryForm } from "./EntryForm";
+import { EntryForm, FORMATS_BY_CATEGORY, defaultFormatFor } from "./EntryForm";
 import { PasteReviewModal } from "./PasteReviewModal";
 
 function baseEntry() {
@@ -22,7 +22,17 @@ function baseEntry() {
 }
 
 function defaultKindFor(section: ReportSection) {
-  return section.key === "cremated-deliver" ? "funeralHomeOnly" as const : "funeral" as const;
+  return defaultFormatFor(section.category);
+}
+
+/**
+ * What the form should sit on after an entry is added. Staying on the format just used lets a run
+ * of the same kind be typed without reaching for the toggle each time; it only falls back to the
+ * column's default when the last format was one this column does not offer, which happens after
+ * editing a legacy row.
+ */
+function nextKindAfterSubmit(section: ReportSection, used: EntryKind) {
+  return FORMATS_BY_CATEGORY[section.category].includes(used) ? used : defaultFormatFor(section.category);
 }
 
 /**
@@ -38,7 +48,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
   const isDeliver = section.key === "human-deliver" || section.key === "cremated-deliver";
 
   function buildEntry(): ReportEntry {
-    const base = { ...baseEntry(), rush: form.rush, keepSeparate: form.keepSeparate, pinnedBottom: form.editing?.pinnedBottom ?? false };
+    const base = { ...baseEntry(), rush: form.rush, rushBy: form.rush ? form.rushBy.trim() || undefined : undefined, keepSeparate: form.keepSeparate, pinnedBottom: form.editing?.pinnedBottom ?? false };
     if (form.entryKind === "funeral") {
       if (!form.funeralHome.trim() || !form.deceasedName.trim()) throw new Error("Funeral home and deceased name are required.");
       return { ...base, type: "funeral", funeralHome: controller.canonicalFuneralHome(form.funeralHome), deceased: [{ id: crypto.randomUUID(), name: titleCaseName(form.deceasedName), locationCode: form.locationCode.trim(), specialRequest: form.specialRequest.trim() }] };
@@ -111,7 +121,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
       if (form.editing) applyEdit(target, entry);
       else addEntry(target, entry);
       void controller.persist(next);
-      reset(section.key === "cremated-deliver" ? "funeralHomeOnly" : form.entryKind);
+      reset(nextKindAfterSubmit(section, form.entryKind));
       dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" });
     } catch (error) {
       toast.warning((error as Error).message);
@@ -120,7 +130,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
 
   return (
     <EntryForm
-      form={form} activeSectionTitle={section.title} isDeliver={isDeliver} funeralHomes={controller.bootstrap?.funeralHomes ?? []}
+      form={form} activeSectionTitle={section.title} category={section.category} isDeliver={isDeliver} funeralHomes={controller.bootstrap?.funeralHomes ?? []}
       setField={setField} setCount={setCount} setRush={setRush} setKeepSeparate={setKeepSeparate} setEntryKind={setEntryKind}
       reset={() => { reset(defaultKindFor(section)); dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" }); }}
       onSubmit={submitEntry}

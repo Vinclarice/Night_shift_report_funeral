@@ -5,7 +5,7 @@ import type { ReportEntry } from "@/domain/types";
 export type EntryKind = ReportEntry["type"];
 /** `pinnedBottom` rides along so re-saving an edited entry preserves its pinned position. */
 export type EditingTarget = { entryId: string; personId?: string; pinnedBottom: boolean } | null;
-export type TextField = "funeralHome" | "deceasedName" | "locationCode" | "specialRequest" | "text" | "rightText";
+export type TextField = "funeralHome" | "deceasedName" | "locationCode" | "specialRequest" | "text" | "rightText" | "rushBy";
 
 export interface EntryFormState {
   entryKind: EntryKind;
@@ -17,6 +17,7 @@ export interface EntryFormState {
   rightText: string;
   count: number;
   rush: boolean;
+  rushBy: string;
   keepSeparate: boolean;
   editing: EditingTarget;
 }
@@ -32,6 +33,7 @@ function emptyState(entryKind: EntryKind): EntryFormState {
     rightText: "",
     count: 1,
     rush: false,
+    rushBy: "",
     keepSeparate: false,
     editing: null,
   };
@@ -62,13 +64,14 @@ export function loadedState(entry: ReportEntry, personId?: string): EntryFormSta
       locationCode: person.locationCode,
       specialRequest: person.specialRequest,
       rush: entry.rush,
+      rushBy: entry.rushBy ?? "",
       keepSeparate: entry.keepSeparate,
       editing,
     };
   }
   const editing: EditingTarget = { entryId: entry.id, personId, pinnedBottom: entry.pinnedBottom };
   if (entry.type === "funeralHomeOnly") {
-    return { ...emptyState("funeralHomeOnly"), funeralHome: entry.funeralHome, rush: entry.rush, keepSeparate: entry.keepSeparate, editing };
+    return { ...emptyState("funeralHomeOnly"), funeralHome: entry.funeralHome, rush: entry.rush, rushBy: entry.rushBy ?? "", keepSeparate: entry.keepSeparate, editing };
   }
   if (entry.type === "combined") {
     return { ...emptyState("combined"), text: entry.leftText, rightText: entry.rightText, count: entry.count, editing };

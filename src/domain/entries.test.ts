@@ -219,6 +219,25 @@ describe("paste parsing", () => {
     ).toEqual(["funeral", "combined", "count", "plain"]);
   });
 
+  it("omits a count of one, which a bare line already means", () => {
+    const base = { id: "e", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-08-15T00:00:00.000Z" } as const;
+    expect(formatEntryLine({ ...base, type: "count", text: "Reese", count: 3 })).toBe("Reese x 3");
+    expect(formatEntryLine({ ...base, type: "count", text: "Reese", count: 1 })).toBe("Reese");
+    expect(formatEntryLine({ ...base, type: "combined", leftText: "McGuire", rightText: "JFC", count: 2 })).toBe("McGuire // JFC x 2");
+    expect(formatEntryLine({ ...base, type: "combined", leftText: "McGuire", rightText: "JFC", count: 1 })).toBe("McGuire // JFC");
+  });
+
+  it("reads a countless combined pair back as combined, so dropping the x1 still round-trips", () => {
+    const [parsed] = parsePastedLines("McGuire // JFC");
+    expect(parsed.entry.type).toBe("combined");
+    expect(parsed.entry).toMatchObject({ leftText: "McGuire", rightText: "JFC", count: 1 });
+  });
+
+  it("still reads a dashed line as a funeral even when the deceased detail contains //", () => {
+    const [parsed] = parsePastedLines("McGuire – Smith (13A) [FDP // SO?]");
+    expect(parsed.entry.type).toBe("funeral");
+  });
+
   it("formats structured entries back into an editable report line", () => {
     expect(formatEntryLine(funeral({
       deceased: [

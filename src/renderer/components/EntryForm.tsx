@@ -7,17 +7,42 @@ import { IconCheck, IconPlus } from "../icons";
 import { Button } from "../ui/Button";
 import { SegmentedControl } from "../ui/SegmentedControl";
 
-const FORMAT_OPTIONS: Array<{ value: EntryKind; label: string }> = [
-  { value: "funeral", label: "Funeral" },
-  { value: "funeralHomeOnly", label: "FH only" },
-  { value: "count", label: "Count" },
-  { value: "combined", label: "Combined" },
-  { value: "plain", label: "Plain" },
-];
+const FORMAT_LABELS: Record<EntryKind, string> = {
+  funeral: "Funeral",
+  funeralHomeOnly: "FH only",
+  count: "Count",
+  combined: "Combined",
+  plain: "Plain",
+};
+
+/**
+ * Only the formats each column actually uses. Human Remains rows name a funeral home and a
+ * deceased person, or are free text; Cremated rows are a funeral home on its own, a count, or two
+ * homes combined. Offering all five everywhere meant four of them were wrong on any given section.
+ */
+export const FORMATS_BY_CATEGORY: Record<"human" | "cremated", EntryKind[]> = {
+  human: ["funeral", "plain"],
+  cremated: ["funeralHomeOnly", "count", "combined"],
+};
+
+export function defaultFormatFor(category: "human" | "cremated"): EntryKind {
+  return FORMATS_BY_CATEGORY[category][0];
+}
+
+/**
+ * The formats to show for a section, including `current` even when the column does not normally
+ * offer it — a cremated section can still hold a plain row typed straight onto the canvas, and
+ * hiding its format would leave the toggle with nothing selected while editing it.
+ */
+export function formatsFor(category: "human" | "cremated", current: EntryKind): EntryKind[] {
+  const allowed = FORMATS_BY_CATEGORY[category];
+  return allowed.includes(current) ? allowed : [...allowed, current];
+}
 
 interface Props {
   form: EntryFormState;
   activeSectionTitle: string;
+  category: "human" | "cremated";
   isDeliver: boolean;
   funeralHomes: FuneralHomeOption[];
   setField: (field: TextField, value: string) => void;
@@ -29,9 +54,10 @@ interface Props {
   onSubmit: (event: FormEvent) => void;
 }
 
-export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
+export function EntryForm({ form, activeSectionTitle, category, isDeliver, funeralHomes, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
   const primaryFieldRef = useRef<HTMLInputElement>(null);
   const isFuneralKind = form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly";
+  const formatOptions = formatsFor(category, form.entryKind).map((value) => ({ value, label: FORMAT_LABELS[value] }));
 
   function handleSubmit(event: FormEvent) {
     onSubmit(event);
@@ -51,7 +77,7 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
         {form.editing && <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>}
       </div>
       <p className="format-label">Format</p>
-      <SegmentedControl label="Format" value={form.entryKind} options={FORMAT_OPTIONS} onChange={setEntryKind} />
+      <SegmentedControl label="Format" value={form.entryKind} options={formatOptions} onChange={setEntryKind} />
       <div className="dynamic-fields" key={form.entryKind}>
         {isFuneralKind && (
           <>
@@ -86,6 +112,10 @@ export function EntryForm({ form, activeSectionTitle, isDeliver, funeralHomes, s
             {isDeliver && <label><input type="checkbox" checked={form.rush} onChange={(event) => setRush(event.target.checked)} /> Rush — list first</label>}
             <label><input type="checkbox" checked={form.keepSeparate} onChange={(event) => setKeepSeparate(event.target.checked)} /> Keep as separate line</label>
           </div>
+        )}
+        {/* Only once Rush is on: a deadline with no rush behind it has nowhere to print. */}
+        {isFuneralKind && isDeliver && form.rush && (
+          <label>Needed by<input value={form.rushBy} onChange={(event) => setField("rushBy", event.target.value)} placeholder="by 10:00 AM, or first trip" /></label>
         )}
       </div>
       <Button variant="primary" full type="submit" icon={form.editing ? <IconCheck /> : <IconPlus />}>{form.editing ? "Save changes" : "Add to report"}</Button>

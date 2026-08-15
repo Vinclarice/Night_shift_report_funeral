@@ -417,6 +417,9 @@ textarea { resize: vertical; line-height: 1.45; }
    line emphasises nothing. Rows that do carry a deceased name keep the bold to separate the two. */
 .cremated-column .report-row:not(:has(.deceased-name)) .entry-primary { font-weight: 500; }
 .entry-separator { color: #7c838c; font-weight: 500; }
+/* The // in a combined row separates two funeral homes, so it needs more air around it than the
+   dash before a deceased name or the + between people — those join, this one divides. */
+.combined-separator { padding: 0 .075in; }
 .deceased-person { white-space: normal; }
 .deceased-name { font-weight: 480; }
 .location-code, .entry-count, .special-request { display: inline-block; margin-left: .04in; vertical-align: .01in; white-space: nowrap; }

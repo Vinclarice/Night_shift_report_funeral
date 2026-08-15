@@ -61,8 +61,13 @@ export function formatEntryLine(entry: ReportEntry): string {
     return `${entry.funeralHome} \u2013 ${deceased}`;
   }
   if (entry.type === "funeralHomeOnly") return entry.funeralHome;
-  if (entry.type === "count") return `${entry.text} x ${entry.count}`;
-  if (entry.type === "combined") return `${entry.leftText} // ${entry.rightText} x ${entry.count}`;
+  // A count of one is implied, and the printed row omits the chip, so the editable text omits it
+  // too — otherwise clicking a row that reads "Reese" would open it showing "Reese x 1".
+  if (entry.type === "count") return entry.count > 1 ? `${entry.text} x ${entry.count}` : entry.text;
+  if (entry.type === "combined") {
+    const pair = `${entry.leftText} // ${entry.rightText}`;
+    return entry.count > 1 ? `${pair} x ${entry.count}` : pair;
+  }
   return entry.text;
 }
 
@@ -226,6 +231,7 @@ export function movePerson(report: NightReport, sourceKey: SectionKey, targetKey
     funeralHome: original.funeralHome,
     deceased: [person],
     rush: original.rush,
+    rushBy: original.rushBy,
     keepSeparate: original.keepSeparate,
     pinnedBottom: false,
     createdAt: new Date().toISOString(),
@@ -385,6 +391,20 @@ export function parsePastedLines(value: string): ParsedLine[] {
           funeralHome: titleCaseName(funeral[1]),
           deceased,
           rush,
+        };
+        return { source, entry };
+      }
+
+      // "A // B" with no trailing count is a combined pair of one. Checked after the funeral rule
+      // so a dashed line that happens to contain "//" still reads as a funeral home and deceased.
+      const bareCombined = source.match(/^(.+?)\s*\/\/\s*(.+)$/);
+      if (bareCombined) {
+        const entry: CombinedEntry = {
+          ...baseEntry(),
+          type: "combined",
+          leftText: bareCombined[1].trim(),
+          rightText: bareCombined[2].trim(),
+          count: 1,
         };
         return { source, entry };
       }

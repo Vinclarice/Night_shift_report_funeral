@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 
 import { createEmptyReport } from "@/domain/report";
@@ -105,9 +105,22 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
   });
 
+  /**
+   * Count is a Cremated format, so these validation cases have to be driven from a Cremated
+   * section — the Human column only offers Funeral and Plain.
+   */
+  async function selectCrematedFdp() {
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const paletteInput = screen.getByRole("combobox", { name: "Search commands" });
+    fireEvent.change(paletteInput, { target: { value: "Cremated remains — FDP" } });
+    fireEvent.keyDown(paletteInput, { key: "Enter" });
+    await screen.findByRole("button", { name: "Count" });
+  }
+
   it("rejects a count entry with blank text instead of silently adding an empty line", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
+    await selectCrematedFdp();
 
     fireEvent.click(screen.getByRole("button", { name: "Count" }));
     fireEvent.click(screen.getByRole("button", { name: "Add to report" }));
@@ -119,6 +132,7 @@ describe("App", () => {
   it("rejects a count entry with a non-positive count instead of saving NaN", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");
+    await selectCrematedFdp();
 
     fireEvent.click(screen.getByRole("button", { name: "Count" }));
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: "Reese" } });
@@ -127,6 +141,18 @@ describe("App", () => {
 
     await screen.findByText(/Count must be a positive number/);
     expect(screen.getByText("No entries yet — add one above.")).toBeInTheDocument();
+  });
+
+  it("offers only the formats each column uses", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    const formats = () => within(screen.getByRole("group", { name: "Format" }))
+      .getAllByRole("button").map((button) => button.textContent);
+    expect(formats()).toEqual(["Funeral", "Plain"]);
+
+    await selectCrematedFdp();
+    expect(formats()).toEqual(["FH only", "Count", "Combined"]);
   });
 
   it("surfaces the parser's ambiguous-line warning when committed directly in the preview", async () => {

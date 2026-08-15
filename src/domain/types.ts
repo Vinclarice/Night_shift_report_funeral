@@ -26,6 +26,11 @@ interface BaseEntry {
    * Set by dragging an entry below the last row; cleared by dragging it back up.
    */
   pinnedBottom: boolean;
+  /**
+   * When this rush is needed by, in the operator's own words — "by 10:00 AM", "first trip".
+   * Printed inside the rush chip. Empty or absent prints the plain RUSH label.
+   */
+  rushBy?: string;
   createdAt: string;
 }
 

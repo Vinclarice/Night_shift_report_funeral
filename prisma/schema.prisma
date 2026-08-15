@@ -26,6 +26,7 @@ model Entry {
   rush                    Boolean  @default(false)
   keepSeparate            Boolean  @default(false)
   pinnedBottom            Boolean  @default(false)
+  rushBy                  String?
   position                Int
   funeralHomeId           String?
   funeralHomeNameSnapshot String?

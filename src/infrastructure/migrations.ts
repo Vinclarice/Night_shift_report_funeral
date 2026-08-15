@@ -24,6 +24,7 @@ const statements = [
     "rush" BOOLEAN NOT NULL DEFAULT false,
     "keepSeparate" BOOLEAN NOT NULL DEFAULT false,
     "pinnedBottom" BOOLEAN NOT NULL DEFAULT false,
+    "rushBy" TEXT,
     "position" INTEGER NOT NULL,
     "funeralHomeId" TEXT,
     "funeralHomeNameSnapshot" TEXT,
@@ -97,6 +98,7 @@ async function applyDroppedColumns(client: PrismaClient): Promise<void> {
  */
 const addedColumns: Array<{ table: string; column: string; definition: string }> = [
   { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
+  { table: "Entry", column: "rushBy", definition: `TEXT` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {

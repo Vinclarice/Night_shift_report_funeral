@@ -70,7 +70,9 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
       if (parsed.type === "funeral" || parsed.type === "funeralHomeOnly") parsed.funeralHome = controller.canonicalFuneralHome(parsed.funeralHome);
       if (parsed.type === "plain") parseWarning = parsedLine.warning;
       if (existing) {
-        parsed = { ...parsed, id: existing.id, createdAt: existing.createdAt, rush: existing.rush || parsed.rush, keepSeparate: existing.keepSeparate };
+        // rushBy has no representation in the editable line, so it is carried across explicitly
+        // rather than dropped every time a rush row is retyped on the canvas.
+        parsed = { ...parsed, id: existing.id, createdAt: existing.createdAt, rush: existing.rush || parsed.rush, rushBy: existing.rushBy, keepSeparate: existing.keepSeparate };
         // Editing an existing line stays at its current position instead of moving to the end.
         replaceEntryInPlace(section, existing.id, parsed);
       } else {
