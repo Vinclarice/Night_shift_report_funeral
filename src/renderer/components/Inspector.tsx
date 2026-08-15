@@ -174,7 +174,10 @@ export function Inspector({ report }: { report: NightReport }) {
   }
 
   return (
-    <aside className={`studio-inspector no-print${workspace.inspectorOpen ? " open" : ""}`} aria-label="Report inspector">
+    // data-channel carries the section's category into CSS, which recolours the inspector's rule,
+    // eyebrow, format toggle and add button to match the column the entry will land in. Filing an
+    // entry under the wrong category is the expensive mistake on this form.
+    <aside className={`studio-inspector no-print${workspace.inspectorOpen ? " open" : ""}`} data-channel={section.category} aria-label="Report inspector">
       <header className="inspector-header">
         <div><p className="studio-kicker">{section.category} remains</p><h2>{section.title}</h2><span>{section.entries.length} {section.entries.length === 1 ? "entry" : "entries"}</span></div>
         <IconButton icon={<IconX />} aria-label="Close inspector" title="Close inspector" onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: false })} />

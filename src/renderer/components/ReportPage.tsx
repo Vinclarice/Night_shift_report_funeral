@@ -229,7 +229,11 @@ const SectionCard = memo(function SectionCard({
       style={width ? { width: `${width}in` } : undefined}
       {...cardDragProps}
     >
-      <h3>{section.title}</h3>
+      {/* Selecting a section otherwise means clicking one of its rows, which also opens that row
+          for editing — so there was no way to just point the inspector at a section. The header
+          does that. Interactive canvas only; the print copy keeps a plain heading. Keyboard users
+          reach the same selection by tabbing to any row in the card. */}
+      <h3 onClick={interactive ? () => onSelectSection?.(section.key) : undefined} title={interactive ? `Show ${section.title} in the inspector` : undefined}>{section.title}</h3>
       {section.entries.map((entry) => (
         onLineCommit
           ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />

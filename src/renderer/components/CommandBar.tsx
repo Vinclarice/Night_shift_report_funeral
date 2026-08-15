@@ -53,14 +53,14 @@ export function CommandBar({ report }: { report: NightReport }) {
             ReportState.dateOverride. */}
         <div className="command-date" ref={dateRef}>
           <p>Night Shift Report</p>
+          {/* The hint names the action rather than the feature. It used to read "manual date
+              override", which described a setting and — sitting under a date that had not been
+              overridden — read as a claim that it had. Standing rather than on-hover: whoever
+              comes in mid-shift needs to see the date can be changed without going looking. */}
           <button type="button" className={`command-date-button${overridden ? " overridden" : ""}`} aria-expanded={dateOpen} title="Change the date on this report" onClick={() => setDateOpen((open) => !open)}>
-            <span className="command-date-line">
-              <strong>{formatReportDate(shownDate)}</strong>
-              {overridden && <span className="command-date-flag">Manual</span>}
-            </span>
-            {/* Standing hint rather than an on-hover one: whoever comes in mid-shift needs to see
-                that the date can be changed without knowing to go looking for it. */}
-            <small className="command-date-hint">manual date override</small>
+            <strong>{formatReportDate(shownDate)}</strong>
+            {overridden && <span className="command-date-flag">Manual</span>}
+            <small className="command-date-hint">Change date</small>
           </button>
           {dateOpen && (
             <div className="date-popover">

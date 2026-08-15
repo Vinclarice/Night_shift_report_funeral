@@ -32,6 +32,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   // competing for the same commit.
   const deferredReport = useDeferredValue(report);
   const deferredLayout = useDeferredValue(controller.layout!);
+  const entryCount = report.sections.reduce((total, section) => total + section.entries.length, 0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -131,8 +132,14 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   return (
     <section className="studio-canvas" ref={canvasRef}>
       <div className="canvas-toolbar no-print">
-        <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · drag entries between cards</span></div>
+        <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · drag entries between cards · right-click for more</span></div>
         <div className="canvas-controls">
+          {/* Whether the report still fits one page, stated continuously. Previously this only
+              surfaced as the red banner above, which appears after the report has already
+              overflowed — by which point entries have to be cut rather than placed differently. */}
+          <span className={`canvas-fit${controller.overflow ? " over" : ""}`} role="status" aria-live="polite">
+            {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
+          </span>
           <div className="zoom-control" aria-label="Preview zoom">
             <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - 0.05 })} />
             <button type="button" className={workspace.zoomMode === "fit" ? "active" : ""} onClick={() => dispatch({ type: "FIT_ZOOM" })}>{workspace.zoomMode === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}</button>
