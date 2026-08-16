@@ -362,7 +362,7 @@ const SectionCard = memo(function SectionCard({
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
-          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} onContinueEntry={() => { continueFromEntriesRef.current = section.entries; }} autoWidth={!width} freeRowIndex={index} onEntryMove={index === 0 ? onEntryMove : undefined} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={index === 0 && dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
+          ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} onContinueEntry={() => { continueFromEntriesRef.current = section.entries; }} autoWidth={!width} freeRowIndex={index} onEntryMove={onEntryMove} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
           : <div className="report-row blank-row" data-testid="free-row" aria-label={`${section.title} free row ${index + 1}`} key={`free-${index}`}>&nbsp;</div>
       ))}
       {interactive && (

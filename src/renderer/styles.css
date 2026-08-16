@@ -505,15 +505,11 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent), 0 0 0 5px color-mix(in srgb, var(--column-accent) 22%, transparent); }
 /* The sheet sits on the desk rather than floating in a void. */
 .studio-canvas .report-page { box-shadow: 0 10px 28px rgb(26 31 38 / 16%), 0 2px 6px rgb(26 31 38 / 10%), 0 0 0 1px rgb(26 31 38 / 8%); }
-/* Sits inside the card, not straddling its edge. The card is overflow:hidden, so the half that
-   used to hang outside was clipped and not hit-testable — only about six of its thirteen
-   pixels could actually be grabbed. */
-.width-handle { position: absolute; right: 1px; bottom: 3px; width: 13px; height: 34px; max-height: calc(100% - var(--card-header-h) - 6px); padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
-  /* Hidden until the card is pointed at. Cards are width:fit-content, so the widest row
-     always reaches the right edge where the grip sits — no position avoids covering it.
-     Revealing on hover keeps the page clean to read and the grip there when it is wanted. */
-  opacity: 0; transition: opacity var(--duration-fast) var(--ease); }
-.section-card:hover .width-handle, .width-handle:focus-visible { opacity: 1; }
+/* Centred and always on show, as it was. Overlapping a header or a row on a short card is fine —
+   the grip is screen-only and never prints. It sits at right:1px rather than the original -7px
+   because the card is overflow:hidden: hanging half of it outside clipped that half away from
+   hit-testing, leaving only about six of its thirteen pixels grabbable. */
+.width-handle { position: absolute; right: 1px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
 .width-handle::after { content: "⋮"; }
 
 @media (prefers-reduced-motion: reduce) {
