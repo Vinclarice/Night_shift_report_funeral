@@ -265,8 +265,15 @@ const SectionCard = memo(function SectionCard({
     const startX = event.clientX;
     const startWidth = card.getBoundingClientRect().width / 96;
     let latest = startWidth;
+    // Taken from the card's own computed bounds rather than written out here. The two columns have
+    // different floors — 2.42in for Human Remains, 1.62in for the narrower Cremated cards — and a
+    // single hardcoded 2.05in matched neither: it stopped a Cremated card 0.43in above the width
+    // CSS would allow, while letting a Human card store a width min-width then silently ignored.
+    const bounds = getComputedStyle(card);
+    const minWidth = (parseFloat(bounds.minWidth) || 0) / 96;
+    const maxWidth = (parseFloat(bounds.maxWidth) || Infinity) / 96;
     const move = (moveEvent: PointerEvent) => {
-      latest = Math.min(3.55, Math.max(2.05, startWidth + (moveEvent.clientX - startX) / 96));
+      latest = Math.min(maxWidth, Math.max(minWidth, startWidth + (moveEvent.clientX - startX) / 96));
       onWidthChange?.(section.key, Number(latest.toFixed(2)));
     };
     const finish = () => {
