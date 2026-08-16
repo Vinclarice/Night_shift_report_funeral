@@ -156,6 +156,31 @@ describe("App", () => {
     expect(stamps).toHaveLength(2);
   });
 
+  it("walks rows with the arrow keys, carrying on into the next section", async () => {
+    render(<App />);
+    await screen.findByText("Night Shift Report");
+
+    // Every typable row in the Human column, in reading order — DELIVER's rows, then AIRPORT
+    // DROPS', and so on, so stepping past the end of one card lands in the next.
+    const rows = screen.getAllByRole("button", { name: /Type in Human Remains/ });
+    expect(rows.length).toBeGreaterThan(4);
+    rows[0].focus();
+
+    fireEvent.keyDown(rows[0], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[1]);
+
+    fireEvent.keyDown(rows[1], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rows[2]);
+
+    fireEvent.keyDown(rows[2], { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[1]);
+
+    // The first row has nowhere above it, so focus stays put rather than wrapping round.
+    rows[0].focus();
+    fireEvent.keyDown(rows[0], { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[0]);
+  });
+
   it("offers only the formats each column uses", async () => {
     render(<App />);
     await screen.findByText("Night Shift Report");

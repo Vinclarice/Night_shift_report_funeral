@@ -116,12 +116,26 @@ const EntryLine = memo(function EntryLine({ entry, onPersonDragStart }: { entry:
   return <span className="entry-line-content"><span>{entry.text}</span></span>;
 });
 
+/**
+ * Every typable row in the column containing `from`, in the order they are read. Scoped to the
+ * column rather than the card so Up/Down carry on into the next section, and never to the other
+ * column — the two are separate destinations and drifting between them is how a line gets filed
+ * against the wrong category.
+ */
+function columnRows(from: HTMLElement): HTMLElement[] {
+  const column = from.closest(".report-column");
+  // Both selectors: the row being edited is an input, not a button, and leaving it out made
+  // indexOf return -1 — so "one below" resolved to row 0 and Down jumped to the top of the column.
+  return column ? [...column.querySelectorAll<HTMLElement>(".inline-row-button, .inline-row-input")] : [];
+}
+
 function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; onContinueEntry?: () => void; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
   const inputRef = useRef<HTMLInputElement>(null);
   const continueEntryRef = useRef(false);
+  const pendingMoveRef = useRef<{ column: HTMLElement; index: number } | null>(null);
   const category = section.category === "human" ? "Human Remains" : "Cremated Remains";
   const rowLabel = `${category} ${section.title}`;
   const inputWidth = Math.min(3.53, Math.max(2.4, draft.length * 0.075 + 0.25));
@@ -140,6 +154,17 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
     if (changed && continueEntryRef.current && !entry && clean) onContinueEntry?.();
     continueEntryRef.current = false;
     if (changed) onLineCommit(section.key, entry?.id ?? null, clean);
+
+    // Two frames so the commit has rendered before the target is looked up again. The index is
+    // taken from before the commit, so a change that re-sorts the section (marking a line Rush,
+    // pinning it) can land a row away from where the arrow pointed — the same caveat Enter has.
+    const move = pendingMoveRef.current;
+    pendingMoveRef.current = null;
+    if (move) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        [...move.column.querySelectorAll<HTMLElement>(".inline-row-button")][move.index]?.click();
+      }));
+    }
   }
 
   function handleKey(event: ReactKeyboardEvent<HTMLInputElement>) {
@@ -147,11 +172,31 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
       event.preventDefault();
       continueEntryRef.current = true;
       event.currentTarget.blur();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      // Enter means "commit and start the next empty line"; the arrows mean "commit and move to
+      // the line above or below", whether or not it already has something on it.
+      const rows = columnRows(event.currentTarget);
+      const index = rows.indexOf(event.currentTarget as HTMLElement) + (event.key === "ArrowDown" ? 1 : -1);
+      const column = event.currentTarget.closest(".report-column");
+      if (!column || index < 0 || index >= rows.length) return;
+      event.preventDefault();
+      pendingMoveRef.current = { column: column as HTMLElement, index };
+      event.currentTarget.blur();
     } else if (event.key === "Escape") {
       event.preventDefault();
       setDraft(original);
       setEditing(false);
     }
+  }
+
+  /** Arrows on a row that is merely focused just move the focus; Enter or a click opens it. */
+  function handleButtonKey(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const rows = columnRows(event.currentTarget);
+    const target = rows[rows.indexOf(event.currentTarget) + (event.key === "ArrowDown" ? 1 : -1)];
+    if (!target) return;
+    event.preventDefault();
+    target.focus();
   }
 
   const { beginDrag, beginPersonDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange);
@@ -178,6 +223,7 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
       onDragStart={beginDrag}
       onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }}
       onContextMenu={handleContextMenu}
+      onKeyDown={handleButtonKey}
       title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
       {...dragProps}
     >
