@@ -223,8 +223,27 @@ describe("section totals count people, not rows", () => {
   it("uses the multiplier on count and combined rows, and one for everything else", () => {
     expect(entryItemCount({ ...b, type: "count", text: "Reese", count: 3 })).toBe(3);
     expect(entryItemCount({ ...b, type: "combined", leftText: "McGuire", rightText: "JFC", count: 2 })).toBe(2);
+    expect(entryItemCount({ ...b, type: "combined", leftText: "McGuire", rightText: "JFC", count: 3 })).toBe(3);
     expect(entryItemCount({ ...b, type: "funeralHomeOnly", funeralHome: "Collins" })).toBe(1);
     expect(entryItemCount({ ...b, type: "plain", text: "Covenant" })).toBe(1);
+  });
+
+  it("never counts a combined pair as one, however it was created", () => {
+    // "A // B" typed straight onto the canvas parses with a count of 1; it is still two homes.
+    const [typed] = parsePastedLines("McGuire // JFC");
+    expect(typed.entry).toMatchObject({ type: "combined", count: 1 });
+    expect(entryItemCount(typed.entry)).toBe(2);
+  });
+
+  it("totals a section of plain rows and combined pairs the way the sheet is read", () => {
+    const rows = [
+      ...["Collins", "Barber", "Nova Jewish", "Fraizer-Mason", "Covenant"].map((text, i) => ({ ...b, id: `p${i}`, type: "plain" as const, text })),
+      { ...b, id: "c1", type: "combined" as const, leftText: "McGuire", rightText: "JFC", count: 1 },
+      { ...b, id: "c2", type: "combined" as const, leftText: "Reese", rightText: "Sewell", count: 1 },
+    ];
+    // Seven rows, two of them pairs: nine funeral homes to deliver to, not seven.
+    expect(rows).toHaveLength(7);
+    expect(sectionItemCount({ key: "cremated-fdp", category: "cremated", title: "FDP", entries: rows })).toBe(9);
   });
 
   it("totals a section across mixed row types", () => {

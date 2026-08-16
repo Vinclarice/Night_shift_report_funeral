@@ -78,7 +78,11 @@ export function formatEntryLine(entry: ReportEntry): string {
  */
 export function entryItemCount(entry: ReportEntry): number {
   if (entry.type === "funeral") return entry.deceased.length;
-  if (entry.type === "count" || entry.type === "combined") return entry.count;
+  if (entry.type === "count") return entry.count;
+  // A combined row names two funeral homes, so it can never stand for fewer than two — one per
+  // side. Rows typed as a bare "A // B" carry a count of 1, which would otherwise make a pair
+  // register as a single item and quietly under-report the section.
+  if (entry.type === "combined") return Math.max(2, entry.count);
   return 1;
 }
 
