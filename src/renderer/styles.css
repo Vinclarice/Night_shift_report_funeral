@@ -387,35 +387,41 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    ───────────────────────────────────────────────────────────────────────────── */
 
 .report-page { --report-margin: .35in; --report-scale: 1; --report-offset-x: 0in; --report-offset-y: 0in; --report-ink: #171b21; position: relative; width: 8.5in; height: 11in; flex: none; overflow: hidden; background: #fffefb; color: var(--report-ink); font-family: var(--font-doc); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.report-page::before { content: ""; position: absolute; inset: var(--report-margin); border: .7px solid #9aa1ab; pointer-events: none; }
+.report-page::before { content: ""; position: absolute; inset: var(--report-margin); border: .7px solid #9aa1ab; border-radius: .06in; pointer-events: none; }
 .report-content { position: absolute; inset: calc(var(--report-margin) + .18in); transform: translate(var(--report-offset-x), var(--report-offset-y)) scale(var(--report-scale)); transform-origin: top left; }
 .report-header { height: .78in; display: flex; align-items: flex-start; justify-content: space-between; margin: 0 .12in; padding: .055in 0 .12in; border-bottom: 2.25px solid #1b2a41; }
-.report-header h1 { position: relative; margin: 0; padding-left: .12in; font-size: 17pt; font-weight: 760; line-height: 1.1; letter-spacing: .045em; }
+.report-header h1 { position: relative; margin: 0; padding-left: .12in; font-family: var(--font-display); font-stretch: 75%; font-size: 19pt; font-weight: 600; line-height: 1.1; letter-spacing: .09em; }
 .report-header h1::before { content: ""; position: absolute; left: 0; top: .01in; width: .035in; height: .28in; border-radius: 1px; background: #1b2a41; }
-.report-header > div { display: grid; justify-items: end; gap: .015in; padding-top: .005in; white-space: nowrap; }
-.report-header strong { color: #5f666e; font-size: 7pt; line-height: 1; letter-spacing: .14em; }
-.report-header span { font-size: 10.5pt; font-weight: 720; line-height: 1.15; letter-spacing: .025em; }
+.report-header > div { display: grid; justify-items: end; gap: .025in; padding-top: .01in; white-space: nowrap; }
+/* The weekday leads: it is the first thing checked when a sheet is picked up, and it is the day
+   the work is done rather than the night it was written. The full date sits under it with its
+   label inline, so the block reads as one identifier instead of a stack of three lines. */
+.report-weekday { font-family: var(--font-display); font-stretch: 75%; font-size: 14pt; font-weight: 600; line-height: 1.05; letter-spacing: .09em; }
+.report-date strong { color: #5f666e; font-size: 8pt; font-weight: 600; letter-spacing: .16em; }
+.report-date { font-family: var(--font-display); font-stretch: 75%; font-size: 10.5pt; font-weight: 600; line-height: 1.15; letter-spacing: .05em; }
 .report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: .64in; padding: .08in .28in 0; align-items: start; }
 .report-column { --column-accent: #1b2a41; --column-soft: #eef1f5; --column-rule: #b6bfcb; display: flex; flex-direction: column; align-items: flex-start; gap: .12in; min-width: 0; }
 .cremated-column { --column-accent: #6f6959; --column-soft: #f3f2ee; --column-rule: #c5c1b6; align-items: flex-end; }
 /* The banner sizes to its own text but never narrower than the column's default card, so it lines
    up with the cards beneath instead of overhanging them at the full 3.12in column width.
-   margin-bottom cancels the column's .12in gap exactly, seating the first card's accent border
-   flush against the banner — it used to be -.17in, which pulled the card .05in over the banner. */
-.report-column > h2 { width: fit-content; min-width: 2.42in; min-height: .32in; margin: 0 0 -.12in; padding: .06in .09in .04in; color: white; background: var(--column-accent); text-align: left; font-family: var(--font-display); font-stretch: 75%; font-size: 12pt; font-weight: 600; line-height: .21in; letter-spacing: .13em; white-space: nowrap; }
+   margin-bottom leaves .06in of the column's .12in gap showing, so the banner reads as its own
+   rounded plate above the column rather than a lid on the first card — half the gap between cards,
+   so it still groups with the column beneath it. It was once -.17in, a net -.05in that pulled the
+   first card over the banner entirely. */
+.report-column > h2 { width: fit-content; min-width: 2.42in; min-height: .32in; margin: 0 0 -.06in; padding: .06in .09in .04in; border-radius: .05in; color: white; background: var(--column-accent); text-align: left; font-family: var(--font-display); font-stretch: 75%; font-size: 12pt; font-weight: 600; line-height: .21in; letter-spacing: .13em; white-space: nowrap; }
 /* Sized to fit its own text instead of stretched to the full column width, staying on one line and
    anchored to the column's right edge via the column's own flex-end alignment above. Height, font,
    and padding are otherwise identical to Human Remains — only the width shrinks. */
 /* Cremated cards start narrower, so its banner's floor is that column's own default card width
    rather than the Human column's. Anchored to the column's right edge by the flex-end alignment. */
 .cremated-column > h2 { min-width: 1.62in; text-align: right; }
-.section-card { position: relative; width: fit-content; min-width: 2.42in; max-width: 3.55in; overflow: hidden; border: .65px solid var(--column-rule); border-top: 2px solid var(--column-accent); border-radius: .025in; background: white; break-inside: avoid; }
+.section-card { --card-header-h: .29in; position: relative; width: fit-content; min-width: 2.42in; max-width: 3.55in; overflow: hidden; border: .65px solid var(--column-rule); border-top: 2px solid var(--column-accent); border-radius: .05in; background: white; break-inside: avoid; }
 /* Cremated sections are usually just a funeral-home name, so they start much narrower. width is
    still fit-content, so an edge case carrying a deceased name expands the card as before. */
 .cremated-column .section-card { min-width: 1.62in; }
-.page-stage .section-card { box-shadow: 0 .025in .07in rgb(29 49 38 / 8%); }
+.page-stage .section-card { box-shadow: 0 0 0 1.5px rgb(26 31 38 / 11%), 0 .025in .07in rgb(29 49 38 / 8%); }
 .section-card h3 em { float: right; font-style: normal; font-weight: 700; font-size: 9pt; letter-spacing: 0; opacity: .7; }
-.section-card h3 { height: .29in; margin: 0; padding: .04in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 10.2pt; font-weight: 760; line-height: .22in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }
+.section-card h3 { height: var(--card-header-h); margin: 0; padding: .04in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 10.2pt; font-weight: 760; line-height: .22in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }
 .report-row { min-height: .22in; padding: .014in .075in .007in; border-bottom: .75px solid #8d97a3; color: var(--report-ink); font-size: 10pt; line-height: .205in; white-space: normal; overflow-wrap: anywhere; }
 .report-row:last-of-type { border-bottom: 0; }
 .section-card > .report-row:not(.blank-row):nth-child(odd) { background: color-mix(in srgb, var(--column-soft) 48%, white); }
@@ -459,7 +465,7 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .notes-button:focus-visible { outline: 2px solid var(--report-ink); outline-offset: -2px; box-shadow: none; }
 .notes-input { background-color: #fff; box-shadow: inset .03in 0 var(--report-ink), 0 0 0 .02in rgb(23 33 28 / 55%); outline: 0; }
 .calibration-label { position: absolute; bottom: calc(var(--report-margin) + .03in); left: 0; right: 0; text-align: center; font-size: 7pt; color: #a22; }
-.report-page[data-calibration]::before { border: 1.5px dashed #c22; }
+.report-page[data-calibration]::before { border: 1.5px dashed #c22; border-radius: 0; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }
 
 /* Single, light last-resort fallback: only engaged when wrapping + natural sizing still don't fit
@@ -467,7 +473,8 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    raising the body type cannot cost the sheet any worst-case capacity. */
 /* No banner-margin override here: at -.08in the compacted page left a .04in gap under the banner
    while the normal page overlapped it by .05in, so the two modes disagreed. Both are flush now. */
-.report-page.compact-1 .section-card h3 { height: .22in; padding-top: .005in; font-size: 8.8pt; line-height: .17in; }
+.report-page.compact-1 .section-card { --card-header-h: .22in; }
+.report-page.compact-1 .section-card h3 { padding-top: .005in; font-size: 8.8pt; line-height: .17in; }
 .report-page.compact-1 .report-row { min-height: .19in; padding: .006in .075in .004in; font-size: 8.9pt; line-height: .165in; }
 .report-page.compact-1 .location-code, .report-page.compact-1 .entry-count, .report-page.compact-1 .special-request { line-height: .12in; }
 
@@ -495,13 +502,18 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .inline-row-button.drop-before { position: relative; z-index: 2; box-shadow: inset 0 2px var(--column-accent); }
 .blank-row.drop-before { background: color-mix(in srgb, var(--column-accent) 10%, white); box-shadow: inset 0 2px var(--column-accent); }
 .section-card.drop-active { border-color: var(--column-accent); background: color-mix(in srgb, var(--column-accent) 8%, white); box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-accent) 25%, transparent); }
-.section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent), 0 0 0 5px color-mix(in srgb, var(--column-accent) 18%, transparent); }
+.section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent), 0 0 0 5px color-mix(in srgb, var(--column-accent) 22%, transparent); }
 /* The sheet sits on the desk rather than floating in a void. */
 .studio-canvas .report-page { box-shadow: 0 10px 28px rgb(26 31 38 / 16%), 0 2px 6px rgb(26 31 38 / 10%), 0 0 0 1px rgb(26 31 38 / 8%); }
 /* Sits inside the card, not straddling its edge. The card is overflow:hidden, so the half that
    used to hang outside was clipped and not hit-testable — only about six of its thirteen
    pixels could actually be grabbed. */
-.width-handle { position: absolute; right: 1px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
+.width-handle { position: absolute; right: 1px; bottom: 3px; width: 13px; height: 34px; max-height: calc(100% - var(--card-header-h) - 6px); padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%);
+  /* Hidden until the card is pointed at. Cards are width:fit-content, so the widest row
+     always reaches the right edge where the grip sits — no position avoids covering it.
+     Revealing on hover keeps the page clean to read and the grip there when it is wanted. */
+  opacity: 0; transition: opacity var(--duration-fast) var(--ease); }
+.section-card:hover .width-handle, .width-handle:focus-visible { opacity: 1; }
 .width-handle::after { content: "⋮"; }
 
 @media (prefers-reduced-motion: reduce) {

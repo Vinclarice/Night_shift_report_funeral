@@ -45,6 +45,13 @@ const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
 const printedTime = (value: Date): string =>
   new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
 
+/** The weekday the sheet is for. The report is dated the next calendar day, so this names the
+ *  day the work is actually done. */
+function weekdayName(value: string): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date(year, month - 1, day)).toUpperCase();
+}
+
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {
@@ -348,7 +355,10 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
       <div className="report-content">
         <header className="report-header">
           <h1>NIGHT SHIFT REPORT</h1>
-          <div><strong>DATE:</strong> <span>{displayDate(dateOverride ?? report.reportDate)}</span></div>
+          <div>
+            <span className="report-weekday">{weekdayName(dateOverride ?? report.reportDate)}</span>
+            <span className="report-date"><strong>DATE:</strong> {displayDate(dateOverride ?? report.reportDate)}</span>
+          </div>
         </header>
         <div className="report-columns">
           <div className="report-column human-column">
