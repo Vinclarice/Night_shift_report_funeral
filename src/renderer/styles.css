@@ -489,6 +489,24 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page.compact-2 .location-code, .report-page.compact-2 .entry-count, .report-page.compact-2 .special-request { line-height: .115in; }
 .report-page.compact-2 .notes-compact .notes-body { min-height: .24in; line-height: .24in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.24in - .5px), #b6bfcb calc(.24in - .5px), #b6bfcb .24in); }
 
+/* Third and last step, for a night that would otherwise be refused outright. Everything is
+   tighter than is comfortable — this is the setting that keeps a very heavy manifest on one sheet
+   rather than not printing at all, and it should be rare. */
+.report-page.compact-3 .report-column { gap: .05in; }
+.report-page.compact-3 .report-column > h2 { min-height: .23in; margin-bottom: -.04in; padding: .03in .08in .025in; font-size: 10pt; line-height: .16in; letter-spacing: .1em; }
+.report-page.compact-3 .section-card { --card-header-h: .17in; }
+.report-page.compact-3 .section-card h3 { padding-top: .002in; font-size: 7.8pt; line-height: .135in; }
+.report-page.compact-3 .report-row { min-height: .145in; padding: .003in .06in .002in; font-size: 7.8pt; line-height: .13in; }
+.report-page.compact-3 .location-code, .report-page.compact-3 .entry-count, .report-page.compact-3 .special-request { line-height: .1in; font-size: 6.4pt; }
+.report-page.compact-3 .rush-request { font-size: 6pt; line-height: .1in; }
+.report-page.compact-3 .report-header { height: .6in; padding-bottom: .07in; }
+.report-page.compact-3 .report-header h1 { font-size: 15pt; }
+.report-page.compact-3 .report-weekday { font-size: 11pt; }
+.report-page.compact-3 .report-date { font-size: 9pt; }
+/* Label and rule only: at this density there is no room to write, but the block must keep a
+   height because useOverflowCompaction measures the columns against its top edge. */
+.report-page.compact-3 .notes-compact .notes-body { min-height: .16in; line-height: .16in; background: none; }
+
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,
    #dff7ea) left over from an earlier theme, which meant a Cremated card showed a green cursor

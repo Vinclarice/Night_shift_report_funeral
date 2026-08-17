@@ -48,8 +48,11 @@ const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
  * and there are ten of them down the Human column, close to two inches. Never fewer than one, or a
  * section with no entries could not be typed into on the canvas at all.
  */
-function freeRowsFor(key: ReportSection["key"], compactLevel: CompactLevel): number {
+function freeRowsFor(key: ReportSection["key"], compactLevel: CompactLevel, hasEntries: boolean): number {
   const base = FREE_ROW_COUNTS[key] ?? 1;
+  // At the last step a section that already has entries gives up its spare row entirely. An empty
+  // section keeps one, or there would be nothing on the canvas to click and type into.
+  if (compactLevel >= 3) return hasEntries ? 0 : 1;
   if (compactLevel >= 2) return 1;
   if (compactLevel === 1) return Math.min(base, 2);
   return base;
@@ -317,7 +320,7 @@ const SectionCard = memo(function SectionCard({
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const itemCount = sectionItemCount(section);
-  const freeRows = freeRowsFor(section.key, compactLevel);
+  const freeRows = freeRowsFor(section.key, compactLevel, section.entries.length > 0);
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
 
