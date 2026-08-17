@@ -140,7 +140,10 @@ test("launches portably and renders the exact nine-card page", async () => {
       const data = await window.nightShift.bootstrap();
       const report = data.report!;
       const section = report.sections.find((item) => item.key === "human-fdp")!;
-      for (let index = 1; index <= 20; index += 1) {
+      // Well past the ceiling. Compaction now has three steps and holds around fifty entries, so
+      // the twenty this used to add are comfortably absorbed — the guard only means anything if
+      // the fixture is genuinely bigger than the sheet can take.
+      for (let index = 1; index <= 60; index += 1) {
         section.entries.push({
           id: crypto.randomUUID(),
           type: "plain" as const,
