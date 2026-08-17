@@ -5,6 +5,7 @@ import { MutationQueue } from "@/application/mutationQueue";
 import type { LayoutSettings, NightReport } from "@/domain/types";
 import type { BootstrapData } from "@/shared/contracts";
 import { useOverflowCompaction } from "../hooks/useOverflowCompaction";
+import type { CompactLevel } from "../hooks/useOverflowCompaction";
 import { useToast } from "../ui/Toast";
 import type { DraftActions } from "./useDraftActions";
 import { useDraftActions } from "./useDraftActions";
@@ -39,7 +40,7 @@ export interface ReportState {
   calibration: boolean;
   undoAvailable: boolean;
   redoAvailable: boolean;
-  compactLevel: 0 | 1;
+  compactLevel: CompactLevel;
   overflow: boolean;
 }
 

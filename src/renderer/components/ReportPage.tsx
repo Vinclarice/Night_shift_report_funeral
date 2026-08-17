@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
+import type { CompactLevel } from "../hooks/useOverflowCompaction";
 
 interface Props {
   report: NightReport;
@@ -13,7 +14,7 @@ interface Props {
   dateOverride?: string | null;
   /** Stamped into the footer so two printed copies of one night can be told apart. */
   printedAt?: Date | null;
-  compactLevel?: 0 | 1;
+  compactLevel?: CompactLevel;
   calibration?: boolean;
   interactive?: boolean;
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
@@ -41,6 +42,18 @@ const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
   "human-pending": 2,
   "human-ship-outs": 1,
 };
+
+/**
+ * Spare writing rows are the first thing to give back when the page will not fit: they hold nothing
+ * and there are ten of them down the Human column, close to two inches. Never fewer than one, or a
+ * section with no entries could not be typed into on the canvas at all.
+ */
+function freeRowsFor(key: ReportSection["key"], compactLevel: CompactLevel): number {
+  const base = FREE_ROW_COUNTS[key] ?? 1;
+  if (compactLevel >= 2) return 1;
+  if (compactLevel === 1) return Math.min(base, 2);
+  return base;
+}
 
 const printedTime = (value: Date): string =>
   new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
@@ -237,7 +250,7 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
  * cancels; Enter inserts a newline, since this is prose rather than a one-line entry. Rendered
  * read-only when no commit handler is supplied, which is how the hidden print copy gets it.
  */
-function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void }) {
+function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void; compact?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -250,7 +263,7 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
   }
 
   return (
-    <div className="notes-block">
+    <div className={`notes-block${compact ? " notes-compact" : ""}`}>
       <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
       {editing ? (
         <textarea
@@ -276,6 +289,7 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
 const SectionCard = memo(function SectionCard({
   section,
   width,
+  compactLevel,
   interactive,
   onWidthChange,
   onWidthCommit,
@@ -289,6 +303,7 @@ const SectionCard = memo(function SectionCard({
 }: {
   section: ReportSection;
   width?: number;
+  compactLevel: CompactLevel;
   interactive?: boolean;
   onWidthChange?: Props["onWidthChange"];
   onWidthCommit?: Props["onWidthCommit"];
@@ -302,7 +317,7 @@ const SectionCard = memo(function SectionCard({
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const itemCount = sectionItemCount(section);
-  const freeRows = FREE_ROW_COUNTS[section.key] ?? 1;
+  const freeRows = freeRowsFor(section.key, compactLevel);
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
 
@@ -410,20 +425,20 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           <div className="report-column human-column">
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} compactLevel={compactLevel} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
           <div className="report-column cremated-column">
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} compactLevel={compactLevel} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
         </div>
         {/* Anchored to the foot of the content box so it lands in the same place every night
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
             the floor, so typing enough here compacts the columns rather than colliding with them. */}
-        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />
+        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} compact={compactLevel >= 2} />
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>

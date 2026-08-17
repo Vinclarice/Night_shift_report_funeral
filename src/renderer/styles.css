@@ -478,6 +478,17 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page.compact-1 .report-row { min-height: .19in; padding: .006in .075in .004in; font-size: 8.9pt; line-height: .165in; }
 .report-page.compact-1 .location-code, .report-page.compact-1 .entry-count, .report-page.compact-1 .special-request { line-height: .12in; }
 
+/* Second and last compaction step. Everything the first step left alone: the type tightens once
+   more, the card gaps and header band close up, and the notes area drops to a single line. Past
+   this the report genuinely does not fit and printing is refused rather than silently clipped. */
+.report-page.compact-2 .report-column { gap: .08in; }
+.report-page.compact-2 .report-column > h2 { min-height: .26in; margin-bottom: -.05in; padding: .04in .09in .03in; font-size: 11pt; line-height: .18in; }
+.report-page.compact-2 .section-card { --card-header-h: .2in; }
+.report-page.compact-2 .section-card h3 { padding-top: .003in; font-size: 8.4pt; line-height: .155in; }
+.report-page.compact-2 .report-row { min-height: .17in; padding: .004in .07in .003in; font-size: 8.5pt; line-height: .15in; }
+.report-page.compact-2 .location-code, .report-page.compact-2 .entry-count, .report-page.compact-2 .special-request { line-height: .115in; }
+.report-page.compact-2 .notes-compact .notes-body { min-height: .24in; line-height: .24in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.24in - .5px), #b6bfcb calc(.24in - .5px), #b6bfcb .24in); }
+
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,
    #dff7ea) left over from an earlier theme, which meant a Cremated card showed a green cursor

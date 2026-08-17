@@ -14,11 +14,13 @@ import type { LayoutSettings, NightReport } from "@/domain/types";
  * user-controlled preview zoom, so a tolerance in screen pixels would mean a different tolerance on
  * paper at every zoom level.
  */
+export type CompactLevel = 0 | 1 | 2;
+
 const BOTTOM_GUTTER_INCHES = 0.18;
 const PAGE_DPI = 96;
 
 export function useOverflowCompaction(report: NightReport | null, layout: LayoutSettings | null) {
-  const [compaction, setCompaction] = useState<{ key: string; level: 0 | 1 }>({ key: "", level: 0 });
+  const [compaction, setCompaction] = useState<{ key: string; level: CompactLevel }>({ key: "", level: 0 });
   const [overflow, setOverflow] = useState(false);
 
   const compactionKey = useMemo(
@@ -32,7 +34,7 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     [report?.sections, layout?.marginInches, layout?.scale, layout?.offsetYInches],
   );
 
-  const compactLevel = compaction.key === compactionKey ? compaction.level : 0;
+  const compactLevel: CompactLevel = compaction.key === compactionKey ? compaction.level : 0;
 
   useEffect(() => {
     const page = document.querySelector<HTMLElement>('[data-role="live-report-page"]');
@@ -60,8 +62,11 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       const notes = page.querySelector<HTMLElement>(".notes-block");
       const floor = notes ? notes.getBoundingClientRect().top : pageRect.bottom;
       const exceedsPage = contentBottom > floor - gutter;
-      if (exceedsPage && compactLevel < 1) {
-        setCompaction({ key: compactionKey, level: 1 });
+      // Two steps, in order of what is cheapest to give up. The first tightens type and leading;
+      // the second also gives back the blank writing rows and most of the notes area, which is
+      // roughly two inches of the column that the first step never touched.
+      if (exceedsPage && compactLevel < 2) {
+        setCompaction({ key: compactionKey, level: (compactLevel + 1) as CompactLevel });
         setOverflow(false);
       } else {
         setOverflow(exceedsPage);
