@@ -33,13 +33,13 @@ The window is frameless: the dark command bar is also the title bar, with its ow
 
 ## Physical print-quality gate
 
-Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the 3.55in card ceiling, one-page fit, and compaction engaging only where intended — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
+Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the 3.55in card ceiling, one-page fit, and each compaction step engaging exactly where intended — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
 
 Those checks cannot approve this gate. Print and compare these cases beside the current Word report on the actual company printer:
 
 - Empty report.
 - The photographed sample report.
-- Busy report with automatic compaction.
+- One busy night at three sizes, one sheet per compaction step. The third is a near-full page at 7.8pt — the setting that trades legibility for fitting at all, and the one to judge at arm's length.
 - Long funeral-home and deceased names.
 - Multiple merged entries and multiple rush deliveries.
 - A section with an entry pinned to the bottom, to confirm the separating rule reads on paper.

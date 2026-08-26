@@ -14,7 +14,7 @@
  *
  *   pnpm build && node scripts/print-gate.mjs
  */
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -36,6 +36,19 @@ const fhOnly = (home, rush = false) => ({ ...base(), type: "funeralHomeOnly", fu
 const plain = (text, pinnedBottom = false) => ({ ...base(), type: "plain", text, pinnedBottom });
 const count = (text, n) => ({ ...base(), type: "count", text, count: n });
 const combined = (leftText, rightText, n) => ({ ...base(), type: "combined", leftText, rightText, count: n });
+
+/**
+ * A realistic busy night, scaled by how many rows the two long sections carry. The three
+ * compaction cases differ only in that scale: same shape of report, more of it, so the sheets can
+ * be compared to each other at the printer and the only variable is the step that engaged.
+ */
+const busyNight = (humanRows, cremRows) => ({
+  "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],
+  "human-fdp": Array.from({ length: humanRows }, (_, i) => fun(`Funeral Home ${i + 1}`, `Family ${i + 1}`, `${i + 1}A`)),
+  "human-pending": [fun("Brown/PA", "Helwig", "", "Roadtrip - Ron OK"), fun("Beltway Crem", "Hernandez", "", "FH will call")],
+  "human-ship-outs": [fun("NMS", "Nicholas"), fun("NMS", "Curry", "", "FDP or S/O?")],
+  "cremated-fdp": Array.from({ length: cremRows }, (_, i) => count(`Additional cremains ${i + 1}`, (i % 3) + 1)),
+});
 
 /** Each case's `entries` maps a section key to the rows that section should hold. */
 const CASES = [
@@ -59,20 +72,43 @@ const CASES = [
     },
   },
   {
-    id: "03-busy-compacted",
-    title: "Busy report with automatic compaction",
-    why: "The last-resort compaction pass. Row height, header height and chip leading all shrink.",
-    expectCompact: true,
-    entries: {
-      "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],
-      "human-fdp": Array.from({ length: 16 }, (_, i) => fun(`Funeral Home ${i + 1}`, `Family ${i + 1}`, `${i + 1}A`)),
-      "human-pending": [fun("Brown/PA", "Helwig", "", "Roadtrip - Ron OK"), fun("Beltway Crem", "Hernandez", "", "FH will call")],
-      "human-ship-outs": [fun("NMS", "Nicholas"), fun("NMS", "Curry", "", "FDP or S/O?")],
-      "cremated-fdp": Array.from({ length: 10 }, (_, i) => count(`Additional cremains ${i + 1}`, (i % 3) + 1)),
-    },
+    id: "03-compacted-1",
+    title: "Busy night — first compaction step",
+    why: "The cheapest step: type and leading tighten, the writing rows and notes block are untouched.",
+    expectCompact: 1,
+    entries: busyNight(16, 10),
   },
   {
-    id: "04-long-names",
+    id: "04-compacted-2",
+    title: "Busier night — second compaction step",
+    why: "Adds the blank writing rows and most of the notes area to what step one already gave up.",
+    expectCompact: 2,
+    extra: [
+      "Notes block still usable — ruled, and deep enough to write a line in by hand",
+      "Sections show at most one blank writing row, and no card looks truncated for it",
+    ],
+    entries: busyNight(26, 14),
+  },
+  {
+    id: "05-compacted-3",
+    title: "Busiest night that still prints — third compaction step",
+    why: "The emergency setting at 7.8pt. Everything tightens again and sections holding entries lose their spare row. This is the sheet most likely to fail on paper, and the one this gate exists for.",
+    expectCompact: 3,
+    extra: [
+      "**Read a location code and a deceased name at arm's length.** 7.8pt body with 6.4pt chips is deliberately uncomfortable; the question is whether a dispatcher can still work from it under the loading-bay lights, not whether it looks good",
+      "Rows have not collided — each line clears the hairline above and below it",
+      "The RUSH chip and its deadline are still legible at 6pt",
+      "Notes block has lost its rules but is still visibly a block, not a stray gap",
+    ],
+    // Tuned by running this gate: 48/26 tips into "does not fit one page" and 42/22 fills the
+    // column with a couple of rows to spare. Deliberately near the ceiling — a step-three sheet
+    // with inches of white space left on it would not be the page this case exists to judge. If a
+    // layout change ever flips this to a page-fit failure, retune it rather than reading it as a
+    // regression; what it is asserting is that step three still fits a night this size.
+    entries: busyNight(42, 22),
+  },
+  {
+    id: "06-long-names",
     title: "Long funeral-home and deceased names",
     why: "Wrapping and the 3.55in card ceiling. Nothing may clip or push a card out of column.",
     entries: {
@@ -83,7 +119,7 @@ const CASES = [
     },
   },
   {
-    id: "05-merged-and-rush",
+    id: "07-merged-and-rush",
     title: "Multiple merged entries and multiple rush deliveries",
     why: "Rush ordering holds the top; merged people share one funeral-home line with + separators.",
     entries: {
@@ -98,7 +134,7 @@ const CASES = [
     },
   },
   {
-    id: "06-pinned-bottom",
+    id: "08-pinned-bottom",
     title: "Entry pinned to the bottom of a section",
     why: "The separating rule above a pinned line must read on paper without looking like a highlight.",
     entries: {
@@ -107,7 +143,7 @@ const CASES = [
     },
   },
   {
-    id: "07-cremated-widths",
+    id: "09-cremated-widths",
     title: "Cremated card at default width beside one expanded by a name",
     why: "Cremated cards start at 1.62in and grow only for the edge case that needs it.",
     entries: {
@@ -118,7 +154,7 @@ const CASES = [
     },
   },
   {
-    id: "08-notes-filled",
+    id: "10-notes-filled",
     title: "Notes written in the footer",
     why: "Typed notes take height from the columns, so the block has to read cleanly when full.",
     notes: [
@@ -193,6 +229,23 @@ const inspect = (page) => page.evaluate(() => {
 
 const run = async () => {
   await mkdir(outDir, { recursive: true });
+  // Everything below is regenerated. Sweeping first matters because case ids carry a sequence
+  // number: when a case is added the later ones shift, and a stale PDF from a previous run would
+  // sit in the stack at the printer under a number that now means a different sheet.
+  //
+  // A locked file is reported rather than thrown on. This directory sits inside OneDrive on the
+  // laptop this is run from, and a sync or an open PDF viewer holds a handle often enough that
+  // aborting the whole gate over one undeleted sheet would be the wrong trade — anything the run
+  // regenerates overwrites its stale copy anyway.
+  const stranded = [];
+  for (const name of await readdir(outDir)) {
+    if (!/\.(png|pdf)$/.test(name) && name !== "CHECKLIST.md") continue;
+    try {
+      await rm(join(outDir, name), { force: true });
+    } catch {
+      stranded.push(name);
+    }
+  }
   const dataDir = await mkdtemp(join(tmpdir(), "night-shift-print-gate-"));
   const app = await electron.launch({
     args: [join(projectRoot, "out", "main", "index.js")],
@@ -222,8 +275,11 @@ const run = async () => {
       if (report.strayed.length) problems.push(`wrong column: ${report.strayed.join(", ")}`);
       if (report.widestCardIn > 3.56) problems.push(`card ${report.widestCardIn}in exceeds the 3.55in ceiling`);
       if (overflowWarning) problems.push("printing paused: does not fit one page");
-      if (testCase.expectCompact && report.compact !== "compact-1") problems.push(`expected compact-1, got ${report.compact}`);
-      if (!testCase.expectCompact && report.compact !== "compact-0") problems.push(`unexpected ${report.compact}`);
+      // The exact step, not merely that something compacted: each one renders a materially
+      // different sheet, and a case that quietly slid from step two to step three would otherwise
+      // pass while producing a sheet nobody has judged on paper.
+      const expectedCompact = `compact-${testCase.expectCompact ?? 0}`;
+      if (report.compact !== expectedCompact) problems.push(`expected ${expectedCompact}, got ${report.compact}`);
       if (problems.length) failures.push(`${testCase.id}: ${problems.join("; ")}`);
 
       await page.screenshot({ path: join(outDir, `${testCase.id}.png`), clip: { x: 0, y: 0, width: 816, height: 1056 } });
@@ -283,15 +339,15 @@ const run = async () => {
     }, RULE_WEIGHTS);
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
-    await page.screenshot({ path: join(outDir, "09-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    await page.screenshot({ path: join(outDir, "11-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
     const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
       const contents = BrowserWindow.getAllWindows()[0].webContents;
       const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
       return buffer.toString("base64");
     });
-    await writeFile(join(outDir, "09-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await writeFile(join(outDir, "11-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
     await page.emulateMedia({ media: "screen" });
-    console.log("09-rule-weights      ok  (print and pick the hairline that reads best)");
+    console.log("11-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {
@@ -300,6 +356,19 @@ const run = async () => {
   }
 
   console.log(`\nPrint pack: ${outDir}`);
+  // Only the locked files this run did not go on to rewrite are worth mentioning: those are the
+  // ones left over from a previous numbering, and the operator has to bin them by hand or they
+  // reach the printer as part of the stack.
+  const regenerated = new Set([
+    ...CASES.flatMap((c) => [`${c.id}.png`, `${c.id}.pdf`]),
+    "00-calibration.png", "00-calibration.pdf", "11-rule-weights.png", "11-rule-weights.pdf", "CHECKLIST.md",
+  ]);
+  const orphans = stranded.filter((name) => !regenerated.has(name));
+  if (orphans.length) {
+    console.log(`\nCould not delete ${orphans.length} file(s) left by a previous run — delete them`);
+    console.log("before printing, or they will go into the stack under numbers that have moved:");
+    for (const name of orphans) console.log(`  - ${name}`);
+  }
   if (failures.length) {
     console.log(`\n${failures.length} mechanical check(s) failed:`);
     for (const failure of failures) console.log(`  - ${failure}`);
@@ -314,8 +383,12 @@ const checklist = () => `# Physical print-quality gate — checklist
 
 Generated by \`node scripts/print-gate.mjs\`. The mechanical checks in that script confirmed card
 count, no clipped text, no card in the wrong column, the 3.55in card ceiling, one-page fit, and
-that compaction engages only where intended. **None of that can approve this gate.** What follows
-only exists on paper.
+that each compaction step engages exactly where intended. **None of that can approve this gate.**
+What follows only exists on paper.
+
+Cases 03, 04 and 05 are one busy night at three sizes, one per compaction step. Print them
+together and compare them against each other as well as against the Word report: they are how a
+busy night reaches paper, and step three trades legibility for fitting at all.
 
 ## Before printing
 
@@ -328,7 +401,7 @@ only exists on paper.
 
 ## Each case, beside the current Word report
 
-${CASES.map((c) => `### ${c.id} — ${c.title}\n${c.why}\n\n- [ ] No text clipped at any card edge\n- [ ] Borders and rules crisp, not fuzzy or doubled\n- [ ] No card has moved to the wrong column\n- [ ] Not worse than the Word document\n`).join("\n")}
+${CASES.map((c) => `### ${c.id} — ${c.title}\n${c.why}\n\n- [ ] No text clipped at any card edge\n- [ ] Borders and rules crisp, not fuzzy or doubled\n- [ ] No card has moved to the wrong column\n${(c.extra ?? []).map((item) => `- [ ] ${item}\n`).join("")}- [ ] Not worse than the Word document\n`).join("\n")}
 
 ## This restyle in particular
 
@@ -342,7 +415,8 @@ The palette changed, so these are new on paper and have never been printed:
       4.9:1. Confirm it is comfortably readable at arm's length.
 - [ ] **Rush rows** — the red left bar and RUSH chip still jump out of the page.
 - [ ] **Location codes** (13A, SSR, TRL) — chip borders not lost at 7pt.
-- [ ] **Pinned entry** (case 06) — the heavier rule above it reads as a separator, not a smudge.
+- [ ] **Pinned entry** (case ${CASES.find((c) => c.id.endsWith("pinned-bottom")).id}) — the heavier
+      rule above it reads as a separator, not a smudge.
 
 ## Sign-off
 
