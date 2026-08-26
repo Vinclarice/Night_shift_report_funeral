@@ -27,7 +27,10 @@ let repository: PrismaReportRepository;
 let service: ReportService;
 let backups: BackupManager;
 
-const STUDIO_BACKGROUND = "#080b10";
+// Painted for the frame between the window appearing and React mounting, so it has to match what
+// the renderer settles to — `--surface` in styles.css. This was left at the pre-2.4.0 near-black
+// when the interface went light, which inverted the very flash it exists to prevent. Keep in step.
+const STUDIO_BACKGROUND = "#f3f5f7";
 const windowStatePath = join(userDataPath, "window-state.json");
 const logDirectory = join(userDataPath, "logs");
 
@@ -194,9 +197,7 @@ async function createWindow() {
     minHeight: 760,
     title: "Night Shift Report",
     show: false,
-    // The studio chrome draws its own title bar, so the OS frame is removed entirely. Without a
-    // matching background colour the window paints white for a frame before React mounts, which
-    // reads as a flash against a near-black UI.
+    // The studio chrome draws its own title bar, so the OS frame is removed entirely.
     frame: false,
     backgroundColor: STUDIO_BACKGROUND,
     icon: iconPath,
