@@ -31,6 +31,26 @@ The window is frameless: the dark command bar is also the title bar, with its ow
 - Repeat the one-time dependency setup whenever the Electron version in `production-runtime/package.json` changes. Ordinary application updates only require `out`.
 - Report data is not stored beside the executable. To transfer existing reports, close the app and separately copy `%LOCALAPPDATA%\Night Shift Report` to the same location on the destination computer.
 
+## When Windows blocks the app
+
+Nothing here is code-signed — not the portable executable, and not the Electron runtime the `.bat` launcher calls, which ships unsigned from npm. Signing costs money every year and buys nothing the report itself needs, so it is deliberately not done. The cost is that a fresh Windows 11 computer may refuse to start the app until one of the following is dealt with. Expect this on any new production machine.
+
+**Smart App Control** blocks unsigned applications outright and has no allowlist — it is on or off, so there is no exception to add. It arrives on a clean Windows 11 install in *evaluation mode*, where it watches what gets run and then decides: seeing unsigned software in real use, it switches itself off, permanently. That is the likely course on a machine whose job is running this app, and it is why the app can be blocked once and then start normally a while later with nothing having been changed. Check which state a machine is in:
+
+```powershell
+(Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" -Name VerifiedAndReputablePolicyState).VerifiedAndReputablePolicyState
+```
+
+`0` is off and nothing needs doing — it cannot switch back on without a clean reinstall of Windows. `2` is evaluation mode and can still turn *on*, so turn it off by hand rather than waiting on its verdict; `1` is on and enforcing. Both are turned off at Settings > Privacy & security > Windows Security > App & browser control > Smart App Control settings, which needs an administrator and is a one-way change. Note that this does give up a real layer of protection, and on a company computer it is the company's decision to make. A self-signed certificate is not a way around any of this: Smart App Control wants a publisher Microsoft already trusts, so signing the app yourself changes nothing.
+
+**Defender SmartScreen** is separate, and usually fires because the files were copied from a download, a zip, a network share, or OneDrive, all of which mark them as coming from the internet. Clearing that mark on the production folder is enough:
+
+```powershell
+Get-ChildItem -Path "C:\Path\To\NightShiftReport" -Recurse | Unblock-File
+```
+
+**"The app you're trying to install isn't a Microsoft-verified app"** is a third thing again — Settings > Apps > Advanced app settings > Choose where to get apps, set to warn about or block anything outside the Microsoft Store. Set it to allow apps from anywhere.
+
 ## Physical print-quality gate
 
 Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the 3.55in card ceiling, one-page fit, and each compaction step engaging exactly where intended — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
