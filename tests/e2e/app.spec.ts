@@ -126,8 +126,14 @@ test("launches portably and renders the exact nine-card page", async () => {
     });
     await page.reload();
     await expect(page.locator(".page-stage .report-page")).toBeVisible();
-    // compact-1 exactly: there is one compaction level, so a `[12]` match could never fail usefully.
-    await expect(page.locator(".page-stage .report-page")).toHaveClass(/compact-1/);
+    // Squeezed, but nowhere near as hard as the sheet can be: this fixture is a busy night, not an
+    // impossible one. An exact figure would be brittle — compaction is continuous and settles a
+    // point or two either side of the same answer — so the assertion is the band it belongs in.
+    // Polled, because the search takes a few measured renders to settle and reading it the instant
+    // the page appears catches it mid-search rather than at its answer.
+    const tightenNow = async () => Number(await page.locator(".page-stage .report-page").getAttribute("data-tighten"));
+    await expect.poll(tightenNow, { timeout: 10_000 }).toBeLessThan(0.6);
+    expect(await tightenNow()).toBeGreaterThan(0);
     // Compaction is a fallback that must make the report fit, not merely fire.
     await expect(page.getByText(/Printing is paused/)).toHaveCount(0);
     await page.evaluate(() => { for (const element of document.querySelectorAll<HTMLElement>("*")) element.scrollTop = 0; window.scrollTo(0, 0); });
@@ -141,10 +147,10 @@ test("launches portably and renders the exact nine-card page", async () => {
       const data = await window.nightShift.bootstrap();
       const report = data.report!;
       const section = report.sections.find((item) => item.key === "human-fdp")!;
-      // Well past the ceiling. Compaction has four steps, the fourth a 7.2pt backstop that holds
-      // somewhere north of sixty entries. Sixty added on top of the busy fixture above clears even
-      // that; the guard only means anything if the fixture is genuinely bigger than the sheet can
-      // take, so it has to stay ahead of the backstop, not just of step three.
+      // Well past the ceiling. Squeezed all the way down, to 7.2pt, the sheet holds somewhere north
+      // of sixty entries. Sixty added on top of the busy fixture above clears even that; the guard
+      // only means anything if the fixture is genuinely bigger than the sheet can take, so it has
+      // to stay ahead of the tightest the page is ever drawn, not merely of a busy night.
       for (let index = 1; index <= 60; index += 1) {
         section.entries.push({
           id: crypto.randomUUID(),

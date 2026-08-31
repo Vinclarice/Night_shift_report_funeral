@@ -53,13 +53,13 @@ Get-ChildItem -Path "C:\Path\To\NightShiftReport" -Recurse | Unblock-File
 
 ## Physical print-quality gate
 
-Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the 3.55in card ceiling, one-page fit, and each compaction step engaging exactly where intended — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
+Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the 3.55in card ceiling, one-page fit, and each sheet being squeezed about as hard as it is meant to be — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
 
 Those checks cannot approve this gate. Print and compare these cases beside the current Word report on the actual company printer:
 
 - Empty report.
 - The photographed sample report.
-- One busy night at three sizes, one sheet per compaction step. The third is a near-full page at 7.8pt — the setting that trades legibility for fitting at all, and the one to judge at arm's length.
+- One busy night at four densities. The sheet is squeezed by exactly as much as it needs rather than dropping between fixed sizes, so these are samples along that range. The last is a near-full page at 7.2pt — the smallest it is ever drawn, and the one to judge at a desk under office light.
 - Long funeral-home and deceased names.
 - Multiple merged entries and multiple rush deliveries.
 - A section with an entry pinned to the bottom, to confirm the separating rule reads on paper.

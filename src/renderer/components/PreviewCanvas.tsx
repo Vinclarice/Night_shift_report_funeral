@@ -33,14 +33,18 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   const deferredReport = useDeferredValue(report);
   const deferredLayout = useDeferredValue(controller.layout!);
   const entryCount = report.sections.reduce((total, section) => total + section.entries.length, 0);
-  const compacted = controller.compactLevel > 0;
-  // Spelled out rather than left to the bare "1/3", so the readout answers the question the number
-  // raises — what got smaller, and whether anything was taken away. Nothing is: the writing rows
-  // hold at every step, and only type and spacing give.
+  // Rounded to whole percent for the readout. The underlying value is continuous, but a number
+  // that twitched by a fraction on every keystroke would read as noise rather than as information.
+  const tightenPercent = Math.round(controller.tighten * 100);
+  const compacted = tightenPercent > 0;
+  // Spelled out rather than left to the bare percentage, so the readout answers the question the
+  // number raises — what got smaller, and whether anything was taken away. Nothing is: the writing
+  // rows and the notes block's two ruled lines hold all the way down, and only type and spacing
+  // give. 100% is the tightest the sheet is ever drawn, not the point at which it stops fitting.
   const fitTitle = controller.overflow
     ? "This report is longer than one page. Adjust card widths, print scale, or entries."
     : compacted
-      ? `Type and spacing were tightened (step ${controller.compactLevel} of 4) to keep this on one page. The blank writing rows are unaffected.`
+      ? `Type and spacing were tightened ${tightenPercent}% of the way to the smallest this sheet is drawn, to keep it on one page. The blank writing rows are unaffected.`
       : "This report fits one page at its normal size.";
   // Coarser above actual size, so reaching 200% is a few clicks rather than twenty.
   const zoomStep = zoom >= 1 ? 0.1 : 0.05;
@@ -163,7 +167,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
               last night's, which reads as a glitch rather than as the page doing its job. */}
           <span className={`canvas-fit${controller.overflow ? " over" : compacted ? " tight" : ""}`} role="status" aria-live="polite" title={fitTitle}>
             {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
-            {!controller.overflow && compacted && <> <em>·</em> tightened {controller.compactLevel}/4</>}
+            {!controller.overflow && compacted && <> <em>·</em> tightened {tightenPercent}%</>}
           </span>
           <div className="zoom-control" aria-label="Preview zoom">
             <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - (zoom > 1 ? 0.1 : 0.05) })} />
@@ -176,7 +180,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
         <div className="page-stage" style={{ "--preview-scale": zoom } as CSSProperties}>
           <div className="page-stage-frame">
             <ReportPage
-              report={deferredReport} layout={deferredLayout} dateOverride={controller.dateOverride} printedAt={controller.printedAt} compactLevel={controller.compactLevel} calibration={controller.calibration} interactive
+              report={deferredReport} layout={deferredLayout} dateOverride={controller.dateOverride} printedAt={controller.printedAt} tighten={controller.tighten} calibration={controller.calibration} interactive
               selectedSectionKey={workspace.selection.sectionKey}
               selectedEntryId={workspace.selection.kind === "entry" ? workspace.selection.entryId : undefined}
               onSelectSection={handleSelectSection}

@@ -5,7 +5,6 @@ import { MutationQueue } from "@/application/mutationQueue";
 import type { LayoutSettings, NightReport } from "@/domain/types";
 import type { BootstrapData } from "@/shared/contracts";
 import { useOverflowCompaction } from "../hooks/useOverflowCompaction";
-import type { CompactLevel } from "../hooks/useOverflowCompaction";
 import { useToast } from "../ui/Toast";
 import type { DraftActions } from "./useDraftActions";
 import { useDraftActions } from "./useDraftActions";
@@ -40,7 +39,8 @@ export interface ReportState {
   calibration: boolean;
   undoAvailable: boolean;
   redoAvailable: boolean;
-  compactLevel: CompactLevel;
+  /** How hard the sheet is squeezed to fit one page: 0 natural, 1 the tightest drawn. */
+  tighten: number;
   overflow: boolean;
 }
 
@@ -78,7 +78,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const bootstrapRef = useRef<BootstrapData | null>(null);
   const undoStackRef = useRef<NightReport[]>([]);
   const redoStackRef = useRef<NightReport[]>([]);
-  const { compactLevel, overflow } = useOverflowCompaction(report, layout);
+  const { tighten, overflow } = useOverflowCompaction(report, layout);
 
   // Every action below reads live values through refs rather than closing over state, which is what
   // lets each action hook's returned object be built exactly once. Keeping bootstrap mirrored here
@@ -149,8 +149,8 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
 
   const state = useMemo<ReportState>(() => ({
     bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration,
-    undoAvailable, redoAvailable, compactLevel, overflow,
-  }), [bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, undoAvailable, redoAvailable, compactLevel, overflow]);
+    undoAvailable, redoAvailable, tighten, overflow,
+  }), [bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, undoAvailable, redoAvailable, tighten, overflow]);
 
   return (
     <ReportStateContext.Provider value={state}>

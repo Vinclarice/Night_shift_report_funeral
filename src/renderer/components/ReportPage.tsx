@@ -5,7 +5,6 @@ import type { CSSProperties } from "react";
 import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
-import type { CompactLevel } from "../hooks/useOverflowCompaction";
 
 interface Props {
   report: NightReport;
@@ -14,7 +13,8 @@ interface Props {
   dateOverride?: string | null;
   /** Stamped into the footer so two printed copies of one night can be told apart. */
   printedAt?: Date | null;
-  compactLevel?: CompactLevel;
+  /** How far the sheet is tightened to fit one page: 0 is its natural size, 1 the tightest drawn. */
+  tighten?: number;
   calibration?: boolean;
   interactive?: boolean;
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
@@ -38,7 +38,7 @@ interface Props {
 /**
  * Blank rows past the last entry, for typing directly onto the page. Sections not listed get one.
  *
- * These counts hold at every compaction step. Compaction used to reclaim them — they hold nothing,
+ * These counts hold however hard the sheet is squeezed. Compaction used to reclaim them — they hold nothing,
  * and there are ten of them down the Human column, close to two inches, so they look like the
  * cheapest thing to give back. They are not. A row disappearing is the one compaction a person
  * watching the page actually sees, and it takes away somewhere they were about to write. Type and
@@ -260,7 +260,7 @@ const trimTrailing = (value: string): string => value.replace(/\s+$/, "");
  * cancels; Enter inserts a newline, since this is prose rather than a one-line entry. Rendered
  * read-only when no commit handler is supplied, which is how the hidden print copy gets it.
  */
-function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void; compact?: boolean }) {
+function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -308,7 +308,7 @@ function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; pr
   }
 
   return (
-    <div className={`notes-block${compact ? " notes-compact" : ""}`}>
+    <div className="notes-block">
       <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
       {editing ? (
         <textarea
@@ -443,8 +443,9 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, compactLevel = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
+    "--tighten": String(tighten),
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
     "--report-offset-x": `${layout.offsetXInches}in`,
@@ -458,8 +459,11 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
 
   return (
     <article
-      className={`report-page compact-${compactLevel}`}
+      className="report-page"
       style={pageStyle}
+      // Readable back out for the print gate and the desktop tests, which need to know how hard a
+      // given sheet was squeezed and can no longer read it off a class name.
+      data-tighten={tighten.toFixed(3)}
       data-calibration={calibration || undefined}
       // Marks the one instance meant to be measured for page overflow — the interactive canvas
       // copy, never the hidden print-only one. useOverflowCompaction looks for this attribute
@@ -492,7 +496,7 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
         {/* Anchored to the foot of the content box so it lands in the same place every night
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
             the floor, so typing enough here compacts the columns rather than colliding with them. */}
-        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} compact={compactLevel >= 2} />
+        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>

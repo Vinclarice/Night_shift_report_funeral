@@ -479,62 +479,55 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page[data-calibration]::before { border: 1.5px dashed #c22; border-radius: 0; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }
 
-/* Single, light last-resort fallback: only engaged when wrapping + natural sizing still don't fit
-   one page. Deliberately left at its pre-10pt sizes — this is the floor, so holding it fixed means
-   raising the body type cannot cost the sheet any worst-case capacity. */
-/* No banner-margin override here: at -.08in the compacted page left a .04in gap under the banner
-   while the normal page overlapped it by .05in, so the two modes disagreed. Both are flush now. */
-.report-page.compact-1 .section-card { --card-header-h: .22in; }
-.report-page.compact-1 .section-card h3 { padding-top: .005in; font-size: 8.8pt; line-height: .17in; }
-.report-page.compact-1 .report-row { min-height: .19in; padding: .006in .075in .004in; font-size: 8.9pt; line-height: .165in; }
-.report-page.compact-1 .location-code, .report-page.compact-1 .entry-count, .report-page.compact-1 .special-request { line-height: .12in; }
+/* Compaction, interpolated rather than stepped. --tighten runs 0 (the sheet at its natural size)
+   to 1 (the tightest it is ever drawn, 7.2pt, legible at a desk under office light). Every
+   measurement below is the same lerp: the loose value, minus the whole travel times --tighten. The
+   page used to jump between four fixed settings, which meant one extra row could drop the whole
+   sheet a size; useOverflowCompaction now searches for the smallest --tighten that fits, so it
+   shrinks by what it needs and no more.
 
-/* Second and last compaction step. Everything the first step left alone: the type tightens once
-   more, the card gaps and header band close up, and the notes area drops to a single line. Past
-   this the report genuinely does not fit and printing is refused rather than silently clipped. */
-.report-page.compact-2 .report-column { gap: .08in; }
-.report-page.compact-2 .report-column > h2 { min-height: .26in; margin-bottom: -.05in; padding: .04in .09in .03in; font-size: 11pt; line-height: .18in; }
-.report-page.compact-2 .section-card { --card-header-h: .2in; }
-.report-page.compact-2 .section-card h3 { padding-top: .003in; font-size: 8.4pt; line-height: .155in; }
-.report-page.compact-2 .report-row { min-height: .17in; padding: .004in .07in .003in; font-size: 8.5pt; line-height: .15in; }
-.report-page.compact-2 .location-code, .report-page.compact-2 .entry-count, .report-page.compact-2 .special-request { line-height: .115in; }
-.report-page.compact-2 .notes-compact .notes-body { min-height: .24in; line-height: .24in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.24in - .5px), #b6bfcb calc(.24in - .5px), #b6bfcb .24in); }
-
-/* Third and last step, for a night that would otherwise be refused outright. Everything is
-   tighter than is comfortable — this is the setting that keeps a very heavy manifest on one sheet
-   rather than not printing at all, and it should be rare. */
-.report-page.compact-3 .report-column { gap: .05in; }
-.report-page.compact-3 .report-column > h2 { min-height: .23in; margin-bottom: -.04in; padding: .03in .08in .025in; font-size: 10pt; line-height: .16in; letter-spacing: .1em; }
-.report-page.compact-3 .section-card { --card-header-h: .17in; }
-.report-page.compact-3 .section-card h3 { padding-top: .002in; font-size: 7.8pt; line-height: .135in; }
-.report-page.compact-3 .report-row { min-height: .145in; padding: .003in .06in .002in; font-size: 7.8pt; line-height: .13in; }
-.report-page.compact-3 .location-code, .report-page.compact-3 .entry-count, .report-page.compact-3 .special-request { line-height: .1in; font-size: 6.4pt; }
-.report-page.compact-3 .rush-request { font-size: 6pt; line-height: .1in; }
-.report-page.compact-3 .report-header { height: .6in; padding-bottom: .07in; }
-.report-page.compact-3 .report-header h1 { font-size: 15pt; }
-.report-page.compact-3 .report-weekday { font-size: 11pt; }
-.report-page.compact-3 .report-date { font-size: 9pt; }
-/* Tighter, but still ruled. The rules used to be dropped here on the grounds that there was no
-   room to write at this density — but a notes block with no lines on it does not read as a tight
-   notes block, it reads as a bug, and a hand can still write .18in high. */
-.report-page.compact-3 .notes-compact .notes-body { min-height: .18in; line-height: .18in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.18in - .5px), #b6bfcb calc(.18in - .5px), #b6bfcb .18in); }
-
-/* Fourth step: the backstop, for a night step three still cannot fit. 7.2pt is smaller than any
-   sheet should routinely be, and it is reached only after three steps have already failed. It is
-   sized to be read at a desk under office light — not across a room, and not in the bay. Type and
-   spacing are all that give here, as at every step: the writing rows are never traded for fit. */
-.report-page.compact-4 .report-column { gap: .04in; }
-.report-page.compact-4 .report-column > h2 { min-height: .21in; margin-bottom: -.035in; padding: .025in .07in .02in; font-size: 9.4pt; line-height: .15in; letter-spacing: .09em; }
-.report-page.compact-4 .section-card { --card-header-h: .155in; }
-.report-page.compact-4 .section-card h3 { padding-top: .002in; font-size: 7.2pt; line-height: .125in; }
-.report-page.compact-4 .report-row { min-height: .128in; padding: .002in .055in .002in; font-size: 7.2pt; line-height: .118in; }
-.report-page.compact-4 .location-code, .report-page.compact-4 .entry-count, .report-page.compact-4 .special-request { line-height: .092in; font-size: 6pt; }
-.report-page.compact-4 .rush-request { font-size: 5.6pt; line-height: .092in; }
-.report-page.compact-4 .report-header { height: .54in; padding-bottom: .06in; }
-.report-page.compact-4 .report-header h1 { font-size: 14pt; }
-.report-page.compact-4 .report-weekday { font-size: 10pt; }
-.report-page.compact-4 .report-date { font-size: 8.4pt; }
-.report-page.compact-4 .notes-compact .notes-body { min-height: .16in; line-height: .16in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.16in - .5px), #b6bfcb calc(.16in - .5px), #b6bfcb .16in); }
+   Type and spacing are all that give. The blank writing rows are never reclaimed — a row
+   disappearing is the one compaction the crew actually sees, and it takes away somewhere they were
+   about to write — and the notes block keeps both its ruled lines the whole way down. */
+.report-page { --tighten: 0; --notes-line: calc(.26in - .1in * var(--tighten)); }
+.report-page .report-column { gap: calc(.12in - .08in * var(--tighten)); }
+.report-page .report-column > h2 {
+  min-height: calc(.32in - .11in * var(--tighten));
+  margin-bottom: calc(-.06in + .025in * var(--tighten));
+  padding: calc(.06in - .035in * var(--tighten)) calc(.09in - .02in * var(--tighten)) calc(.04in - .02in * var(--tighten));
+  font-size: calc(12pt - 2.6pt * var(--tighten));
+  line-height: calc(.21in - .06in * var(--tighten));
+  letter-spacing: calc(.13em - .04em * var(--tighten));
+}
+.report-page .section-card { --card-header-h: calc(.29in - .135in * var(--tighten)); }
+.report-page .section-card h3 {
+  padding-top: calc(.04in - .038in * var(--tighten));
+  font-size: calc(10.2pt - 3pt * var(--tighten));
+  line-height: calc(.22in - .095in * var(--tighten));
+}
+.report-page .report-row {
+  min-height: calc(.22in - .092in * var(--tighten));
+  padding: calc(.014in - .012in * var(--tighten)) calc(.075in - .02in * var(--tighten)) calc(.007in - .005in * var(--tighten));
+  font-size: calc(10pt - 2.8pt * var(--tighten));
+  line-height: calc(.205in - .087in * var(--tighten));
+}
+/* Each chip keeps its own size relative to the others rather than all three collapsing onto one
+   value, which is what the stepped rules did at the bottom end. */
+.report-page .location-code { font-size: calc(7.5pt - 1.5pt * var(--tighten)); line-height: calc(.14in - .048in * var(--tighten)); }
+.report-page .entry-count { font-size: calc(8.5pt - 2.5pt * var(--tighten)); line-height: calc(.155in - .063in * var(--tighten)); }
+.report-page .special-request { font-size: calc(8.1pt - 2.1pt * var(--tighten)); line-height: calc(.205in - .113in * var(--tighten)); }
+.report-page .rush-request { font-size: calc(7.3pt - 1.7pt * var(--tighten)); line-height: calc(.145in - .053in * var(--tighten)); }
+.report-page .report-header { height: calc(.78in - .24in * var(--tighten)); padding-bottom: calc(.12in - .06in * var(--tighten)); }
+.report-page .report-header h1 { font-size: calc(19pt - 5pt * var(--tighten)); }
+.report-page .report-weekday { font-size: calc(14pt - 4pt * var(--tighten)); }
+.report-page .report-date { font-size: calc(10.5pt - 2.1pt * var(--tighten)); }
+/* Always exactly two ruled lines, tightening with everything else. Both ends are a whole number of
+   lines (.52in = 2 x .26in, .32in = 2 x .16in), so a rule is never half-drawn at the bottom edge. */
+.report-page .notes-body {
+  min-height: calc(var(--notes-line) * 2);
+  line-height: var(--notes-line);
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--notes-line) - .5px), #b6bfcb calc(var(--notes-line) - .5px), #b6bfcb var(--notes-line));
+}
 
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,

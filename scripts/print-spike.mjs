@@ -57,8 +57,8 @@ const SPIKES = [
     risk: "Background graphics, which Chrome leaves OFF by default. Both column banners, every card tint and the rush chip are backgrounds. Unticked, the banners lose their fill but keep their text colour, which is white — so HUMAN REMAINS and CREMATED REMAINS print white on white and vanish entirely, taking the mono-laser colour separation with them. Card headers are dark ink on a light tint and survive, so the sheet still looks like a report with its two column headings mysteriously blank. That is what makes it dangerous.",
   },
   {
-    id: "spike-3-compacted-3",
-    caseId: "05-compacted-3",
+    id: "spike-3-tightened-hard",
+    caseId: "05-tightened-hard",
     title: "The dense sheet at 7.8pt — does the type survive?",
     risk: "Scale. This page has no slack anywhere, so any browser scaling that is not exactly 100% shows up first here, as collided rows or clipped location codes. It is also the hardest sheet to read on paper at the best of times.",
   },

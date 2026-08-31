@@ -54,17 +54,17 @@ export const CASES = [
     },
   },
   {
-    id: "03-compacted-1",
-    title: "Busy night — first compaction step",
+    id: "03-tightened-lightly",
+    title: "Busy night — lightly tightened",
     why: "The cheapest step: type and leading tighten. The writing rows and notes block are untouched — as they are at every step.",
-    expectCompact: 1,
+    expectTighten: [0.20, 0.45],
     entries: busyNight(16, 10),
   },
   {
-    id: "04-compacted-2",
-    title: "Busier night — second compaction step",
+    id: "04-tightened-halfway",
+    title: "Busier night — tightened about halfway",
     why: "Tightens type and leading again and gives back most of the notes area. The blank writing rows stay: every section still shows its full complement.",
-    expectCompact: 2,
+    expectTighten: [0.42, 0.68],
     extra: [
       "Notes block still usable — ruled, and deep enough to write a line in by hand",
       "Every section still shows its full complement of blank writing rows — three under DELIVER and FDP",
@@ -72,10 +72,10 @@ export const CASES = [
     entries: busyNight(22, 12),
   },
   {
-    id: "05-compacted-3",
-    title: "Busiest night that still prints — third compaction step",
+    id: "05-tightened-hard",
+    title: "Heavy night — tightened hard",
     why: "The emergency setting at 7.8pt. Everything tightens again, but the writing rows are still there — nothing the crew writes on is ever traded away for fit. This is the sheet most likely to fail on paper, and the one this gate exists for.",
-    expectCompact: 3,
+    expectTighten: [0.75, 0.95],
     extra: [
       "**Read a location code and a deceased name at arm's length.** 7.8pt body with 6.4pt chips is deliberately uncomfortable; the question is whether a dispatcher can still work from it under the loading-bay lights, not whether it looks good",
       "Rows have not collided — each line clears the hairline above and below it",
@@ -86,7 +86,8 @@ export const CASES = [
     // column with a couple of rows to spare. Deliberately near the ceiling — a step-three sheet
     // with inches of white space left on it would not be the page this case exists to judge. If a
     // layout change ever flips this to a page-fit failure, retune it rather than reading it as a
-    // regression; what it is asserting is that step three still fits a night this size.
+    // regression; what it is asserting is that a squeeze of about this much still fits a night
+    // this size.
     //
     // Retuned down from 42/22 when the writing rows stopped being reclaimed by compaction. Holding
     // ten blank rows down the Human column at every step costs roughly seven rows of capacity, and
@@ -95,10 +96,10 @@ export const CASES = [
     entries: busyNight(34, 18),
   },
   {
-    id: "06-compacted-4",
-    title: "Night that only the backstop fits — fourth compaction step",
+    id: "06-tightened-fully",
+    title: "Busiest night that still prints — tightened as far as it goes",
     why: "7.2pt, the smallest the sheet ever goes. Reached only after three steps have already failed, so it should be rare — but a night this size prints instead of being refused.",
-    expectCompact: 4,
+    expectTighten: [0.88, 1],
     extra: [
       "**Read a location code and a deceased name at a desk under office light.** 7.2pt body with 6pt chips is smaller than any sheet should routinely be; the question is whether a dispatcher can work from it at a desk, not whether it looks good",
       "Rows have not collided — each line clears the hairline above and below it",

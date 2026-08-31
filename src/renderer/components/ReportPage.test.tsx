@@ -29,16 +29,20 @@ describe("print report", () => {
     expect(screen.queryByText("JULY 26, 2026")).not.toBeInTheDocument();
   });
 
-  it("applies the requested print compaction level to the shared page", () => {
+  it("hands the requested tightness to the shared page", () => {
+    // The stylesheet interpolates every measurement off this one number, so it is the whole of
+    // what the page needs to be told; the print copy is squeezed by passing it the same value.
     const { container } = render(
       <ReportPage
         report={createEmptyReport("2026-07-26")}
         layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
-        compactLevel={1}
+        tighten={0.375}
       />,
     );
 
-    expect(container.querySelector(".report-page")).toHaveClass("compact-1");
+    const page = container.querySelector<HTMLElement>(".report-page")!;
+    expect(page.style.getPropertyValue("--tighten")).toBe("0.375");
+    expect(page).toHaveAttribute("data-tighten", "0.375");
   });
 
   it("lets the operator type into an empty preview row and commit with Enter", () => {
@@ -98,8 +102,8 @@ describe("print report", () => {
 
   // Compaction shrinks type and spacing, never the writing rows. A row vanishing is the one
   // compaction a person watching the page actually sees, and it takes away somewhere they were
-  // about to write — so the counts have to survive all four steps, entries or no entries.
-  it.each([1, 2, 3, 4] as const)("keeps every writing row at compaction step %i", (compactLevel) => {
+  // about to write — so the counts have to survive the whole range, entries or no entries.
+  it.each([0.25, 0.5, 0.75, 1] as const)("keeps every writing row at tightness %f", (tighten) => {
     const report = createEmptyReport("2026-07-26");
     report.sections.find((section) => section.key === "human-fdp")!.entries.push({
       id: "entry-one", type: "plain", text: "Existing entry", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
@@ -108,12 +112,12 @@ describe("print report", () => {
       <ReportPage
         report={report}
         layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
-        compactLevel={compactLevel}
+        tighten={tighten}
       />,
     );
 
-    // human-fdp carries an entry and human-deliver does not, so this covers both branches the
-    // old level-3 rule distinguished between. Step four is the backstop and shrinks type furthest;
+    // human-fdp carries an entry and human-deliver does not, so this covers both branches the old
+    // level-3 rule distinguished between. Full tightness is the smallest the sheet is ever drawn;
     // it must still not take a row away.
     expect(container.querySelector('[data-section-key="human-deliver"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
     expect(container.querySelector('[data-section-key="human-fdp"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
