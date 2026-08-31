@@ -243,6 +243,13 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
 }
 
 /**
+ * Trailing whitespace is dropped on commit, leading whitespace is kept. A note that opens with a
+ * blank line is someone starting on the second rule on purpose, and trimming both ends yanked it
+ * back onto the first one — which read as the second line being untypable.
+ */
+const trimTrailing = (value: string): string => value.replace(/\s+$/, "");
+
+/**
  * The footer notes, typed straight on the page like the ruled rows above. Blur commits and Escape
  * cancels; Enter inserts a newline, since this is prose rather than a one-line entry. Rendered
  * read-only when no commit handler is supplied, which is how the hidden print copy gets it.
@@ -256,7 +263,8 @@ function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; pr
 
   function finish() {
     setEditing(false);
-    if (draft.trim() !== notes.trim()) onCommit?.(draft.trim());
+    const next = trimTrailing(draft);
+    if (next !== trimTrailing(notes)) onCommit?.(next);
   }
 
   return (

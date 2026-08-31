@@ -327,4 +327,29 @@ describe("drag to reorder", () => {
     expect(smith).not.toHaveClass("draggable-person");
     expect(smith).toHaveAttribute("draggable", "false");
   });
+  it("keeps a leading blank line so a note can start on the second rule", () => {
+    // The notes block is two ruled lines. Starting on the second one means a leading newline, and
+    // trimming both ends used to pull the text back onto the first rule the moment it committed.
+    const onNotesCommit = vi.fn();
+    render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Click to type a note" }));
+    const area = screen.getByRole("textbox", { name: "Report notes" });
+    fireEvent.change(area, { target: { value: "\nMeant for line two" } });
+    fireEvent.blur(area);
+
+    expect(onNotesCommit).toHaveBeenCalledWith("\nMeant for line two");
+  });
+
+  it("still drops trailing whitespace from a note", () => {
+    const onNotesCommit = vi.fn();
+    render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Click to type a note" }));
+    const area = screen.getByRole("textbox", { name: "Report notes" });
+    fireEvent.change(area, { target: { value: "A note  \n\n  " } });
+    fireEvent.blur(area);
+
+    expect(onNotesCommit).toHaveBeenCalledWith("A note");
+  });
 });

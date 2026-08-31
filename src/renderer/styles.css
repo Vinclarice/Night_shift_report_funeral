@@ -463,7 +463,11 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
   color: var(--report-ink); font-family: inherit; font-size: 9.5pt; line-height: .26in; text-align: left;
   white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; resize: none;
   background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.26in - .5px), #b6bfcb calc(.26in - .5px), #b6bfcb .26in); }
-.notes-button { cursor: text; border-radius: 0; font-weight: 400; }
+/* A block <button> still centres its own content vertically, which floated a one-line note into
+   the gap between the two rules instead of seating it on the first. Only making the button a flex
+   container defeats that — `align-items` alone is ignored here — and flex-start then lands the
+   text exactly where the textarea puts it, so the note does not shift when clicked. */
+.notes-button { display: flex; align-items: flex-start; cursor: text; border-radius: 0; font-weight: 400; }
 .notes-button:hover { background-color: color-mix(in srgb, var(--human) 6%, white); }
 .notes-button:focus-visible { outline: 2px solid var(--report-ink); outline-offset: -2px; box-shadow: none; }
 .notes-input { background-color: #fff; box-shadow: inset .03in 0 var(--report-ink), 0 0 0 .02in rgb(23 33 28 / 55%); outline: 0; }
