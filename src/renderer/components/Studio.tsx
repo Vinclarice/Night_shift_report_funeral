@@ -33,6 +33,13 @@ export function Studio() {
   return (
     <main className={`studio-shell${workspace.inspectorOpen ? " inspector-visible" : ""}`}>
       <CommandBar report={report} />
+      {/* One list for the whole studio rather than one per input. It used to live inside the
+          inspector's entry form, which meant the canvas could not offer the same names — the
+          list simply was not in the document unless the inspector happened to be open on a
+          funeral-shaped entry. Rendered here it is always there for anything that wants it. */}
+      <datalist id="funeral-home-options">
+        {(controller.bootstrap?.funeralHomes ?? []).map((home) => <option key={home.id} value={home.name} />)}
+      </datalist>
       {controller.overflow && <div className="overflow-warning no-print">Printing is paused because this report exceeds one page. Adjust card widths, print scale, or entries before printing.</div>}
       {/* Inspector, canvas. Picking a section and typing into it are the two things done on every
           entry, so they sit adjacent; the canvas is mostly read and is given the rest. */}

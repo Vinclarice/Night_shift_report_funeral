@@ -198,7 +198,7 @@ describe("App", () => {
     await screen.findByText("Night Shift Report");
 
     fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
-    const input = screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
     fireEvent.change(input, { target: { value: "Call Ron" } });
     fireEvent.keyDown(input, { key: "Enter" });
 

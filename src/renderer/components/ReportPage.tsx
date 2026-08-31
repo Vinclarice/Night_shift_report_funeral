@@ -222,7 +222,11 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
   }
 
   if (editing) {
-    return <input ref={inputRef} className="report-row inline-row-input no-print" style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
+    // Same funeral-home list the inspector offers. A row is typed as one line — "McGuire – Smith
+    // (13A)" — and the home is always its opening segment, so the names match while that is all
+    // that has been typed and stop matching by themselves once the dash goes in. That is the
+    // wanted behaviour rather than a limitation: nothing after the dash is a name this app knows.
+    return <input ref={inputRef} className="report-row inline-row-input no-print" list="funeral-home-options" style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
   }
 
   return (

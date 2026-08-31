@@ -53,7 +53,7 @@ describe("print report", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
-    const input = screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
     fireEvent.change(input, { target: { value: "McGuire \u2013 Smith (13A)" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
@@ -73,13 +73,13 @@ describe("print report", () => {
     const view = render(<ReportPage report={report} layout={layout} interactive onLineCommit={onLineCommit} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
-    const input = screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
     fireEvent.change(input, { target: { value: "Second entry" } });
     fireEvent.keyDown(input, { key });
     view.rerender(<ReportPage report={nextReport} layout={layout} interactive onLineCommit={onLineCommit} />);
 
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveFocus());
-    expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" })).toHaveFocus());
+    expect(screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
   });
 
   it("prints the configured number of trailing free rows per section", () => {
@@ -147,7 +147,7 @@ describe("print report", () => {
   it("expands an auto-width card immediately as a longer line is typed", () => {
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }} interactive onLineCommit={vi.fn()} />);
     fireEvent.click(screen.getAllByRole("button", { name: "Type in Human Remains DELIVER" })[0]);
-    const input = screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
     const initialWidth = Number.parseFloat(input.style.width);
     fireEvent.change(input, { target: { value: "Metropolitan Memorial Services \u2013 Alexandria Longsurname" } });
     expect(Number.parseFloat(input.style.width)).toBeGreaterThan(initialWidth);
@@ -401,5 +401,14 @@ describe("drag to reorder", () => {
 
     rerender(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
     expect(screen.getByText("Ron to Richmond")).toBeInTheDocument();
+  });
+  it("offers the funeral home list to a row typed on the canvas", () => {
+    // The same names the inspector offers. Studio renders the list itself, so this only asserts the
+    // wiring; the row is a combobox rather than a plain textbox precisely because of it.
+    render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onLineCommit={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
+    expect(screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" }))
+      .toHaveAttribute("list", "funeral-home-options");
   });
 });

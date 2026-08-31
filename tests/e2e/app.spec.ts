@@ -31,23 +31,23 @@ test("launches portably and renders the exact nine-card page", async () => {
 
     const humanDeliverCard = page.locator('.page-stage [data-section-key="human-deliver"]');
     await humanDeliverCard.locator(".inline-row-button.blank-row").first().click();
-    const inlineInput = page.getByRole("textbox", { name: "Edit Human Remains DELIVER" });
+    const inlineInput = page.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
     await inlineInput.fill("Preview Home - Typed Family (9A)");
     await inlineInput.press("Enter");
     await expect(page.getByText("Typed Family").first()).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toBeFocused();
-    await expect(page.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
-    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Escape");
+    await expect(page.getByRole("combobox", { name: "Edit Human Remains DELIVER" })).toBeFocused();
+    await expect(page.getByRole("combobox", { name: "Edit Human Remains DELIVER" })).toHaveValue("");
+    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Escape");
     await expect(page.locator(".save-state")).toHaveText("Saved");
 
     await page.getByRole("button", { name: "Edit Human Remains DELIVER" }).click();
-    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
-    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
+    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).fill("");
+    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Enter");
     await expect(page.getByText("Typed Family")).toHaveCount(0);
 
     const pendingCard = page.locator('.page-stage [data-section-key="human-pending"]');
     await pendingCard.locator(".inline-row-button.blank-row").first().click();
-    const pendingInput = page.getByRole("textbox", { name: /Edit Human Remains HR DEL/ });
+    const pendingInput = page.getByRole("combobox", { name: /Edit Human Remains HR DEL/ });
     await pendingInput.fill("beltway crem - jane doe (13a)");
     await pendingInput.press("Enter");
     await expect(page.getByText("Jane Doe").first()).toBeVisible();
@@ -55,8 +55,8 @@ test("launches portably and renders the exact nine-card page", async () => {
     await expect(humanDeliverCard).toContainText("Jane Doe");
     await expect(pendingCard).not.toContainText("Jane Doe");
     await humanDeliverCard.locator(".draggable-row").click();
-    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
-    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
+    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).fill("");
+    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Enter");
 
     await page.evaluate(async () => {
       const data = await window.nightShift.bootstrap();

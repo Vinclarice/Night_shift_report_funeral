@@ -2,7 +2,6 @@ import { useRef } from "react";
 import type { FormEvent } from "react";
 
 import type { EntryFormState, EntryKind, TextField } from "../hooks/useEntryForm";
-import type { FuneralHomeOption } from "@/shared/contracts";
 import { IconCheck, IconPlus } from "../icons";
 import { Button } from "../ui/Button";
 import { SegmentedControl } from "../ui/SegmentedControl";
@@ -44,7 +43,6 @@ interface Props {
   activeSectionTitle: string;
   category: "human" | "cremated";
   isDeliver: boolean;
-  funeralHomes: FuneralHomeOption[];
   setField: (field: TextField, value: string) => void;
   setCount: (value: number) => void;
   setRush: (value: boolean) => void;
@@ -54,7 +52,7 @@ interface Props {
   onSubmit: (event: FormEvent) => void;
 }
 
-export function EntryForm({ form, activeSectionTitle, category, isDeliver, funeralHomes, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
+export function EntryForm({ form, activeSectionTitle, category, isDeliver, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
   const primaryFieldRef = useRef<HTMLInputElement>(null);
   const isFuneralKind = form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly";
   const formatOptions = formatsFor(category, form.entryKind).map((value) => ({ value, label: FORMAT_LABELS[value] }));
@@ -83,9 +81,9 @@ export function EntryForm({ form, activeSectionTitle, category, isDeliver, funer
           <>
             <label>
               Funeral home
+              {/* The options themselves are rendered once in Studio, so the canvas can use them too. */}
               <input ref={primaryFieldRef} list="funeral-home-options" value={form.funeralHome} onChange={(event) => setField("funeralHome", event.target.value)} placeholder="Start typing…" />
             </label>
-            <datalist id="funeral-home-options">{funeralHomes.map((home) => <option key={home.id} value={home.name} />)}</datalist>
           </>
         )}
         {form.entryKind === "funeral" && (

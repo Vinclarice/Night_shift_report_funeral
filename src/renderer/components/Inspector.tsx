@@ -130,7 +130,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
 
   return (
     <EntryForm
-      form={form} activeSectionTitle={section.title} category={section.category} isDeliver={isDeliver} funeralHomes={controller.bootstrap?.funeralHomes ?? []}
+      form={form} activeSectionTitle={section.title} category={section.category} isDeliver={isDeliver}
       setField={setField} setCount={setCount} setRush={setRush} setKeepSeparate={setKeepSeparate} setEntryKind={setEntryKind}
       reset={() => { reset(defaultKindFor(section)); dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" }); }}
       onSubmit={submitEntry}
