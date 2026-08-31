@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import type { LayoutSettings, NightReport } from "@/domain/types";
 
@@ -19,22 +19,41 @@ export type CompactLevel = 0 | 1 | 2 | 3 | 4;
 const BOTTOM_GUTTER_INCHES = 0.18;
 const PAGE_DPI = 96;
 
+const MAX_COMPACT_LEVEL = 4;
+
 export function useOverflowCompaction(report: NightReport | null, layout: LayoutSettings | null) {
-  const [compaction, setCompaction] = useState<{ key: string; level: CompactLevel }>({ key: "", level: 0 });
+  // Deferred in step with the canvas, which renders a deferred copy of the report. Keyed off the
+  // live one, this hook reset itself a render before the DOM caught up and measured a page that
+  // still had the old content on it — taking the ROAD TRIPS card away read as an overflow that was
+  // not there, and the level it climbed to in response could never come back down.
+  const deferredReport = useDeferredValue(report);
+  const deferredLayout = useDeferredValue(layout);
+  // `floor` is the lowest level not yet proved too loose: every level below it has been measured
+  // and overflowed. The search settles when the current level fits and is the floor, so the answer
+  // is the smallest level that fits rather than whatever the page happened to climb to.
+  const [compaction, setCompaction] = useState<{ key: string; level: CompactLevel; floor: number }>({ key: "", level: 0, floor: 0 });
   const [overflow, setOverflow] = useState(false);
 
+  // Everything that changes how much room the content needs. The level only ever climbs, and it is
+  // this key changing that puts it back to nothing — so anything missing here is a page that
+  // tightened once and then stayed tightened. roadTripsVisible was exactly that: adding the card
+  // compacted the sheet correctly, and taking it away left the sheet compacted for a card that was
+  // no longer on it.
   const compactionKey = useMemo(
     () =>
       JSON.stringify({
-        sections: report?.sections,
-        margin: layout?.marginInches,
-        scale: layout?.scale,
-        offsetY: layout?.offsetYInches,
+        sections: deferredReport?.sections,
+        roadTrips: deferredReport?.roadTripsVisible,
+        margin: deferredLayout?.marginInches,
+        scale: deferredLayout?.scale,
+        offsetY: deferredLayout?.offsetYInches,
       }),
-    [report?.sections, layout?.marginInches, layout?.scale, layout?.offsetYInches],
+    [deferredReport?.sections, deferredReport?.roadTripsVisible, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches],
   );
 
-  const compactLevel: CompactLevel = compaction.key === compactionKey ? compaction.level : 0;
+  const matches = compaction.key === compactionKey;
+  const compactLevel: CompactLevel = matches ? compaction.level : 0;
+  const searchFloor = matches ? compaction.floor : 0;
 
   useEffect(() => {
     const page = document.querySelector<HTMLElement>('[data-role="live-report-page"]');
@@ -67,11 +86,18 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       // takes away somewhere they were about to write. The first two are barely noticeable; the
       // third is dense; the fourth is the backstop for a night that would otherwise be refused
       // outright, and is legible at a desk under office light rather than comfortable.
-      if (exceedsPage && compactLevel < 4) {
-        setCompaction({ key: compactionKey, level: (compactLevel + 1) as CompactLevel });
+      if (exceedsPage) {
+        // Everything at or below this level is now known to be too loose.
+        if (compactLevel >= MAX_COMPACT_LEVEL) { setOverflow(true); return; }
+        setCompaction({ key: compactionKey, level: (compactLevel + 1) as CompactLevel, floor: compactLevel + 1 });
         setOverflow(false);
-      } else {
-        setOverflow(exceedsPage);
+        return;
+      }
+      setOverflow(false);
+      // It fits — but that does not make it the right level. Anything above the floor has not been
+      // shown to be necessary, so drop back to the floor and let it prove itself.
+      if (compactLevel > searchFloor) {
+        setCompaction({ key: compactionKey, level: searchFloor as CompactLevel, floor: searchFloor });
       }
     };
     check();
@@ -79,7 +105,7 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     observer.observe(content);
     columns.forEach((column) => observer.observe(column));
     return () => observer.disconnect();
-  }, [report, layout, compactLevel, compactionKey]);
+  }, [deferredReport, deferredLayout, compactLevel, searchFloor, compactionKey]);
 
   return { compactLevel, overflow };
 }

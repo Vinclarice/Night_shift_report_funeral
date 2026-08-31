@@ -41,8 +41,9 @@ test("launches portably and renders the exact nine-card page", async () => {
     await expect(page.locator(".save-state")).toHaveText("Saved");
 
     await page.getByRole("button", { name: "Edit Human Remains DELIVER" }).click();
-    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).fill("");
-    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Enter");
+    // An existing row is a plain textbox: the suggestion list is offered on empty rows only.
+    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
+    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
     await expect(page.getByText("Typed Family")).toHaveCount(0);
 
     const pendingCard = page.locator('.page-stage [data-section-key="human-pending"]');
@@ -55,8 +56,8 @@ test("launches portably and renders the exact nine-card page", async () => {
     await expect(humanDeliverCard).toContainText("Jane Doe");
     await expect(pendingCard).not.toContainText("Jane Doe");
     await humanDeliverCard.locator(".draggable-row").click();
-    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).fill("");
-    await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Enter");
+    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
+    await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
 
     await page.evaluate(async () => {
       const data = await window.nightShift.bootstrap();

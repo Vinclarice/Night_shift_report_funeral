@@ -333,7 +333,7 @@ describe("drag to reorder", () => {
     const onNotesCommit = vi.fn();
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Click to type a note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Click a line to type on it" }));
     const area = screen.getByRole("textbox", { name: "Report notes" });
     fireEvent.change(area, { target: { value: "\nMeant for line two" } });
     fireEvent.blur(area);
@@ -345,7 +345,7 @@ describe("drag to reorder", () => {
     const onNotesCommit = vi.fn();
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Click to type a note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Click a line to type on it" }));
     const area = screen.getByRole("textbox", { name: "Report notes" });
     fireEvent.change(area, { target: { value: "A note  \n\n  " } });
     fireEvent.blur(area);
@@ -410,5 +410,17 @@ describe("drag to reorder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
     expect(screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" }))
       .toHaveAttribute("list", "funeral-home-options");
+  });
+  it("does not offer the funeral home list on a row that already has an entry", () => {
+    // Reopening a finished row to fix a name or add a deceased is not the moment for a list of
+    // funeral homes: the home is already chosen, and the suggestions sit over the line being read.
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push({
+      id: "existing", type: "plain", text: "Greene - Johnson", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }));
+    expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toHaveAttribute("list");
   });
 });

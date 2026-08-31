@@ -222,11 +222,12 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
   }
 
   if (editing) {
-    // Same funeral-home list the inspector offers. A row is typed as one line — "McGuire – Smith
-    // (13A)" — and the home is always its opening segment, so the names match while that is all
-    // that has been typed and stop matching by themselves once the dash goes in. That is the
-    // wanted behaviour rather than a limitation: nothing after the dash is a name this app knows.
-    return <input ref={inputRef} className="report-row inline-row-input no-print" list="funeral-home-options" style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
+    // Same funeral-home list the inspector offers, but only on a row that is still empty. A row is
+    // typed as one line — "McGuire – Smith (13A)" — and the home is its opening segment, so the
+    // names are worth offering while that segment is what is being typed. Reopening a finished row
+    // to correct a name or add a deceased is not that: the home is already chosen, and a list
+    // covering the line being edited is in the way rather than a help.
+    return <input ref={inputRef} className="report-row inline-row-input no-print" list={entry ? undefined : "funeral-home-options"} style={autoWidth ? { width: `${inputWidth}in` } : undefined} aria-label={`Edit ${rowLabel}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKey} onBlur={finish} />;
   }
 
   return (
@@ -263,8 +264,42 @@ function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; pr
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const caretRef = useRef<number | null>(null);
 
-  useEffect(() => { if (editing) areaRef.current?.focus(); }, [editing]);
+  useEffect(() => {
+    if (!editing) return;
+    const area = areaRef.current;
+    if (!area) return;
+    area.focus();
+    const caret = caretRef.current;
+    if (caret !== null) area.setSelectionRange(caret, caret);
+    caretRef.current = null;
+  }, [editing]);
+
+  /**
+   * Opens the note on the rule that was actually clicked, rather than always on the first one. The
+   * second rule was reachable only by typing on the first and pressing Enter, which is not what a
+   * ruled line looks like it wants.
+   *
+   * The click arrives in screen pixels and the page is drawn under the preview zoom, so it is
+   * converted back to the page's own pixels first — offsetHeight is the untransformed height, and
+   * the ratio between the two is the zoom. Lines the note does not have yet are added as blank
+   * ones; if nothing is typed into them, trimTrailing drops them again on commit.
+   */
+  function openAtClick(event: ReactMouseEvent<HTMLButtonElement>) {
+    const target = event.currentTarget;
+    const rect = target.getBoundingClientRect();
+    const zoom = target.offsetHeight > 0 ? rect.height / target.offsetHeight : 1;
+    const lineHeight = parseFloat(getComputedStyle(target).lineHeight);
+    const lines = notes.split("\n");
+    const clicked = lineHeight > 0
+      ? Math.max(0, Math.floor((event.clientY - rect.top) / zoom / lineHeight))
+      : 0;
+    while (lines.length <= clicked) lines.push("");
+    caretRef.current = lines.slice(0, clicked).reduce((total, line) => total + line.length + 1, 0) + lines[clicked].length;
+    setDraft(lines.join("\n"));
+    setEditing(true);
+  }
 
   function finish() {
     setEditing(false);
@@ -286,7 +321,7 @@ function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; pr
           onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setDraft(notes); setEditing(false); } }}
         />
       ) : onCommit ? (
-        <button type="button" className="notes-body notes-button no-print" title="Click to type a note" onClick={() => { setDraft(notes); setEditing(true); }}>
+        <button type="button" className="notes-body notes-button no-print" title="Click a line to type on it" onClick={openAtClick}>
           {notes}
         </button>
       ) : (

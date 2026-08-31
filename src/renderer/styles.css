@@ -514,9 +514,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page.compact-3 .report-header h1 { font-size: 15pt; }
 .report-page.compact-3 .report-weekday { font-size: 11pt; }
 .report-page.compact-3 .report-date { font-size: 9pt; }
-/* Label and rule only: at this density there is no room to write, but the block must keep a
-   height because useOverflowCompaction measures the columns against its top edge. */
-.report-page.compact-3 .notes-compact .notes-body { min-height: .16in; line-height: .16in; background: none; }
+/* Tighter, but still ruled. The rules used to be dropped here on the grounds that there was no
+   room to write at this density — but a notes block with no lines on it does not read as a tight
+   notes block, it reads as a bug, and a hand can still write .18in high. */
+.report-page.compact-3 .notes-compact .notes-body { min-height: .18in; line-height: .18in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.18in - .5px), #b6bfcb calc(.18in - .5px), #b6bfcb .18in); }
 
 /* Fourth step: the backstop, for a night step three still cannot fit. 7.2pt is smaller than any
    sheet should routinely be, and it is reached only after three steps have already failed. It is
@@ -533,7 +534,7 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page.compact-4 .report-header h1 { font-size: 14pt; }
 .report-page.compact-4 .report-weekday { font-size: 10pt; }
 .report-page.compact-4 .report-date { font-size: 8.4pt; }
-.report-page.compact-4 .notes-compact .notes-body { min-height: .14in; line-height: .14in; background: none; }
+.report-page.compact-4 .notes-compact .notes-body { min-height: .16in; line-height: .16in; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.16in - .5px), #b6bfcb calc(.16in - .5px), #b6bfcb .16in); }
 
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,
