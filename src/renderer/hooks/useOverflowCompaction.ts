@@ -14,7 +14,7 @@ import type { LayoutSettings, NightReport } from "@/domain/types";
  * user-controlled preview zoom, so a tolerance in screen pixels would mean a different tolerance on
  * paper at every zoom level.
  */
-export type CompactLevel = 0 | 1 | 2 | 3;
+export type CompactLevel = 0 | 1 | 2 | 3 | 4;
 
 const BOTTOM_GUTTER_INCHES = 0.18;
 const PAGE_DPI = 96;
@@ -62,11 +62,12 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       const notes = page.querySelector<HTMLElement>(".notes-block");
       const floor = notes ? notes.getBoundingClientRect().top : pageRect.bottom;
       const exceedsPage = contentBottom > floor - gutter;
-      // Three steps, in order of what is cheapest to give up. The first tightens type and
-      // leading; the second also gives back the blank writing rows and most of the notes area,
-      // roughly two inches the first step never touched; the third is the emergency setting for a
-      // night that would otherwise not print at all, and trades real legibility for fitting.
-      if (exceedsPage && compactLevel < 3) {
+      // Four steps, each one giving back type and spacing only — the blank writing rows are never
+      // reclaimed, because a row disappearing is the one compaction the crew actually sees and it
+      // takes away somewhere they were about to write. The first two are barely noticeable; the
+      // third is dense; the fourth is the backstop for a night that would otherwise be refused
+      // outright, and is legible at a desk under office light rather than comfortable.
+      if (exceedsPage && compactLevel < 4) {
         setCompaction({ key: compactionKey, level: (compactLevel + 1) as CompactLevel });
         setOverflow(false);
       } else {

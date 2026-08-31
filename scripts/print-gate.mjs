@@ -188,15 +188,15 @@ const run = async () => {
     }, RULE_WEIGHTS);
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
-    await page.screenshot({ path: join(outDir, "11-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    await page.screenshot({ path: join(outDir, "12-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
     const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
       const contents = BrowserWindow.getAllWindows()[0].webContents;
       const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
       return buffer.toString("base64");
     });
-    await writeFile(join(outDir, "11-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await writeFile(join(outDir, "12-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
     await page.emulateMedia({ media: "screen" });
-    console.log("11-rule-weights      ok  (print and pick the hairline that reads best)");
+    console.log("12-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {
@@ -210,7 +210,7 @@ const run = async () => {
   // reach the printer as part of the stack.
   const regenerated = new Set([
     ...CASES.flatMap((c) => [`${c.id}.png`, `${c.id}.pdf`]),
-    "00-calibration.png", "00-calibration.pdf", "11-rule-weights.png", "11-rule-weights.pdf", "CHECKLIST.md",
+    "00-calibration.png", "00-calibration.pdf", "12-rule-weights.png", "12-rule-weights.pdf", "CHECKLIST.md",
   ]);
   const orphans = stranded.filter((name) => !regenerated.has(name));
   if (orphans.length) {
@@ -235,9 +235,10 @@ count, no clipped text, no card in the wrong column, the 3.55in card ceiling, on
 that each compaction step engages exactly where intended. **None of that can approve this gate.**
 What follows only exists on paper.
 
-Cases 03, 04 and 05 are one busy night at three sizes, one per compaction step. Print them
+Cases 03 through 06 are one busy night at four sizes, one per compaction step. Print them
 together and compare them against each other as well as against the Word report: they are how a
-busy night reaches paper, and step three trades legibility for fitting at all.
+busy night reaches paper, and step four is the backstop that keeps the heaviest night printable at
+all. No step ever takes away a blank writing row; type and spacing are all that give.
 
 ## Before printing
 

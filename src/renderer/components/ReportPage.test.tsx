@@ -96,6 +96,31 @@ describe("print report", () => {
     expect(container.querySelector('[data-section-key="human-airport"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
   });
 
+  // Compaction shrinks type and spacing, never the writing rows. A row vanishing is the one
+  // compaction a person watching the page actually sees, and it takes away somewhere they were
+  // about to write — so the counts have to survive all four steps, entries or no entries.
+  it.each([1, 2, 3, 4] as const)("keeps every writing row at compaction step %i", (compactLevel) => {
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-fdp")!.entries.push({
+      id: "entry-one", type: "plain", text: "Existing entry", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    const { container } = render(
+      <ReportPage
+        report={report}
+        layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
+        compactLevel={compactLevel}
+      />,
+    );
+
+    // human-fdp carries an entry and human-deliver does not, so this covers both branches the
+    // old level-3 rule distinguished between. Step four is the backstop and shrinks type furthest;
+    // it must still not take a row away.
+    expect(container.querySelector('[data-section-key="human-deliver"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
+    expect(container.querySelector('[data-section-key="human-fdp"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(3);
+    expect(container.querySelector('[data-section-key="human-pending"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(2);
+    expect(container.querySelector('[data-section-key="human-ship-outs"]')?.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
+  });
+
   it("styles existing entry details semantically without duplicating report data", () => {
     const report = createEmptyReport("2026-07-26");
     report.sections.find((section) => section.key === "human-deliver")!.entries.push({

@@ -33,6 +33,15 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   const deferredReport = useDeferredValue(report);
   const deferredLayout = useDeferredValue(controller.layout!);
   const entryCount = report.sections.reduce((total, section) => total + section.entries.length, 0);
+  const compacted = controller.compactLevel > 0;
+  // Spelled out rather than left to the bare "1/3", so the readout answers the question the number
+  // raises — what got smaller, and whether anything was taken away. Nothing is: the writing rows
+  // hold at every step, and only type and spacing give.
+  const fitTitle = controller.overflow
+    ? "This report is longer than one page. Adjust card widths, print scale, or entries."
+    : compacted
+      ? `Type and spacing were tightened (step ${controller.compactLevel} of 4) to keep this on one page. The blank writing rows are unaffected.`
+      : "This report fits one page at its normal size.";
   // Coarser above actual size, so reaching 200% is a few clicks rather than twenty.
   const zoomStep = zoom >= 1 ? 0.1 : 0.05;
 
@@ -148,9 +157,13 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
         <div className="canvas-controls">
           {/* Whether the report still fits one page, stated continuously. Previously this only
               surfaced as the red banner above, which appears after the report has already
-              overflowed — by which point entries have to be cut rather than placed differently. */}
-          <span className={`canvas-fit${controller.overflow ? " over" : ""}`} role="status" aria-live="polite">
+              overflowed — by which point entries have to be cut rather than placed differently.
+              Compaction is named here too: the page quietly shrinks its own type to keep fitting,
+              and without saying so the only evidence is that the sheet looks subtly different from
+              last night's, which reads as a glitch rather than as the page doing its job. */}
+          <span className={`canvas-fit${controller.overflow ? " over" : compacted ? " tight" : ""}`} role="status" aria-live="polite" title={fitTitle}>
             {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
+            {!controller.overflow && compacted && <> <em>·</em> tightened {controller.compactLevel}/4</>}
           </span>
           <div className="zoom-control" aria-label="Preview zoom">
             <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - (zoom > 1 ? 0.1 : 0.05) })} />

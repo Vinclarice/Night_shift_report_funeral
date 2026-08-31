@@ -140,9 +140,10 @@ test("launches portably and renders the exact nine-card page", async () => {
       const data = await window.nightShift.bootstrap();
       const report = data.report!;
       const section = report.sections.find((item) => item.key === "human-fdp")!;
-      // Well past the ceiling. Compaction now has three steps and holds around fifty entries, so
-      // the twenty this used to add are comfortably absorbed — the guard only means anything if
-      // the fixture is genuinely bigger than the sheet can take.
+      // Well past the ceiling. Compaction has four steps, the fourth a 7.2pt backstop that holds
+      // somewhere north of sixty entries. Sixty added on top of the busy fixture above clears even
+      // that; the guard only means anything if the fixture is genuinely bigger than the sheet can
+      // take, so it has to stay ahead of the backstop, not just of step three.
       for (let index = 1; index <= 60; index += 1) {
         section.entries.push({
           id: crypto.randomUUID(),

@@ -35,28 +35,22 @@ interface Props {
   onEntryContextMenu?: (key: ReportSection["key"], entryId: string, x: number, y: number) => void;
 }
 
-/** Blank rows past the last entry, for typing directly onto the page. Sections not listed get one. */
+/**
+ * Blank rows past the last entry, for typing directly onto the page. Sections not listed get one.
+ *
+ * These counts hold at every compaction step. Compaction used to reclaim them — they hold nothing,
+ * and there are ten of them down the Human column, close to two inches, so they look like the
+ * cheapest thing to give back. They are not. A row disappearing is the one compaction a person
+ * watching the page actually sees, and it takes away somewhere they were about to write. Type and
+ * leading shrink instead: if the sheet has to get smaller to fit, it gets smaller, and the rows
+ * stay where the night crew expects to find them.
+ */
 const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
   "human-deliver": 3,
   "human-fdp": 3,
   "human-pending": 2,
   "human-ship-outs": 1,
 };
-
-/**
- * Spare writing rows are the first thing to give back when the page will not fit: they hold nothing
- * and there are ten of them down the Human column, close to two inches. Never fewer than one, or a
- * section with no entries could not be typed into on the canvas at all.
- */
-function freeRowsFor(key: ReportSection["key"], compactLevel: CompactLevel, hasEntries: boolean): number {
-  const base = FREE_ROW_COUNTS[key] ?? 1;
-  // At the last step a section that already has entries gives up its spare row entirely. An empty
-  // section keeps one, or there would be nothing on the canvas to click and type into.
-  if (compactLevel >= 3) return hasEntries ? 0 : 1;
-  if (compactLevel >= 2) return 1;
-  if (compactLevel === 1) return Math.min(base, 2);
-  return base;
-}
 
 const printedTime = (value: Date): string =>
   new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
@@ -292,7 +286,6 @@ function NotesBlock({ notes, printedAt, onCommit, compact }: { notes: string; pr
 const SectionCard = memo(function SectionCard({
   section,
   width,
-  compactLevel,
   interactive,
   onWidthChange,
   onWidthCommit,
@@ -306,7 +299,6 @@ const SectionCard = memo(function SectionCard({
 }: {
   section: ReportSection;
   width?: number;
-  compactLevel: CompactLevel;
   interactive?: boolean;
   onWidthChange?: Props["onWidthChange"];
   onWidthCommit?: Props["onWidthCommit"];
@@ -320,7 +312,7 @@ const SectionCard = memo(function SectionCard({
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const itemCount = sectionItemCount(section);
-  const freeRows = freeRowsFor(section.key, compactLevel, section.entries.length > 0);
+  const freeRows = FREE_ROW_COUNTS[section.key] ?? 1;
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
 
@@ -428,13 +420,13 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           <div className="report-column human-column">
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} compactLevel={compactLevel} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
           <div className="report-column cremated-column">
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} compactLevel={compactLevel} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
         </div>

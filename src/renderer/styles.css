@@ -306,6 +306,9 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .canvas-fit::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--good); }
 .canvas-fit.over { color: var(--rush); font-weight: 700; }
 .canvas-fit.over::before { background: var(--rush); }
+/* Tightened, not broken: amber says "look" where red would say "act". The page still fits. */
+.canvas-fit.tight { color: var(--caution); }
+.canvas-fit.tight::before { background: var(--caution); }
 .canvas-fit em { font-style: normal; color: var(--ink-3); }
 .canvas-fit.over em { color: inherit; }
 .zoom-control { display: flex; align-items: center; gap: 1px; padding: 2px; border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--white); }
@@ -506,6 +509,23 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 /* Label and rule only: at this density there is no room to write, but the block must keep a
    height because useOverflowCompaction measures the columns against its top edge. */
 .report-page.compact-3 .notes-compact .notes-body { min-height: .16in; line-height: .16in; background: none; }
+
+/* Fourth step: the backstop, for a night step three still cannot fit. 7.2pt is smaller than any
+   sheet should routinely be, and it is reached only after three steps have already failed. It is
+   sized to be read at a desk under office light — not across a room, and not in the bay. Type and
+   spacing are all that give here, as at every step: the writing rows are never traded for fit. */
+.report-page.compact-4 .report-column { gap: .04in; }
+.report-page.compact-4 .report-column > h2 { min-height: .21in; margin-bottom: -.035in; padding: .025in .07in .02in; font-size: 9.4pt; line-height: .15in; letter-spacing: .09em; }
+.report-page.compact-4 .section-card { --card-header-h: .155in; }
+.report-page.compact-4 .section-card h3 { padding-top: .002in; font-size: 7.2pt; line-height: .125in; }
+.report-page.compact-4 .report-row { min-height: .128in; padding: .002in .055in .002in; font-size: 7.2pt; line-height: .118in; }
+.report-page.compact-4 .location-code, .report-page.compact-4 .entry-count, .report-page.compact-4 .special-request { line-height: .092in; font-size: 6pt; }
+.report-page.compact-4 .rush-request { font-size: 5.6pt; line-height: .092in; }
+.report-page.compact-4 .report-header { height: .54in; padding-bottom: .06in; }
+.report-page.compact-4 .report-header h1 { font-size: 14pt; }
+.report-page.compact-4 .report-weekday { font-size: 10pt; }
+.report-page.compact-4 .report-date { font-size: 8.4pt; }
+.report-page.compact-4 .notes-compact .notes-body { min-height: .14in; line-height: .14in; background: none; }
 
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,

@@ -56,25 +56,25 @@ export const CASES = [
   {
     id: "03-compacted-1",
     title: "Busy night — first compaction step",
-    why: "The cheapest step: type and leading tighten, the writing rows and notes block are untouched.",
+    why: "The cheapest step: type and leading tighten. The writing rows and notes block are untouched — as they are at every step.",
     expectCompact: 1,
     entries: busyNight(16, 10),
   },
   {
     id: "04-compacted-2",
     title: "Busier night — second compaction step",
-    why: "Adds the blank writing rows and most of the notes area to what step one already gave up.",
+    why: "Tightens type and leading again and gives back most of the notes area. The blank writing rows stay: every section still shows its full complement.",
     expectCompact: 2,
     extra: [
       "Notes block still usable — ruled, and deep enough to write a line in by hand",
-      "Sections show at most one blank writing row, and no card looks truncated for it",
+      "Every section still shows its full complement of blank writing rows — three under DELIVER and FDP",
     ],
-    entries: busyNight(26, 14),
+    entries: busyNight(22, 12),
   },
   {
     id: "05-compacted-3",
     title: "Busiest night that still prints — third compaction step",
-    why: "The emergency setting at 7.8pt. Everything tightens again and sections holding entries lose their spare row. This is the sheet most likely to fail on paper, and the one this gate exists for.",
+    why: "The emergency setting at 7.8pt. Everything tightens again, but the writing rows are still there — nothing the crew writes on is ever traded away for fit. This is the sheet most likely to fail on paper, and the one this gate exists for.",
     expectCompact: 3,
     extra: [
       "**Read a location code and a deceased name at arm's length.** 7.8pt body with 6.4pt chips is deliberately uncomfortable; the question is whether a dispatcher can still work from it under the loading-bay lights, not whether it looks good",
@@ -82,15 +82,36 @@ export const CASES = [
       "The RUSH chip and its deadline are still legible at 6pt",
       "Notes block has lost its rules but is still visibly a block, not a stray gap",
     ],
-    // Tuned by running this gate: 48/26 tips into "does not fit one page" and 42/22 fills the
+    // Tuned by running this gate: 36/19 tips into "does not fit one page" and 34/18 fills the
     // column with a couple of rows to spare. Deliberately near the ceiling — a step-three sheet
     // with inches of white space left on it would not be the page this case exists to judge. If a
     // layout change ever flips this to a page-fit failure, retune it rather than reading it as a
     // regression; what it is asserting is that step three still fits a night this size.
-    entries: busyNight(42, 22),
+    //
+    // Retuned down from 42/22 when the writing rows stopped being reclaimed by compaction. Holding
+    // ten blank rows down the Human column at every step costs roughly seven rows of capacity, and
+    // that is the trade this app makes on purpose: a dispatcher who cannot hand-write on the sheet
+    // is worse off than one who prints a rare second page.
+    entries: busyNight(34, 18),
   },
   {
-    id: "06-long-names",
+    id: "06-compacted-4",
+    title: "Night that only the backstop fits — fourth compaction step",
+    why: "7.2pt, the smallest the sheet ever goes. Reached only after three steps have already failed, so it should be rare — but a night this size prints instead of being refused.",
+    expectCompact: 4,
+    extra: [
+      "**Read a location code and a deceased name at a desk under office light.** 7.2pt body with 6pt chips is smaller than any sheet should routinely be; the question is whether a dispatcher can work from it at a desk, not whether it looks good",
+      "Rows have not collided — each line clears the hairline above and below it",
+      "The RUSH chip and its deadline are still legible at 5.6pt",
+      "Every section still shows its full complement of blank writing rows — three under DELIVER and FDP",
+    ],
+    // Tuned by running this gate: 43/23 tips into "does not fit one page" and 40/21 fills the
+    // column with a couple of rows to spare. Near the ceiling for the same reason 05 is: a
+    // backstop sheet with white space left on it proves nothing.
+    entries: busyNight(40, 21),
+  },
+  {
+    id: "07-long-names",
     title: "Long funeral-home and deceased names",
     why: "Wrapping and the 3.55in card ceiling. Nothing may clip or push a card out of column.",
     entries: {
@@ -101,7 +122,7 @@ export const CASES = [
     },
   },
   {
-    id: "07-merged-and-rush",
+    id: "08-merged-and-rush",
     title: "Multiple merged entries and multiple rush deliveries",
     why: "Rush ordering holds the top; merged people share one funeral-home line with + separators.",
     entries: {
@@ -116,7 +137,7 @@ export const CASES = [
     },
   },
   {
-    id: "08-pinned-bottom",
+    id: "09-pinned-bottom",
     title: "Entry pinned to the bottom of a section",
     why: "The separating rule above a pinned line must read on paper without looking like a highlight.",
     entries: {
@@ -125,7 +146,7 @@ export const CASES = [
     },
   },
   {
-    id: "09-cremated-widths",
+    id: "10-cremated-widths",
     title: "Cremated card at default width beside one expanded by a name",
     why: "Cremated cards start at 1.62in and grow only for the edge case that needs it.",
     entries: {
@@ -136,7 +157,7 @@ export const CASES = [
     },
   },
   {
-    id: "10-notes-filled",
+    id: "11-notes-filled",
     title: "Notes written in the footer",
     why: "Typed notes take height from the columns, so the block has to read cleanly when full.",
     notes: [
