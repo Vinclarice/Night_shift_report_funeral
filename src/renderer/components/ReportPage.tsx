@@ -250,83 +250,106 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
 
 /**
  * Trailing whitespace is dropped on commit, leading whitespace is kept. A note that opens with a
- * blank line is someone starting on the second rule on purpose, and trimming both ends yanked it
- * back onto the first one — which read as the second line being untypable.
+ * blank line is someone writing on the second rule and leaving the first empty, and trimming both
+ * ends pulled it back onto the first one.
  */
 const trimTrailing = (value: string): string => value.replace(/\s+$/, "");
 
+const NOTES_LINES = 2;
+
 /**
- * The footer notes, typed straight on the page like the ruled rows above. Blur commits and Escape
- * cancels; Enter inserts a newline, since this is prose rather than a one-line entry. Rendered
- * read-only when no commit handler is supplied, which is how the hidden print copy gets it.
+ * The note as its two written lines. Anything beyond the second is folded onto it rather than
+ * dropped, so a note saved by a build that let the block grow is not silently truncated.
+ */
+function notesLines(notes: string): string[] {
+  const written = notes.split("\n");
+  const lines = written.slice(0, NOTES_LINES - 1);
+  lines.push(written.slice(NOTES_LINES - 1).filter(Boolean).join(" "));
+  while (lines.length < NOTES_LINES) lines.push("");
+  return lines;
+}
+
+/**
+ * The footer notes: two ruled lines at the foot of the sheet, each written on separately. They are
+ * two elements rather than one block of text on a striped background, because that is what they
+ * are to the person using them — a click lands on the line it looks like it landed on, and neither
+ * line has to work out where in a single string the caret belongs.
+ *
+ * Rendered read-only when no commit handler is supplied, which is how the hidden print copy gets
+ * it, and the read-only lines are the same elements so the sheet prints as it looks.
  */
 function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(notes);
-  const areaRef = useRef<HTMLTextAreaElement>(null);
-  const caretRef = useRef<number | null>(null);
+  const [editingLine, setEditingLine] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const continueRef = useRef(false);
+  const lines = notesLines(notes);
 
   useEffect(() => {
-    if (!editing) return;
-    const area = areaRef.current;
-    if (!area) return;
-    area.focus();
-    const caret = caretRef.current;
-    if (caret !== null) area.setSelectionRange(caret, caret);
-    caretRef.current = null;
-  }, [editing]);
+    if (editingLine === null) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editingLine]);
 
-  /**
-   * Opens the note on the rule that was actually clicked, rather than always on the first one. The
-   * second rule was reachable only by typing on the first and pressing Enter, which is not what a
-   * ruled line looks like it wants.
-   *
-   * The click arrives in screen pixels and the page is drawn under the preview zoom, so it is
-   * converted back to the page's own pixels first — offsetHeight is the untransformed height, and
-   * the ratio between the two is the zoom. Lines the note does not have yet are added as blank
-   * ones; if nothing is typed into them, trimTrailing drops them again on commit.
-   */
-  function openAtClick(event: ReactMouseEvent<HTMLButtonElement>) {
-    const target = event.currentTarget;
-    const rect = target.getBoundingClientRect();
-    const zoom = target.offsetHeight > 0 ? rect.height / target.offsetHeight : 1;
-    const lineHeight = parseFloat(getComputedStyle(target).lineHeight);
-    const lines = notes.split("\n");
-    const clicked = lineHeight > 0
-      ? Math.max(0, Math.floor((event.clientY - rect.top) / zoom / lineHeight))
-      : 0;
-    while (lines.length <= clicked) lines.push("");
-    caretRef.current = lines.slice(0, clicked).reduce((total, line) => total + line.length + 1, 0) + lines[clicked].length;
-    setDraft(lines.join("\n"));
-    setEditing(true);
+  function open(index: number) {
+    setDraft(lines[index]);
+    setEditingLine(index);
   }
 
   function finish() {
-    setEditing(false);
-    const next = trimTrailing(draft);
-    if (next !== trimTrailing(notes)) onCommit?.(next);
+    const index = editingLine;
+    setEditingLine(null);
+    if (index === null) return;
+    const next = [...lines];
+    next[index] = draft;
+    const joined = trimTrailing(next.join("\n"));
+    if (joined !== trimTrailing(notes)) onCommit?.(joined);
+    // Enter on the first line carries on to the second, the way the ruled rows above behave.
+    if (continueRef.current && index + 1 < NOTES_LINES) {
+      const carryTo = index + 1;
+      setDraft(next[carryTo]);
+      setEditingLine(carryTo);
+    }
+    continueRef.current = false;
   }
 
   return (
     <div className="notes-block">
       <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
-      {editing ? (
-        <textarea
-          ref={areaRef}
-          className="notes-body notes-input no-print"
-          aria-label="Report notes"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={finish}
-          onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setDraft(notes); setEditing(false); } }}
-        />
-      ) : onCommit ? (
-        <button type="button" className="notes-body notes-button no-print" title="Click a line to type on it" onClick={openAtClick}>
-          {notes}
-        </button>
-      ) : (
-        <div className="notes-body">{notes}</div>
-      )}
+      <div className="notes-body">
+        {lines.map((line, index) => {
+          const label = `Report notes line ${index + 1}`;
+          if (onCommit && editingLine === index) {
+            return (
+              <input
+                key={index}
+                ref={inputRef}
+                className="notes-line notes-line-input no-print"
+                aria-label={label}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onBlur={finish}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") { event.preventDefault(); setEditingLine(null); }
+                  else if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
+                    event.preventDefault();
+                    continueRef.current = true;
+                    event.currentTarget.blur();
+                  }
+                }}
+              />
+            );
+          }
+          if (onCommit) {
+            return (
+              <button key={index} type="button" className="notes-line notes-line-button no-print" aria-label={label} title="Click to type on this line" onClick={() => open(index)}>
+                {line}
+              </button>
+            );
+          }
+          return <div key={index} className="notes-line">{line}</div>;
+        })}
+      </div>
     </div>
   );
 }

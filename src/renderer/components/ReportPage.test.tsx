@@ -331,31 +331,55 @@ describe("drag to reorder", () => {
     expect(smith).not.toHaveClass("draggable-person");
     expect(smith).toHaveAttribute("draggable", "false");
   });
-  it("keeps a leading blank line so a note can start on the second rule", () => {
-    // The notes block is two ruled lines. Starting on the second one means a leading newline, and
-    // trimming both ends used to pull the text back onto the first rule the moment it committed.
+  it("writes each notes line on its own, without touching the other", () => {
+    // Two ruled lines, two fields. Writing on the second used to mean typing on the first and
+    // pressing Enter, because the block was one box of text pretending to be two lines.
     const onNotesCommit = vi.fn();
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Click a line to type on it" }));
-    const area = screen.getByRole("textbox", { name: "Report notes" });
-    fireEvent.change(area, { target: { value: "\nMeant for line two" } });
-    fireEvent.blur(area);
+    fireEvent.click(screen.getByRole("button", { name: "Report notes line 2" }));
+    const second = screen.getByRole("textbox", { name: "Report notes line 2" });
+    fireEvent.change(second, { target: { value: "Meant for line two" } });
+    fireEvent.blur(second);
 
     expect(onNotesCommit).toHaveBeenCalledWith("\nMeant for line two");
+  });
+
+  it("keeps the first line when the second is written", () => {
+    const report = { ...createEmptyReport("2026-07-26"), notes: "First line" };
+    const onNotesCommit = vi.fn();
+    render(<ReportPage report={report} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
+
+    expect(screen.getByRole("button", { name: "Report notes line 1" })).toHaveTextContent("First line");
+    fireEvent.click(screen.getByRole("button", { name: "Report notes line 2" }));
+    const second = screen.getByRole("textbox", { name: "Report notes line 2" });
+    fireEvent.change(second, { target: { value: "Second line" } });
+    fireEvent.blur(second);
+
+    expect(onNotesCommit).toHaveBeenCalledWith("First line\nSecond line");
   });
 
   it("still drops trailing whitespace from a note", () => {
     const onNotesCommit = vi.fn();
     render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onNotesCommit={onNotesCommit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Click a line to type on it" }));
-    const area = screen.getByRole("textbox", { name: "Report notes" });
-    fireEvent.change(area, { target: { value: "A note  \n\n  " } });
-    fireEvent.blur(area);
+    fireEvent.click(screen.getByRole("button", { name: "Report notes line 1" }));
+    const first = screen.getByRole("textbox", { name: "Report notes line 1" });
+    fireEvent.change(first, { target: { value: "A note  " } });
+    fireEvent.blur(first);
 
     expect(onNotesCommit).toHaveBeenCalledWith("A note");
   });
+
+  it("folds a longer stored note onto the two lines rather than losing it", () => {
+    // Notes saved when the block could grow past two lines still have to show all of their text.
+    const report = { ...createEmptyReport("2026-07-26"), notes: "One\nTwo\nThree" };
+    render(<ReportPage report={report} layout={LAYOUT} />);
+
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Two Three")).toBeInTheDocument();
+  });
+
   it("resizes the card when its grip is dragged", () => {
     // The grip sits outside the card, as a sibling inside the shell, so it can hang past the edge
     // without the card's overflow clip eating half of it. That also means it cannot find the card

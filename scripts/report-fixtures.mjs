@@ -106,10 +106,14 @@ export const CASES = [
       "The RUSH chip and its deadline are still legible at 5.6pt",
       "Every section still shows its full complement of blank writing rows — three under DELIVER and FDP",
     ],
-    // Tuned by running this gate: 43/23 tips into "does not fit one page" and 40/21 fills the
-    // column with a couple of rows to spare. Near the ceiling for the same reason 05 is: a
-    // backstop sheet with white space left on it proves nothing.
-    entries: busyNight(40, 21),
+    // Tuned by running this gate: 40/21 tips into "does not fit one page" and 38/20 fills the
+    // column with a row or two to spare. Near the ceiling for the same reason 05 is: a sheet at
+    // the smallest the page is ever drawn, with white space left on it, proves nothing.
+    //
+    // Retuned down from 40/21 when the notes block stopped being squeezed along with everything
+    // else. Holding it at a fixed .58in costs about two rows of capacity, which is the trade: a
+    // note nobody can hand-write in is worse than a rare second page.
+    entries: busyNight(38, 20),
   },
   {
     id: "07-road-trips",

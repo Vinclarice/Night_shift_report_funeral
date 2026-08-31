@@ -461,20 +461,22 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .notes-block { position: absolute; left: 0; right: 0; bottom: 0; padding-top: .06in; border-top: 1px solid #8d97a3; }
 .notes-block p { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 .05in; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; letter-spacing: .16em; }
 .notes-block p span { letter-spacing: .1em; }
-/* The ruled lines are painted rather than drawn as elements, so typed text sits on them without
-   anything to keep in sync — the leading is the rule spacing. */
-.notes-body { display: block; width: 100%; min-height: .52in; padding: 0; margin: 0; border: 0;
-  color: var(--report-ink); font-family: inherit; font-size: 9.5pt; line-height: .26in; text-align: left;
-  white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; resize: none;
-  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(.26in - .5px), #b6bfcb calc(.26in - .5px), #b6bfcb .26in); }
-/* A block <button> still centres its own content vertically, which floated a one-line note into
-   the gap between the two rules instead of seating it on the first. Only making the button a flex
-   container defeats that — `align-items` alone is ignored here — and flex-start then lands the
-   text exactly where the textarea puts it, so the note does not shift when clicked. */
-.notes-button { display: flex; align-items: flex-start; cursor: text; border-radius: 0; font-weight: 400; }
-.notes-button:hover { background-color: color-mix(in srgb, var(--human) 6%, white); }
-.notes-button:focus-visible { outline: 2px solid var(--report-ink); outline-offset: -2px; box-shadow: none; }
-.notes-input { background-color: #fff; box-shadow: inset .03in 0 var(--report-ink), 0 0 0 .02in rgb(23 33 28 / 55%); outline: 0; }
+/* Two ruled lines, each a real element rather than a painted stripe, because each one is written
+   on separately: a click lands on the line it looks like it landed on, and neither has to work out
+   where in a single block of text the caret should go.
+
+   Fixed at .26in whatever the sheet is doing. Compaction leaves the notes block alone — it is a
+   fixed .58in at the foot of the page, and the ~.2in that squeezing it could win back is not worth
+   a hand-written note that no longer has room to be hand-written. */
+.notes-body { display: block; width: 100%; padding: 0; margin: 0; border: 0; }
+.notes-line { display: block; width: 100%; height: .26in; padding: 0; margin: 0; border: 0;
+  border-bottom: .5px solid #b6bfcb; border-radius: 0;
+  color: var(--report-ink); font-family: inherit; font-size: 9.5pt; font-weight: 400; line-height: .25in; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: transparent; }
+.notes-line-button { cursor: text; }
+.notes-line-button:hover { background-color: color-mix(in srgb, var(--human) 6%, white); }
+.notes-line-button:focus-visible { outline: 2px solid var(--report-ink); outline-offset: -2px; box-shadow: none; }
+.notes-line-input { background-color: #fff; box-shadow: inset .03in 0 var(--report-ink); outline: 0; }
 .calibration-label { position: absolute; bottom: calc(var(--report-margin) + .03in); left: 0; right: 0; text-align: center; font-size: 7pt; color: #a22; }
 .report-page[data-calibration]::before { border: 1.5px dashed #c22; border-radius: 0; }
 .report-page[data-calibration]::after { content: "+"; position: absolute; left: 50%; top: 50%; color: #c22; font-size: 18pt; }
@@ -488,8 +490,8 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 
    Type and spacing are all that give. The blank writing rows are never reclaimed — a row
    disappearing is the one compaction the crew actually sees, and it takes away somewhere they were
-   about to write — and the notes block keeps both its ruled lines the whole way down. */
-.report-page { --tighten: 0; --notes-line: calc(.26in - .1in * var(--tighten)); }
+   about to write — and the notes block is not squeezed at all. */
+.report-page { --tighten: 0; }
 .report-page .report-column { gap: calc(.12in - .08in * var(--tighten)); }
 .report-page .report-column > h2 {
   min-height: calc(.32in - .11in * var(--tighten));
@@ -521,13 +523,6 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-page .report-header h1 { font-size: calc(19pt - 5pt * var(--tighten)); }
 .report-page .report-weekday { font-size: calc(14pt - 4pt * var(--tighten)); }
 .report-page .report-date { font-size: calc(10.5pt - 2.1pt * var(--tighten)); }
-/* Always exactly two ruled lines, tightening with everything else. Both ends are a whole number of
-   lines (.52in = 2 x .26in, .32in = 2 x .16in), so a rule is never half-drawn at the bottom edge. */
-.report-page .notes-body {
-  min-height: calc(var(--notes-line) * 2);
-  line-height: var(--notes-line);
-  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--notes-line) - .5px), #b6bfcb calc(var(--notes-line) - .5px), #b6bfcb var(--notes-line));
-}
 
 /* ── On-canvas editing. Screen only; none of it survives into @media print.
    These affordances used to be six hardcoded greens (#287458, #14a775, #176b4a, #eef6f0, #eff8f1,
