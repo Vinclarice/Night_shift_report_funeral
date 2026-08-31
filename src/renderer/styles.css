@@ -191,6 +191,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .studio-commandbar button, .studio-commandbar input, .studio-commandbar [role="menu"] { -webkit-app-region: no-drag; }
 .studio-commandbar button.quiet { color: rgb(255 255 255 / 82%); }
 .studio-commandbar button.quiet:hover { color: #fff; background: rgb(255 255 255 / 14%); }
+/* A quiet command-bar button that is currently on, e.g. the Road trips toggle. The bar is dark and
+   its text is white, so "engaged" is a lit-up version of the same button rather than a colour from
+   the sheet — which would be one of the printed inks, and unreadable here. */
+.studio-commandbar button.quiet[aria-pressed="true"] { color: #fff; font-weight: 700; background: rgb(255 255 255 / 18%); }
 .studio-commandbar .icon-button { color: rgb(255 255 255 / 78%); }
 .studio-commandbar .icon-button:hover { color: #fff; background: rgb(255 255 255 / 16%); }
 .studio-commandbar button:focus-visible { outline-color: #fff; }

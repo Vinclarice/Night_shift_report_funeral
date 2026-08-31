@@ -6,7 +6,8 @@ import { app, BrowserWindow, ipcMain, Menu, screen, shell } from "electron";
 import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
-import type { LayoutSettings, NightReport } from "../domain/types";
+import { REPORT_SECTIONS } from "../domain/report";
+import type { LayoutSettings, NightReport, SectionKey } from "../domain/types";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 
 const hasLock = process.env.NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE === "1" || app.requestSingleInstanceLock();
@@ -110,17 +111,10 @@ const reportEntrySchema = z.discriminatedUnion("type", [
   z.object({ ...baseEntryFields, type: z.literal("plain"), text: z.string() }),
 ]);
 
-const sectionKeySchema = z.enum([
-  "human-deliver",
-  "human-airport",
-  "human-fdp",
-  "human-pending",
-  "human-ship-outs",
-  "cremated-deliver",
-  "cremated-mail",
-  "cremated-fdp",
-  "cremated-certs",
-]);
+// Read off the domain's own section list rather than repeated here. The two were written out
+// separately once, and when ROAD TRIPS was added to one and not the other every save failed
+// validation — a whole class of bug that only a running app could catch.
+const sectionKeySchema = z.enum(REPORT_SECTIONS.map((section) => section.key) as [SectionKey, ...SectionKey[]]);
 
 const reportSectionSchema = z.object({
   key: sectionKeySchema,
@@ -129,8 +123,9 @@ const reportSectionSchema = z.object({
   entries: z.array(reportEntrySchema),
 });
 
-// notes defaulted, not required, so a report saved by an older build still validates.
-const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), notes: z.string().default(""), sections: z.array(reportSectionSchema) });
+// notes and roadTripsVisible are defaulted, not required, so a report saved by an older build
+// still validates.
+const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), notes: z.string().default(""), roadTripsVisible: z.boolean().default(false), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {

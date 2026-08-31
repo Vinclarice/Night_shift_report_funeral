@@ -111,7 +111,26 @@ export const CASES = [
     entries: busyNight(40, 21),
   },
   {
-    id: "07-long-names",
+    id: "07-road-trips",
+    title: "Road trips card shown",
+    why: "The toggled ROAD TRIPS card in place between AIRPORT DROPS and FDP. Off on most nights, so this is the only sheet in the pack that carries it — and the only one with ten cards.",
+    roadTripsVisible: true,
+    expectCards: 10,
+    extra: [
+      "ROAD TRIPS sits between AIRPORT DROPS and FDP, not at the foot of the column",
+      "Its header and rules match the cards around it — nothing about it reads as bolted on",
+      "It shows two blank writing rows",
+    ],
+    entries: {
+      "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],
+      "human-road-trips": [fun("Brown/PA", "Helwig", "", "Ron OK"), fun("Crescent", "Wanzer", "13A", "Meet at 0600")],
+      "human-fdp": [fun("Greene", "Johnson", "TRL"), fun("MD Crem", "Rumer", "17B"), fun("Inman", "Lassahn", "SSR")],
+      "human-pending": [fun("Beltway Crem", "Hernandez", "", "FH will call")],
+      "cremated-fdp": [count("Reese", 3), plain("Covenant")],
+    },
+  },
+  {
+    id: "08-long-names",
     title: "Long funeral-home and deceased names",
     why: "Wrapping and the 3.55in card ceiling. Nothing may clip or push a card out of column.",
     entries: {
@@ -122,7 +141,7 @@ export const CASES = [
     },
   },
   {
-    id: "08-merged-and-rush",
+    id: "09-merged-and-rush",
     title: "Multiple merged entries and multiple rush deliveries",
     why: "Rush ordering holds the top; merged people share one funeral-home line with + separators.",
     entries: {
@@ -137,7 +156,7 @@ export const CASES = [
     },
   },
   {
-    id: "09-pinned-bottom",
+    id: "10-pinned-bottom",
     title: "Entry pinned to the bottom of a section",
     why: "The separating rule above a pinned line must read on paper without looking like a highlight.",
     entries: {
@@ -146,7 +165,7 @@ export const CASES = [
     },
   },
   {
-    id: "10-cremated-widths",
+    id: "11-cremated-widths",
     title: "Cremated card at default width beside one expanded by a name",
     why: "Cremated cards start at 1.62in and grow only for the edge case that needs it.",
     entries: {
@@ -157,7 +176,7 @@ export const CASES = [
     },
   },
   {
-    id: "11-notes-filled",
+    id: "12-notes-filled",
     title: "Notes written in the footer",
     why: "Typed notes take height from the columns, so the block has to read cleanly when full.",
     notes: [
@@ -172,10 +191,11 @@ export const CASES = [
   },
 ];
 
-export const seedInPage = (page, entriesByKey, notes = "") => page.evaluate(async ({ byKey, notes }) => {
+export const seedInPage = (page, entriesByKey, notes = "", roadTripsVisible = false) => page.evaluate(async ({ byKey, notes, roadTripsVisible }) => {
   const data = await window.nightShift.bootstrap();
   const report = data.report;
   for (const section of report.sections) section.entries = byKey[section.key] ?? [];
   report.notes = notes;
+  report.roadTripsVisible = roadTripsVisible;
   await window.nightShift.saveReport(report, report.version);
-}, { byKey: entriesByKey, notes });
+}, { byKey: entriesByKey, notes, roadTripsVisible });

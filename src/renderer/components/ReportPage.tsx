@@ -47,6 +47,7 @@ interface Props {
  */
 const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
   "human-deliver": 3,
+  "human-road-trips": 2,
   "human-fdp": 3,
   "human-pending": 2,
   "human-ship-outs": 1,
@@ -410,7 +411,10 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
     "--report-offset-x": `${layout.offsetXInches}in`,
     "--report-offset-y": `${layout.offsetYInches}in`,
   } as CSSProperties;
-  const human = report.sections.filter((section) => section.category === "human");
+  // ROAD TRIPS is filtered out of the page rather than out of the report, so a night that is put
+  // away with entries still in it keeps them, and they reappear with the card.
+  const human = report.sections.filter((section) =>
+    section.category === "human" && (section.key !== "human-road-trips" || report.roadTripsVisible));
   const cremated = report.sections.filter((section) => section.category === "cremated");
 
   return (

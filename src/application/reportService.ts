@@ -38,6 +38,9 @@ export class ReportService {
     const report = createEmptyReport(tonightDate);
     const prior = await this.repository.mostRecent();
     if (prior) {
+      // Carried over like a card width rather than reset like the notes: a run of nights that need
+      // ROAD TRIPS is set up once, and a night that does not need it is one click to put away.
+      report.roadTripsVisible = prior.roadTripsVisible;
       report.sections = report.sections.map((section) => {
         const old = prior.sections.find((candidate) => candidate.key === section.key);
         return { ...section, entries: (old?.entries ?? []).map(cloneEntry) };

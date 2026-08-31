@@ -91,6 +91,7 @@ export class PrismaReportRepository implements ReportRepository {
         reportDate: report.reportDate,
         version: report.version,
         notes: report.notes || null,
+        roadTripsVisible: report.roadTripsVisible,
       } });
       await this.writeEntries(tx, report);
     });
@@ -102,7 +103,7 @@ export class PrismaReportRepository implements ReportRepository {
     await this.client.$transaction(async (tx) => {
       const changed = await tx.report.updateMany({
         where: { id: report.id, version: expectedVersion },
-        data: { version: nextVersion, notes: report.notes || null },
+        data: { version: nextVersion, notes: report.notes || null, roadTripsVisible: report.roadTripsVisible },
       });
       if (changed.count !== 1) throw new VersionConflictError();
       await tx.entry.deleteMany({ where: { reportId: report.id } });
@@ -200,6 +201,7 @@ export class PrismaReportRepository implements ReportRepository {
     report.id = loaded.id;
     report.version = loaded.version;
     report.notes = loaded.notes ?? "";
+    report.roadTripsVisible = loaded.roadTripsVisible ?? false;
     for (const section of report.sections) {
       section.entries = loaded.entries.filter((entry) => entry.sectionKey === section.key).map((entry): ReportEntry => {
         const base = { id: entry.id, rush: entry.rush, keepSeparate: entry.keepSeparate, pinnedBottom: entry.pinnedBottom, rushBy: entry.rushBy ?? undefined, createdAt: entry.createdAt.toISOString() };

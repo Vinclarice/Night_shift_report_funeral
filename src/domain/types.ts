@@ -1,6 +1,7 @@
 export type SectionKey =
   | "human-deliver"
   | "human-airport"
+  | "human-road-trips"
   | "human-fdp"
   | "human-pending"
   | "human-ship-outs"
@@ -87,6 +88,13 @@ export interface NightReport {
    * which clones only the sections.
    */
   notes: string;
+  /**
+   * Whether the ROAD TRIPS card is on the sheet. It is wanted only on the nights that have one, so
+   * it is off by default and off on most reports — but it carries over to the next night the way
+   * card widths do, so a run of road-trip nights is set up once rather than every evening. Hiding
+   * it does not discard its entries; they come back with it.
+   */
+  roadTripsVisible: boolean;
   sections: ReportSection[];
 }
 

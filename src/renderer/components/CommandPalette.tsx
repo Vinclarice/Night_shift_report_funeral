@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
+import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportActions, useReportState } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import type { ReactNode } from "react";
@@ -71,6 +71,14 @@ export function useCommands(report: NightReport | null): Command[] {
         run: () => dispatch({ type: "SET_INSPECTOR_OPEN", open: !workspace.inspectorOpen }),
       },
       { id: "view:fit", label: "Fit report to window", group: "View", hint: "Zoom", run: () => dispatch({ type: "FIT_ZOOM" }) },
+      {
+        id: "report:road-trips",
+        label: report?.roadTripsVisible ? "Hide road trips section" : "Show road trips section",
+        group: "Report",
+        icon: <IconRoad />,
+        disabled: !report,
+        run: () => { if (report) void actions.persist({ ...report, roadTripsVisible: !report.roadTripsVisible }); },
+      },
       { id: "edit:undo", label: "Undo", group: "Edit", hint: "Ctrl+Z", icon: <IconUndo />, disabled: !state.undoAvailable, run: actions.undo },
       { id: "edit:redo", label: "Redo", group: "Edit", hint: "Ctrl+Y", icon: <IconRedo />, disabled: !state.redoAvailable, run: actions.redo },
       {

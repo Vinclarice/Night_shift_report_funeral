@@ -370,4 +370,36 @@ describe("drag to reorder", () => {
     expect(onWidthChange).toHaveBeenCalledWith("human-deliver", expect.any(Number));
     expect(onWidthCommit).toHaveBeenCalledWith("human-deliver", expect.any(Number));
   });
+  it("leaves road trips off the sheet until the night has one", () => {
+    const report = createEmptyReport("2026-07-26");
+    const { container, rerender } = render(<ReportPage report={report} layout={LAYOUT} />);
+    expect(container.querySelector('[data-section-key="human-road-trips"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="section-card"]')).toHaveLength(9);
+
+    rerender(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    const card = container.querySelector('[data-section-key="human-road-trips"]');
+    expect(card).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="section-card"]')).toHaveLength(10);
+    // Between AIRPORT DROPS and FDP, which is the whole point of where it goes.
+    const humanKeys = [...container.querySelectorAll('.human-column [data-section-key]')].map((el) => el.getAttribute("data-section-key"));
+    expect(humanKeys).toEqual(["human-deliver", "human-airport", "human-road-trips", "human-fdp", "human-pending", "human-ship-outs"]);
+    expect(card!.querySelectorAll('[data-testid="free-row"]')).toHaveLength(2);
+  });
+
+  it("keeps road trip entries when the card is put away", () => {
+    // Hiding is a view change, not a delete: the entries have to be there when it comes back.
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-road-trips")!.entries.push({
+      id: "trip", type: "plain", text: "Ron to Richmond", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
+    });
+    const { container, rerender } = render(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    expect(screen.getByText("Ron to Richmond")).toBeInTheDocument();
+
+    rerender(<ReportPage report={{ ...report, roadTripsVisible: false }} layout={LAYOUT} />);
+    expect(screen.queryByText("Ron to Richmond")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-section-key="human-road-trips"]')).toBeNull();
+
+    rerender(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    expect(screen.getByText("Ron to Richmond")).toBeInTheDocument();
+  });
 });

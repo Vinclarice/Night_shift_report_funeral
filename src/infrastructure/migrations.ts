@@ -101,6 +101,7 @@ const addedColumns: Array<{ table: string; column: string; definition: string }>
   { table: "Entry", column: "pinnedBottom", definition: `BOOLEAN NOT NULL DEFAULT false` },
   { table: "Entry", column: "rushBy", definition: `TEXT` },
   { table: "Report", column: "notes", definition: `TEXT` },
+  { table: "Report", column: "roadTripsVisible", definition: `BOOLEAN NOT NULL DEFAULT false` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {

@@ -189,6 +189,19 @@ export function IconFlag(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** A road running to the horizon with a dashed centre line, for the ROAD TRIPS section. */
+export function IconRoad(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M8 3 4 21" />
+      <path d="M16 3l4 18" />
+      <path d="M12 4v3" />
+      <path d="M12 10.5v3" />
+      <path d="M12 17v3" />
+    </Icon>
+  );
+}
+
 export function IconArrowLeft(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

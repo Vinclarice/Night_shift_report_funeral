@@ -7,6 +7,9 @@ export const REPORT_SECTIONS: ReadonlyArray<{
 }> = [
   { key: "human-deliver", category: "human", title: "DELIVER" },
   { key: "human-airport", category: "human", title: "AIRPORT DROPS" },
+  // Shown only when the night has one; see NightReport.roadTripsVisible. It sits in the section
+  // list unconditionally so its entries survive the card being hidden and come back with it.
+  { key: "human-road-trips", category: "human", title: "ROAD TRIPS" },
   { key: "human-fdp", category: "human", title: "FDP" },
   { key: "human-pending", category: "human", title: "HR DEL – PENDING" },
   { key: "human-ship-outs", category: "human", title: "SHIP-OUTS – NFS" },
@@ -53,6 +56,7 @@ export function createEmptyReport(reportDate: string): NightReport {
     reportDate,
     version: 0,
     notes: "",
+    roadTripsVisible: false,
     sections,
   };
 }

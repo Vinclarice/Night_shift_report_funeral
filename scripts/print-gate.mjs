@@ -106,7 +106,7 @@ const run = async () => {
     await page.waitForSelector(".studio-canvas");
 
     for (const testCase of CASES) {
-      await seedInPage(page, testCase.entries, testCase.notes);
+      await seedInPage(page, testCase.entries, testCase.notes, testCase.roadTripsVisible ?? false);
       await page.reload();
       await page.waitForSelector(".studio-canvas");
       await page.waitForTimeout(900);
@@ -118,7 +118,9 @@ const run = async () => {
       await page.evaluate(() => { document.documentElement.style.overflow = "hidden"; window.scrollTo(0, 0); });
       const report = await inspect(page);
       const problems = [];
-      if (report.cards !== 9) problems.push(`${report.cards} cards, expected 9`);
+      // Nine on almost every sheet; ten on the one that shows ROAD TRIPS, which is off by default.
+      const expectedCards = testCase.expectCards ?? 9;
+      if (report.cards !== expectedCards) problems.push(`${report.cards} cards, expected ${expectedCards}`);
       if (report.clipped.length) problems.push(`clipped: ${report.clipped.join(", ")}`);
       if (report.strayed.length) problems.push(`wrong column: ${report.strayed.join(", ")}`);
       if (report.widestCardIn > 3.56) problems.push(`card ${report.widestCardIn}in exceeds the 3.55in ceiling`);
@@ -187,15 +189,15 @@ const run = async () => {
     }, RULE_WEIGHTS);
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
-    await page.screenshot({ path: join(outDir, "12-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
+    await page.screenshot({ path: join(outDir, "13-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
     const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
       const contents = BrowserWindow.getAllWindows()[0].webContents;
       const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
       return buffer.toString("base64");
     });
-    await writeFile(join(outDir, "12-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await writeFile(join(outDir, "13-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
     await page.emulateMedia({ media: "screen" });
-    console.log("12-rule-weights      ok  (print and pick the hairline that reads best)");
+    console.log("13-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {
@@ -209,7 +211,7 @@ const run = async () => {
   // reach the printer as part of the stack.
   const regenerated = new Set([
     ...CASES.flatMap((c) => [`${c.id}.png`, `${c.id}.pdf`]),
-    "00-calibration.png", "00-calibration.pdf", "12-rule-weights.png", "12-rule-weights.pdf", "CHECKLIST.md",
+    "00-calibration.png", "00-calibration.pdf", "13-rule-weights.png", "13-rule-weights.pdf", "CHECKLIST.md",
   ]);
   const orphans = stranded.filter((name) => !regenerated.has(name));
   if (orphans.length) {

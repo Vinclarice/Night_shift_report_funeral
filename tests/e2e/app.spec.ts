@@ -165,6 +165,42 @@ test("launches portably and renders the exact nine-card page", async () => {
   }
 });
 
+test("shows and hides the road trips card, and remembers which", async () => {
+  test.setTimeout(60_000);
+  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-roadtrips-"));
+  const electronApp = await electron.launch({
+    args: [join(process.cwd(), "out/main/index.js")],
+    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
+  });
+  try {
+    const page = await electronApp.firstWindow();
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    await expect(page.getByText("Live canvas")).toBeVisible();
+    const preview = page.locator(".report-page").first();
+    const toggle = page.getByRole("button", { name: "Road trips", exact: true });
+
+    await expect(preview.getByTestId("section-card")).toHaveCount(9);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    await toggle.click();
+    await expect(preview.getByTestId("section-card")).toHaveCount(10);
+    await expect(preview.locator('[data-section-key="human-road-trips"]')).toBeVisible();
+
+    // Through a reload, which is what actually exercises the column and the migration that adds
+    // it: the flag has to survive the round trip to SQLite, not just live in React state.
+    await page.reload();
+    await expect(page.getByText("Live canvas")).toBeVisible();
+    await expect(preview.getByTestId("section-card")).toHaveCount(10);
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+    await toggle.click();
+    await expect(preview.getByTestId("section-card")).toHaveCount(9);
+  } finally {
+    await electronApp.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
 test("the packaged Windows application starts with clean local data", async () => {
   test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run after building the portable Windows release.");

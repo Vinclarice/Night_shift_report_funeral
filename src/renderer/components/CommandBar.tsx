@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { NightReport } from "@/domain/types";
-import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
+import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Badge } from "../ui/Badge";
@@ -27,6 +27,15 @@ export function CommandBar({ report }: { report: NightReport }) {
   const [dateOpen, setDateOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
   const dateRef = useRef<HTMLDivElement>(null);
+  const roadTripEntries = report.sections.find((section) => section.key === "human-road-trips")?.entries.length ?? 0;
+  const roadTripsTitle = report.roadTripsVisible
+    ? roadTripEntries
+      ? `Take ROAD TRIPS off the sheet. Its ${roadTripEntries === 1 ? "entry is" : `${roadTripEntries} entries are`} kept and will come back with it.`
+      : "Take ROAD TRIPS off the sheet."
+    : "Put a ROAD TRIPS card on the sheet, between AIRPORT DROPS and FDP.";
+  function toggleRoadTrips() {
+    void controller.persist({ ...report, roadTripsVisible: !report.roadTripsVisible });
+  }
   const shownDate = controller.dateOverride ?? report.reportDate;
   const overridden = controller.dateOverride !== null && controller.dateOverride !== report.reportDate;
 
@@ -84,6 +93,17 @@ export function CommandBar({ report }: { report: NightReport }) {
           {controller.status === "saving" ? "Saving…" : controller.status === "error" ? "Save error" : "Saved"}
         </Badge>
         <div className="command-group"><IconButton icon={<IconUndo />} aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!controller.undoAvailable} onClick={controller.undo} /><IconButton icon={<IconRedo />} aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!controller.redoAvailable} onClick={controller.redo} /></div>
+        {/* Most nights have no road trip, so the card is off and this reads as an invitation to add
+            it. On the nights that do, it reads as the way to put it away again. The count in the
+            title is there because hiding a card with entries still in it keeps them, and someone
+            should be able to see that before they do it. */}
+        <Button
+          variant="quiet"
+          icon={<IconRoad />}
+          aria-pressed={report.roadTripsVisible}
+          title={roadTripsTitle}
+          onClick={toggleRoadTrips}
+        >Road trips</Button>
         {!workspace.inspectorOpen && <Button variant="quiet" icon={<IconSidebar />} onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: true })}>Inspector</Button>}
         <div className="tools-menu" ref={toolsRef}>
           <Button variant="quiet" icon={<IconWand />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>
