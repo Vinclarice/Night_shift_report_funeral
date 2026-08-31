@@ -352,4 +352,22 @@ describe("drag to reorder", () => {
 
     expect(onNotesCommit).toHaveBeenCalledWith("A note");
   });
+  it("resizes the card when its grip is dragged", () => {
+    // The grip sits outside the card, as a sibling inside the shell, so it can hang past the edge
+    // without the card's overflow clip eating half of it. That also means it cannot find the card
+    // by walking up from itself — when it tried, dragging silently did nothing at all.
+    const onWidthChange = vi.fn();
+    const onWidthCommit = vi.fn();
+    const { container } = render(<ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onLineCommit={vi.fn()} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} />);
+
+    // Both columns have a DELIVER, so the grip is reached through its own card's shell.
+    const grip = container.querySelector('[data-section-key="human-deliver"]')!
+      .closest(".section-card-shell")!.querySelector(".width-handle")!;
+    fireEvent.pointerDown(grip, { clientX: 0 });
+    fireEvent.pointerMove(window, { clientX: 96 });
+    fireEvent.pointerUp(window);
+
+    expect(onWidthChange).toHaveBeenCalledWith("human-deliver", expect.any(Number));
+    expect(onWidthCommit).toHaveBeenCalledWith("human-deliver", expect.any(Number));
+  });
 });

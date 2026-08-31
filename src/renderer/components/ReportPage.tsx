@@ -332,7 +332,10 @@ const SectionCard = memo(function SectionCard({
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
     event.preventDefault();
-    const card = event.currentTarget.closest(".section-card") as HTMLElement;
+    // The card by ref, not by walking up from the grip: the grip is the card's sibling inside the
+    // shell rather than its child, so closest(".section-card") finds nothing from here.
+    const card = cardRef.current;
+    if (!card) return;
     const startX = event.clientX;
     const startWidth = card.getBoundingClientRect().width / 96;
     let latest = startWidth;
@@ -357,6 +360,7 @@ const SectionCard = memo(function SectionCard({
   }
 
   return (
+    <div className="section-card-shell">
     <section
       ref={cardRef}
       className={`section-card${dropActive ? " drop-active" : ""}${selected ? " studio-selected" : ""}`}
@@ -383,10 +387,14 @@ const SectionCard = memo(function SectionCard({
           ? <EditableReportRow key={`free-${index}`} section={section} onLineCommit={onLineCommit} onContinueEntry={() => { continueFromEntriesRef.current = section.entries; }} autoWidth={!width} freeRowIndex={index} onEntryMove={onEntryMove} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} dropBefore={dropBefore === "__end__"} onDropBeforeChange={setDropBefore} />
           : <div className="report-row blank-row" data-testid="free-row" aria-label={`${section.title} free row ${index + 1}`} key={`free-${index}`}>&nbsp;</div>
       ))}
-      {interactive && (
-        <button className="width-handle no-print" type="button" onPointerDown={beginResize} aria-label={`Resize ${section.title}`} title="Drag to resize" />
-      )}
     </section>
+    {/* Outside the card, not inside it: the card must stay overflow:hidden to keep a long nowrap
+        header from spilling out of a narrowed card, and that clip used to eat the half of the grip
+        that hangs past the edge. The shell is the unclipped box it can hang off instead. */}
+    {interactive && (
+      <button className="width-handle no-print" type="button" onPointerDown={beginResize} aria-label={`Resize ${section.title}`} title="Drag to resize" />
+    )}
+    </div>
   );
 });
 

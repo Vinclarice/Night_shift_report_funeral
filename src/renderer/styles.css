@@ -558,11 +558,14 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent), 0 0 0 5px color-mix(in srgb, var(--column-accent) 22%, transparent); }
 /* The sheet sits on the desk rather than floating in a void. */
 .studio-canvas .report-page { box-shadow: 0 10px 28px rgb(26 31 38 / 16%), 0 2px 6px rgb(26 31 38 / 10%), 0 0 0 1px rgb(26 31 38 / 8%); }
-/* Centred and always on show, as it was. Overlapping a header or a row on a short card is fine —
-   the grip is screen-only and never prints. It sits at right:1px rather than the original -7px
-   because the card is overflow:hidden: hanging half of it outside clipped that half away from
-   hit-testing, leaving only about six of its thirteen pixels grabbable. */
-.width-handle { position: absolute; right: 1px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
+/* An unclipped box around each card, existing only so the grip has something to hang off. The card
+   itself has to stay overflow:hidden — its header is nowrap and would otherwise spill out of a
+   card the operator has narrowed — and positioning the grip inside that clip is what forced it
+   indoors in the first place. */
+.section-card-shell { position: relative; width: fit-content; }
+/* Centred and always on show, straddling the card's right edge as it did originally. Sitting half
+   outside costs nothing: the grip is screen-only and never prints. */
+.width-handle { position: absolute; right: -7px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
 .width-handle::after { content: "⋮"; }
 
 @media (prefers-reduced-motion: reduce) {

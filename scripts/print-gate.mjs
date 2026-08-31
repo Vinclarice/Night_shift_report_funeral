@@ -45,8 +45,7 @@ const RULE_WEIGHTS = [
 /**
  * Everything about the rendered page that can be judged without paper. Deliberately measured on
  * the print-only copy under print media: that is the artifact that reaches the printer, and unlike
- * the live canvas copy it carries no width-drag handles — those sit at right:-7px and would inflate
- * every card's scrollWidth into a false clipping report.
+ * the live canvas copy it carries no width-drag handles or the shells they hang off.
  */
 const inspect = (page) => page.evaluate(() => {
   const el = document.querySelector(".print-only .report-page");
