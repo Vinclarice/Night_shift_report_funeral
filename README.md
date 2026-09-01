@@ -53,7 +53,7 @@ Get-ChildItem -Path "C:\Path\To\NightShiftReport" -Recurse | Unblock-File
 
 ## Physical print-quality gate
 
-Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the card ceilings (5.6in Human, 3.55in Cremated), one-page fit, and each sheet being squeezed about as hard as it is meant to be — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
+Run `node scripts/print-gate.mjs` first (after `pnpm build`). It renders every case below through the real application into `print-gate/`, as a one-page PDF and a PNG each, plus a calibration sheet and a `CHECKLIST.md` to work through at the printer. It also runs the checks that can be made without paper — nine cards present, no text clipped at a card edge, no card in the wrong column, the card ceilings (Human up to the Cremated column, 3.55in Cremated), one-page fit, and each sheet being squeezed about as hard as it is meant to be — and exits non-zero if any of those fail. It uses a throwaway data directory, so it never touches the real report database.
 
 Those checks cannot approve this gate. Print and compare these cases beside the current Word report on the actual company printer:
 

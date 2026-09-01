@@ -124,9 +124,9 @@ const run = async () => {
       if (report.cards !== expectedCards) problems.push(`${report.cards} cards, expected ${expectedCards}`);
       if (report.clipped.length) problems.push(`clipped: ${report.clipped.join(", ")}`);
       if (report.strayed.length) problems.push(`wrong column: ${report.strayed.join(", ")}`);
-      // The two columns have different ceilings: Human cards may be dragged out to 5.6in, Cremated
-      // ones keep the 3.55in they had.
-      if (report.widestHumanIn > 5.61) problems.push(`human card ${report.widestHumanIn}in exceeds the 5.6in ceiling`);
+      // The two columns have different ceilings. A Human card may be dragged out until it reaches
+      // the Cremated column, which at the default margin is 5.02in; Cremated keeps its 3.55in.
+      if (report.widestHumanIn > 5.03) problems.push(`human card ${report.widestHumanIn}in exceeds the 5.02in ceiling`);
       if (report.widestCrematedIn > 3.56) problems.push(`cremated card ${report.widestCrematedIn}in exceeds the 3.55in ceiling`);
       if (overflowWarning) problems.push("printing paused: does not fit one page");
       // Compaction is continuous now, so a case cannot assert an exact setting — a hairline change
