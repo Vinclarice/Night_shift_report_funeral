@@ -200,8 +200,16 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
     }
   }
 
-  /** Arrows on a row that is merely focused just move the focus; Enter or a click opens it. */
+  /** Arrows on a row that is merely focused just move the focus; Enter opens it for editing. */
   function handleButtonKey(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    // A button fires click on Enter, and for a row with an entry that click now only selects. Enter
+    // has to open it explicitly, or the keyboard would have no way in at all.
+    if (entry && (event.key === "Enter" || event.key === "F2")) {
+      event.preventDefault();
+      setDraft(original);
+      setEditing(true);
+      return;
+    }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     const rows = columnRows(event.currentTarget);
     const target = rows[rows.indexOf(event.currentTarget) + (event.key === "ArrowDown" ? 1 : -1)];
@@ -243,22 +251,26 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
       aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`}
       onDragStart={beginDrag}
       onClick={(event) => {
+        // A row with something on it is chosen, not opened. Shift takes everything between the
+        // anchor and here, ctrl adds or drops this row alone, and a plain click starts again from
+        // this one — but none of them drop an input over the row, which is what made picking a
+        // range flicker and what stopped the row being read while it was being chosen. Editing it
+        // is a second click, or Enter.
         if (entry) {
-          // Shift takes everything between the anchor and here; ctrl adds or drops this row alone.
-          // Either way the row is not opened for editing: the click was about choosing rows, and
-          // dropping an input over one of them would hide what had just been selected.
           const extend = event.shiftKey ? "range" : event.ctrlKey || event.metaKey ? "toggle" : undefined;
           onSelectEntry?.(section.key, entry.id, extend);
-          if (extend) return;
-        } else {
-          onSelectSection?.(section.key);
+          return;
         }
+        // A blank row has nothing to choose, so it opens straight away: typing new lines onto the
+        // sheet is the thing done most, and asking for two clicks to start would be a tax on it.
+        onSelectSection?.(section.key);
         setDraft(original);
         setEditing(true);
       }}
+      onDoubleClick={entry ? () => { setDraft(original); setEditing(true); } : undefined}
       onContextMenu={handleContextMenu}
       onKeyDown={handleButtonKey}
-      title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
+      title={entry ? "Click to select — shift-click for a range. Double-click or press Enter to edit, or drag to move." : "Click to type directly in the report"}
       {...dragProps}
     >
       {entry ? <EntryLine entry={entry} onPersonDragStart={onEntryMove ? beginPersonDrag : undefined} /> : <>&nbsp;</>}

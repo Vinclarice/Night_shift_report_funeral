@@ -448,7 +448,8 @@ describe("drag to reorder", () => {
     });
     render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }));
+    // Double-click: a single click on a row that has something on it selects it now.
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }));
     expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toHaveAttribute("list");
   });
   it("reports the modifier a row was clicked with, so a range can be selected", () => {
@@ -478,6 +479,11 @@ describe("drag to reorder", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }), { shiftKey: true });
     expect(screen.queryByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toBeInTheDocument();
+    // Nor does a plain click any more — only a second one, or Enter.
+    fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }));
+    expect(screen.queryByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }), { key: "Enter" });
+    expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).toBeInTheDocument();
   });
 
   it("carries the whole selection when one of its rows is dragged", () => {

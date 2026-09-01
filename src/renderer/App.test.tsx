@@ -285,7 +285,7 @@ describe("App", () => {
     await waitFor(() => expect(rows()).toHaveLength(3));
 
     // A row open for editing owns the key: Delete belongs to the field, not to the sheet.
-    fireEvent.click(rows()[0]);
+    fireEvent.doubleClick(rows()[0]);
     const input = await screen.findByRole("textbox", { name: "Edit Human Remains FDP" });
     // Dispatched on the field, which is where the key really lands; it bubbles to the window
     // listener carrying the field as its target, which is what the guard reads.
@@ -294,11 +294,9 @@ describe("App", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     await waitFor(() => expect(rows()).toHaveLength(3));
 
-    // Clicking a row both selects it and opens it, so the editor is closed again before the
-    // shift-click — while it is open that row is an input and is not among .draggable-row.
+    // No editor to close first: a click on a row that has something on it only selects it.
     fireEvent.click(rows()[0]);
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "Edit Human Remains FDP" }), { key: "Escape" });
-    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(rows()).toHaveLength(3);
     fireEvent.click(rows()[2], { shiftKey: true });
     expect(card().querySelectorAll(".draggable-row.selected")).toHaveLength(3);
 

@@ -40,7 +40,9 @@ test("launches portably and renders the exact nine-card page", async () => {
     await page.getByRole("combobox", { name: "Edit Human Remains DELIVER" }).press("Escape");
     await expect(page.locator(".save-state")).toHaveText("Saved");
 
-    await page.getByRole("button", { name: "Edit Human Remains DELIVER" }).click();
+    // Double-click: a single click on a row that has something on it selects it rather than
+    // opening it, so that the row can be picked without an input landing over it.
+    await page.getByRole("button", { name: "Edit Human Remains DELIVER" }).dblclick();
     // An existing row is a plain textbox: the suggestion list is offered on empty rows only.
     await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
     await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
@@ -55,7 +57,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await pendingCard.locator(".draggable-row").dragTo(humanDeliverCard);
     await expect(humanDeliverCard).toContainText("Jane Doe");
     await expect(pendingCard).not.toContainText("Jane Doe");
-    await humanDeliverCard.locator(".draggable-row").click();
+    await humanDeliverCard.locator(".draggable-row").dblclick();
     await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).fill("");
     await page.getByRole("textbox", { name: "Edit Human Remains DELIVER" }).press("Enter");
 

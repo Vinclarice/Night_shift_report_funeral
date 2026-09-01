@@ -200,7 +200,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   return (
     <section className="studio-canvas" ref={canvasRef}>
       <div className="canvas-toolbar no-print">
-        <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · drag entries between cards · right-click for more</span></div>
+        <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · click a row to select it, shift-click for a range · drag between cards · right-click for more</span></div>
         <div className="canvas-controls">
           {/* Whether the report still fits one page, stated continuously. Previously this only
               surfaced as the red banner above, which appears after the report has already
