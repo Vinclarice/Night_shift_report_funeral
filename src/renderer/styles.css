@@ -426,6 +426,15 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 /* Cremated sections are usually just a funeral-home name, so they start much narrower. width is
    still fit-content, so an edge case carrying a deceased name expands the card as before. */
 .cremated-column .section-card { min-width: 1.62in; }
+/* Human cards can be dragged well past their grid track, which is what the 3.12in track would
+   otherwise hold them to. The ceiling is where a card meets a Cremated card sitting at its 1.62in
+   minimum: 8.5in of paper, less .35in of margin and .28in of grid padding at each edge, leaves
+   7.24in between them, and a minimum Cremated card takes 1.62in of it.
+
+   Nothing stops a card being dragged into the other column's space — both ceilings allow it, and
+   overlapping is the flexibility, not a fault. Cremated cards keep the 3.55in they had: they carry
+   a funeral home name and little else, and the room they were short of was never theirs. */
+.human-column .section-card { max-width: 5.6in; }
 .page-stage .section-card { box-shadow: 0 0 0 1.5px rgb(26 31 38 / 11%), 0 .025in .07in rgb(29 49 38 / 8%); }
 .section-card h3 em { float: right; font-style: normal; font-weight: 700; font-size: 9pt; letter-spacing: 0; opacity: .7; }
 .section-card h3 { height: var(--card-header-h); margin: 0; padding: .04in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 10.2pt; font-weight: 760; line-height: .22in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }

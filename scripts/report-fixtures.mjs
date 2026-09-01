@@ -137,7 +137,7 @@ export const CASES = [
   {
     id: "08-long-names",
     title: "Long funeral-home and deceased names",
-    why: "Wrapping and the 3.55in card ceiling. Nothing may clip or push a card out of column.",
+    why: "Wrapping and the card ceilings — 5.6in for Human, 3.55in for Cremated. Nothing may clip or push a card out of column.",
     entries: {
       "human-deliver": [fun("Metropolitan Memorial Services of Greater Washington", "Alexandria Catherine-Margaret Longsurname", "17B")],
       "human-fdp": [fun("Saint Elizabeth of Hungary Memorial Chapel and Crematory", "Bartholomew Fitzwilliam-Harrington III", "SSR", "Family viewing before release")],
