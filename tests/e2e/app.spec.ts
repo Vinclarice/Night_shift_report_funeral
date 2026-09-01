@@ -209,12 +209,14 @@ test("shows and hides the road trips card, and remembers which", async () => {
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
     await expect(page.getByText("Live canvas")).toBeVisible();
     const preview = page.locator(".report-page").first();
-    const toggle = page.getByRole("button", { name: "Road trips", exact: true });
+    const openSections = async () => page.getByRole("button", { name: "Sections", exact: true }).click();
+    const roadTrips = page.getByRole("menuitemcheckbox", { name: /ROAD TRIPS/ });
 
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
-    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await openSections();
+    await expect(roadTrips).toHaveAttribute("aria-checked", "false");
 
-    await toggle.click();
+    await roadTrips.click();
     await expect(preview.getByTestId("section-card")).toHaveCount(10);
     await expect(preview.locator('[data-section-key="human-road-trips"]')).toBeVisible();
 
@@ -223,9 +225,10 @@ test("shows and hides the road trips card, and remembers which", async () => {
     await page.reload();
     await expect(page.getByText("Live canvas")).toBeVisible();
     await expect(preview.getByTestId("section-card")).toHaveCount(10);
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await openSections();
+    await expect(roadTrips).toHaveAttribute("aria-checked", "true");
 
-    await toggle.click();
+    await roadTrips.click();
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
   } finally {
     await electronApp.close();

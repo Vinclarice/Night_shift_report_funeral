@@ -532,10 +532,9 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
     "--report-offset-x": `${layout.offsetXInches}in`,
     "--report-offset-y": `${layout.offsetYInches}in`,
   } as CSSProperties;
-  // ROAD TRIPS is filtered out of the page rather than out of the report, so a night that is put
-  // away with entries still in it keeps them, and they reappear with the card.
-  const shown = report.sections.filter((section) =>
-    section.key !== "human-road-trips" || report.roadTripsVisible);
+  // Put-away cards are filtered out of the page rather than out of the report, so one hidden with
+  // entries still in it keeps them, and they reappear with the card.
+  const shown = report.sections.filter((section) => !report.hiddenSections.includes(section.key));
   // Split across two sheets: the first keeps what fits, the second carries the rest. A section
   // whose entries all landed on the first sheet is simply not on the second, and the blank writing
   // rows follow the end of the section, so a continued card has them on the sheet it finishes on.

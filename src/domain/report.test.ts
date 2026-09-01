@@ -1,5 +1,7 @@
 import {
   createEmptyReport,
+  DEFAULT_HIDDEN_SECTIONS,
+  OPTIONAL_SECTIONS,
   nextReportDate,
   REPORT_SECTIONS,
 } from "./report";
@@ -19,11 +21,17 @@ describe("report calendar and fixed sections", () => {
     expect(report.sections).toHaveLength(10);
   });
 
-  it("puts road trips between airport drops and FDP, and starts it hidden", () => {
+  it("puts road trips between airport drops and FDP, and starts it put away", () => {
     const keys = REPORT_SECTIONS.map((section) => section.key);
     expect(keys.indexOf("human-road-trips")).toBe(keys.indexOf("human-airport") + 1);
     expect(keys.indexOf("human-fdp")).toBe(keys.indexOf("human-road-trips") + 1);
-    expect(createEmptyReport("2026-07-26").roadTripsVisible).toBe(false);
+    expect(createEmptyReport("2026-07-26").hiddenSections).toEqual(["human-road-trips"]);
+  });
+  it("offers exactly the three cards that can be put away", () => {
+    // Every other section is part of the sheet unconditionally; these are the ones a night can do
+    // without. Only ROAD TRIPS starts put away — the other two are on the sheet as it has always
+    // printed, and hiding them by default would change the report rather than offer to.
+    expect(OPTIONAL_SECTIONS.map((section) => section.key)).toEqual(["human-airport", "human-road-trips", "cremated-certs"]);
+    expect(DEFAULT_HIDDEN_SECTIONS).toEqual(["human-road-trips"]);
   });
 });
-

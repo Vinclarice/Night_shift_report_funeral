@@ -4,20 +4,38 @@ export const REPORT_SECTIONS: ReadonlyArray<{
   key: SectionKey;
   category: "human" | "cremated";
   title: string;
+  /**
+   * Can be put away on the nights it is not wanted. Optional sections stay in the report's section
+   * list whether or not they are on the sheet, so their entries survive being hidden and come back
+   * with the card — see NightReport.hiddenSections.
+   */
+  optional?: true;
+  /** Off until asked for, rather than on until put away. */
+  hiddenByDefault?: true;
 }> = [
   { key: "human-deliver", category: "human", title: "DELIVER" },
-  { key: "human-airport", category: "human", title: "AIRPORT DROPS" },
-  // Shown only when the night has one; see NightReport.roadTripsVisible. It sits in the section
-  // list unconditionally so its entries survive the card being hidden and come back with it.
-  { key: "human-road-trips", category: "human", title: "ROAD TRIPS" },
+  { key: "human-airport", category: "human", title: "AIRPORT DROPS", optional: true },
+  { key: "human-road-trips", category: "human", title: "ROAD TRIPS", optional: true, hiddenByDefault: true },
   { key: "human-fdp", category: "human", title: "FDP" },
   { key: "human-pending", category: "human", title: "HR DEL – PENDING" },
   { key: "human-ship-outs", category: "human", title: "SHIP-OUTS – NFS" },
   { key: "cremated-deliver", category: "cremated", title: "DELIVER" },
   { key: "cremated-mail", category: "cremated", title: "MAIL" },
   { key: "cremated-fdp", category: "cremated", title: "FDP" },
-  { key: "cremated-certs", category: "cremated", title: "CERTS/OTHER TO DEL" },
+  { key: "cremated-certs", category: "cremated", title: "CERTS/OTHER TO DEL", optional: true },
 ];
+
+/** The sections that can be put away, in the order they appear on the sheet. */
+export const OPTIONAL_SECTIONS = REPORT_SECTIONS.filter((section) => section.optional);
+
+/**
+ * Which sections a brand new report starts with put away. Only ROAD TRIPS: AIRPORT DROPS and
+ * CERTS/OTHER TO DEL are part of the sheet as it has always printed, and hiding them by default
+ * would quietly change the report rather than offer to.
+ */
+export const DEFAULT_HIDDEN_SECTIONS: SectionKey[] = REPORT_SECTIONS
+  .filter((section) => section.hiddenByDefault)
+  .map((section) => section.key);
 
 /**
  * Local hour that ends a night shift. Before it, whoever is at the desk is still working the shift
@@ -56,7 +74,7 @@ export function createEmptyReport(reportDate: string): NightReport {
     reportDate,
     version: 0,
     notes: "",
-    roadTripsVisible: false,
+    hiddenSections: [...DEFAULT_HIDDEN_SECTIONS],
     sections,
   };
 }

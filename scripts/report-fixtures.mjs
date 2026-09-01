@@ -119,7 +119,7 @@ export const CASES = [
     id: "07-road-trips",
     title: "Road trips card shown",
     why: "The toggled ROAD TRIPS card in place between AIRPORT DROPS and FDP. Off on most nights, so this is the only sheet in the pack that carries it — and the only one with ten cards.",
-    roadTripsVisible: true,
+    hiddenSections: [],
     expectCards: 10,
     extra: [
       "ROAD TRIPS sits between AIRPORT DROPS and FDP, not at the foot of the column",
@@ -196,11 +196,11 @@ export const CASES = [
   },
 ];
 
-export const seedInPage = (page, entriesByKey, notes = "", roadTripsVisible = false) => page.evaluate(async ({ byKey, notes, roadTripsVisible }) => {
+export const seedInPage = (page, entriesByKey, notes = "", hiddenSections = ["human-road-trips"]) => page.evaluate(async ({ byKey, notes, hiddenSections }) => {
   const data = await window.nightShift.bootstrap();
   const report = data.report;
   for (const section of report.sections) section.entries = byKey[section.key] ?? [];
   report.notes = notes;
-  report.roadTripsVisible = roadTripsVisible;
+  report.hiddenSections = hiddenSections;
   await window.nightShift.saveReport(report, report.version);
-}, { byKey: entriesByKey, notes, roadTripsVisible });
+}, { byKey: entriesByKey, notes, hiddenSections });

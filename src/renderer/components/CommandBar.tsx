@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { NightReport } from "@/domain/types";
-import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
+import { OPTIONAL_SECTIONS } from "@/domain/report";
+import type { NightReport, SectionKey } from "@/domain/types";
+import { IconBuilding, IconCheck, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Badge } from "../ui/Badge";
@@ -24,17 +25,27 @@ export function CommandBar({ report }: { report: NightReport }) {
   const workspace = useWorkspaceState();
   const dispatch = useWorkspaceDispatch();
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const sectionsRef = useRef<HTMLDivElement>(null);
   const dateRef = useRef<HTMLDivElement>(null);
-  const roadTripEntries = report.sections.find((section) => section.key === "human-road-trips")?.entries.length ?? 0;
-  const roadTripsTitle = report.roadTripsVisible
-    ? roadTripEntries
-      ? `Take ROAD TRIPS off the sheet. Its ${roadTripEntries === 1 ? "entry is" : `${roadTripEntries} entries are`} kept and will come back with it.`
-      : "Take ROAD TRIPS off the sheet."
-    : "Put a ROAD TRIPS card on the sheet, between AIRPORT DROPS and FDP.";
-  function toggleRoadTrips() {
-    void controller.persist({ ...report, roadTripsVisible: !report.roadTripsVisible });
+  function toggleSection(key: SectionKey) {
+    const hidden = report.hiddenSections.includes(key);
+    void controller.persist({
+      ...report,
+      hiddenSections: hidden ? report.hiddenSections.filter((candidate) => candidate !== key) : [...report.hiddenSections, key],
+    });
+  }
+  /**
+   * Says what putting a card away would cost before it is done. A hidden card keeps its entries and
+   * gives them back when it returns, but nothing on the sheet would say so once they were gone.
+   */
+  function sectionTitle(key: SectionKey, title: string): string {
+    const entries = report.sections.find((section) => section.key === key)?.entries.length ?? 0;
+    if (report.hiddenSections.includes(key)) return `Put ${title} back on the sheet.`;
+    if (!entries) return `Take ${title} off the sheet.`;
+    return `Take ${title} off the sheet. Its ${entries === 1 ? "entry is" : `${entries} entries are`} kept and come back with it.`;
   }
   const shownDate = controller.dateOverride ?? report.reportDate;
   const overridden = controller.dateOverride !== null && controller.dateOverride !== report.reportDate;
@@ -42,6 +53,7 @@ export function CommandBar({ report }: { report: NightReport }) {
   useEffect(() => {
     function close(event: PointerEvent) {
       if (!toolsRef.current?.contains(event.target as Node)) setToolsOpen(false);
+      if (!sectionsRef.current?.contains(event.target as Node)) setSectionsOpen(false);
       if (!dateRef.current?.contains(event.target as Node)) setDateOpen(false);
     }
     window.addEventListener("pointerdown", close);
@@ -97,13 +109,27 @@ export function CommandBar({ report }: { report: NightReport }) {
             it. On the nights that do, it reads as the way to put it away again. The count in the
             title is there because hiding a card with entries still in it keeps them, and someone
             should be able to see that before they do it. */}
-        <Button
-          variant="quiet"
-          icon={<IconRoad />}
-          aria-pressed={report.roadTripsVisible}
-          title={roadTripsTitle}
-          onClick={toggleRoadTrips}
-        >Road trips</Button>
+        {/* One menu rather than a button per card. Three of them would crowd the bar, and they are
+            the same kind of decision — which cards tonight's sheet carries — so they belong
+            together. A tick shows what is on the sheet now; the count says what a card is holding,
+            since putting one away with entries in it keeps them out of sight. */}
+        <div className="tools-menu" ref={sectionsRef}>
+          <Button variant="quiet" icon={<IconRoad />} aria-expanded={sectionsOpen} onClick={() => setSectionsOpen((open) => !open)}>Sections</Button>
+          {sectionsOpen && (
+            <div className="tools-popover" role="menu">
+              {OPTIONAL_SECTIONS.map(({ key, title }) => {
+                const shown = !report.hiddenSections.includes(key);
+                const entries = report.sections.find((section) => section.key === key)?.entries.length ?? 0;
+                return (
+                  <button key={key} role="menuitemcheckbox" aria-checked={shown} title={sectionTitle(key, title)} onClick={() => toggleSection(key)}>
+                    <span className="section-tick">{shown ? <IconCheck /> : null}</span>
+                    <span><strong>{title}</strong><small>{shown ? (entries ? `On the sheet · ${entries} ${entries === 1 ? "entry" : "entries"}` : "On the sheet") : entries ? `Put away · ${entries} kept` : "Put away"}</small></span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
         {!workspace.inspectorOpen && <Button variant="quiet" icon={<IconSidebar />} onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: true })}>Inspector</Button>}
         <div className="tools-menu" ref={toolsRef}>
           <Button variant="quiet" icon={<IconWand />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>

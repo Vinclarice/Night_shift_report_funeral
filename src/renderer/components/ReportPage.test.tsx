@@ -422,7 +422,7 @@ describe("drag to reorder", () => {
     expect(container.querySelector('[data-section-key="human-road-trips"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="section-card"]')).toHaveLength(9);
 
-    rerender(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    rerender(<ReportPage report={{ ...report, hiddenSections: [] }} layout={LAYOUT} />);
     const card = container.querySelector('[data-section-key="human-road-trips"]');
     expect(card).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="section-card"]')).toHaveLength(10);
@@ -438,14 +438,14 @@ describe("drag to reorder", () => {
     report.sections.find((section) => section.key === "human-road-trips")!.entries.push({
       id: "trip", type: "plain", text: "Ron to Richmond", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z",
     });
-    const { container, rerender } = render(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    const { container, rerender } = render(<ReportPage report={{ ...report, hiddenSections: [] }} layout={LAYOUT} />);
     expect(screen.getByText("Ron to Richmond")).toBeInTheDocument();
 
-    rerender(<ReportPage report={{ ...report, roadTripsVisible: false }} layout={LAYOUT} />);
+    rerender(<ReportPage report={{ ...report, hiddenSections: ["human-road-trips"] }} layout={LAYOUT} />);
     expect(screen.queryByText("Ron to Richmond")).not.toBeInTheDocument();
     expect(container.querySelector('[data-section-key="human-road-trips"]')).toBeNull();
 
-    rerender(<ReportPage report={{ ...report, roadTripsVisible: true }} layout={LAYOUT} />);
+    rerender(<ReportPage report={{ ...report, hiddenSections: [] }} layout={LAYOUT} />);
     expect(screen.getByText("Ron to Richmond")).toBeInTheDocument();
   });
   it("offers the funeral home list to a row typed on the canvas", () => {

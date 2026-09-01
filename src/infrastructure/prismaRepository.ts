@@ -7,8 +7,8 @@ import type { Prisma } from "@/generated/prisma-client";
 import { VersionConflictError } from "@/application/reportService";
 import type { ReportRepository } from "@/application/repository";
 import { normalizeFuneralHome } from "@/domain/entries";
-import { createEmptyReport } from "@/domain/report";
-import type { LayoutSettings, NightReport, ReportEntry } from "@/domain/types";
+import { createEmptyReport, DEFAULT_HIDDEN_SECTIONS } from "@/domain/report";
+import type { LayoutSettings, NightReport, ReportEntry, SectionKey } from "@/domain/types";
 import { DEFAULT_LAYOUT } from "@/shared/contracts";
 import type { BackupSummary, FuneralHomeOption } from "@/shared/contracts";
 import { migrate } from "./migrations";
@@ -32,6 +32,17 @@ const STARTER_FUNERAL_HOMES = [
   "NMS",
   "Nova Jewish",
 ];
+
+/** Anything unreadable falls back to the shipped default rather than taking the night down. */
+function parseHiddenSections(raw: string | null): SectionKey[] {
+  if (!raw) return [...DEFAULT_HIDDEN_SECTIONS];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((key): key is SectionKey => typeof key === "string") : [...DEFAULT_HIDDEN_SECTIONS];
+  } catch {
+    return [...DEFAULT_HIDDEN_SECTIONS];
+  }
+}
 
 export class PrismaReportRepository implements ReportRepository {
   private client: PrismaClient;
@@ -91,7 +102,7 @@ export class PrismaReportRepository implements ReportRepository {
         reportDate: report.reportDate,
         version: report.version,
         notes: report.notes || null,
-        roadTripsVisible: report.roadTripsVisible,
+        hiddenSections: JSON.stringify(report.hiddenSections),
       } });
       await this.writeEntries(tx, report);
     });
@@ -103,7 +114,7 @@ export class PrismaReportRepository implements ReportRepository {
     await this.client.$transaction(async (tx) => {
       const changed = await tx.report.updateMany({
         where: { id: report.id, version: expectedVersion },
-        data: { version: nextVersion, notes: report.notes || null, roadTripsVisible: report.roadTripsVisible },
+        data: { version: nextVersion, notes: report.notes || null, hiddenSections: JSON.stringify(report.hiddenSections) },
       });
       if (changed.count !== 1) throw new VersionConflictError();
       await tx.entry.deleteMany({ where: { reportId: report.id } });
@@ -201,7 +212,9 @@ export class PrismaReportRepository implements ReportRepository {
     report.id = loaded.id;
     report.version = loaded.version;
     report.notes = loaded.notes ?? "";
-    report.roadTripsVisible = loaded.roadTripsVisible ?? false;
+    // Stored as JSON in one column rather than a flag per section, so adding another optional card
+    // is a change to the section list and nothing else.
+    report.hiddenSections = parseHiddenSections(loaded.hiddenSections);
     for (const section of report.sections) {
       section.entries = loaded.entries.filter((entry) => entry.sectionKey === section.key).map((entry): ReportEntry => {
         const base = { id: entry.id, rush: entry.rush, keepSeparate: entry.keepSeparate, pinnedBottom: entry.pinnedBottom, rushBy: entry.rushBy ?? undefined, createdAt: entry.createdAt.toISOString() };

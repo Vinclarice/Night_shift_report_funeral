@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { OPTIONAL_SECTIONS } from "@/domain/report";
 import type { NightReport, SectionKey } from "@/domain/types";
 import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportActions, useReportState } from "../state/ReportController";
@@ -71,14 +72,21 @@ export function useCommands(report: NightReport | null): Command[] {
         run: () => dispatch({ type: "SET_INSPECTOR_OPEN", open: !workspace.inspectorOpen }),
       },
       { id: "view:fit", label: "Fit report to window", group: "View", hint: "Zoom", run: () => dispatch({ type: "FIT_ZOOM" }) },
-      {
-        id: "report:road-trips",
-        label: report?.roadTripsVisible ? "Hide road trips section" : "Show road trips section",
+      ...OPTIONAL_SECTIONS.map(({ key, title }) => ({
+        id: `report:section:${key}`,
+        label: report?.hiddenSections.includes(key) ? `Put ${title} back on the sheet` : `Take ${title} off the sheet`,
         group: "Report",
         icon: <IconRoad />,
         disabled: !report,
-        run: () => { if (report) void actions.persist({ ...report, roadTripsVisible: !report.roadTripsVisible }); },
-      },
+        run: () => {
+          if (!report) return;
+          const hidden = report.hiddenSections.includes(key);
+          void actions.persist({
+            ...report,
+            hiddenSections: hidden ? report.hiddenSections.filter((candidate) => candidate !== key) : [...report.hiddenSections, key],
+          });
+        },
+      })),
       { id: "edit:undo", label: "Undo", group: "Edit", hint: "Ctrl+Z", icon: <IconUndo />, disabled: !state.undoAvailable, run: actions.undo },
       { id: "edit:redo", label: "Redo", group: "Edit", hint: "Ctrl+Y", icon: <IconRedo />, disabled: !state.redoAvailable, run: actions.redo },
       {

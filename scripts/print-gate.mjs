@@ -107,7 +107,7 @@ const run = async () => {
     await page.waitForSelector(".studio-canvas");
 
     for (const testCase of CASES) {
-      await seedInPage(page, testCase.entries, testCase.notes, testCase.roadTripsVisible ?? false);
+      await seedInPage(page, testCase.entries, testCase.notes, testCase.hiddenSections ?? ["human-road-trips"]);
       await page.reload();
       await page.waitForSelector(".studio-canvas");
       await page.waitForTimeout(900);

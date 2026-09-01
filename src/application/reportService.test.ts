@@ -45,20 +45,20 @@ describe("ReportService.resolveTonight", () => {
     expect(second.created).toBe(false);
   });
 
-  it("carries the road trips card over to the next night", async () => {
+  it("carries the put-away cards over to the next night", async () => {
     // Like a card width, not like the notes: a run of road-trip nights is set up once.
     const repository = new MemoryRepository();
     const prior = createEmptyReport("2026-07-20");
-    prior.roadTripsVisible = true;
+    prior.hiddenSections = [];
     repository.reports.set(prior.reportDate, prior);
 
     const { report } = await new ReportService(repository, clock).resolveTonight();
-    expect(report.roadTripsVisible).toBe(true);
+    expect(report.hiddenSections).toEqual([]);
   });
 
-  it("starts a night with road trips hidden when there is nothing to carry over", async () => {
+  it("starts a night with the shipped cards put away when there is nothing to carry over", async () => {
     const { report } = await new ReportService(new MemoryRepository(), clock).resolveTonight();
-    expect(report.roadTripsVisible).toBe(false);
+    expect(report.hiddenSections).toEqual(["human-road-trips"]);
   });
 
   it("clones entries from the retained report with fresh identity", async () => {

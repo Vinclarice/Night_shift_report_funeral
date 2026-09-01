@@ -89,12 +89,12 @@ export interface NightReport {
    */
   notes: string;
   /**
-   * Whether the ROAD TRIPS card is on the sheet. It is wanted only on the nights that have one, so
-   * it is off by default and off on most reports — but it carries over to the next night the way
-   * card widths do, so a run of road-trip nights is set up once rather than every evening. Hiding
-   * it does not discard its entries; they come back with it.
+   * The optional cards put away for this night — ROAD TRIPS unless asked for, and AIRPORT DROPS or
+   * CERTS/OTHER TO DEL on a night they are not wanted. Carried over to the next night the way card
+   * widths are, so a run of nights that want the same sheet is set up once rather than every
+   * evening. Putting a card away does not discard its entries; they come back with it.
    */
-  roadTripsVisible: boolean;
+  hiddenSections: SectionKey[];
   sections: ReportSection[];
 }
 

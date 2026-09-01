@@ -6,7 +6,7 @@ import { app, BrowserWindow, ipcMain, Menu, screen, shell } from "electron";
 import { z } from "zod";
 
 import { ReportService } from "../application/reportService";
-import { REPORT_SECTIONS } from "../domain/report";
+import { DEFAULT_HIDDEN_SECTIONS, REPORT_SECTIONS } from "../domain/report";
 import type { LayoutSettings, NightReport, SectionKey } from "../domain/types";
 import { BackupManager, PrismaReportRepository } from "../infrastructure/prismaRepository";
 
@@ -123,9 +123,10 @@ const reportSectionSchema = z.object({
   entries: z.array(reportEntrySchema),
 });
 
-// notes and roadTripsVisible are defaulted, not required, so a report saved by an older build
-// still validates.
-const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), notes: z.string().default(""), roadTripsVisible: z.boolean().default(false), sections: z.array(reportSectionSchema) });
+// notes and hiddenSections are defaulted, not required, so a report saved by an older build still
+// validates — and the default is the shipped one rather than an empty list, or a report that
+// predates optional cards would come back with ROAD TRIPS showing.
+const reportSchema = z.object({ id: z.string(), reportDate: z.string(), version: z.number().int(), notes: z.string().default(""), hiddenSections: z.array(sectionKeySchema).default(() => [...DEFAULT_HIDDEN_SECTIONS]), sections: z.array(reportSectionSchema) });
 const layoutSchema = z.object({ sectionWidths: z.record(z.string(), z.number()).default({}), marginInches: z.number().min(0.15).max(0.75), scale: z.number().min(0.8).max(1.05), offsetXInches: z.number().min(-0.5).max(0.5), offsetYInches: z.number().min(-0.5).max(0.5) });
 
 function validateSender(event: Electron.IpcMainInvokeEvent) {

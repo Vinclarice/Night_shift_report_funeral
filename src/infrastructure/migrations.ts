@@ -102,6 +102,7 @@ const addedColumns: Array<{ table: string; column: string; definition: string }>
   { table: "Entry", column: "rushBy", definition: `TEXT` },
   { table: "Report", column: "notes", definition: `TEXT` },
   { table: "Report", column: "roadTripsVisible", definition: `BOOLEAN NOT NULL DEFAULT false` },
+  { table: "Report", column: "hiddenSections", definition: `TEXT` },
 ];
 
 async function applyAddedColumns(client: PrismaClient): Promise<void> {
@@ -112,10 +113,23 @@ async function applyAddedColumns(client: PrismaClient): Promise<void> {
   }
 }
 
+/**
+ * Optional cards used to be one boolean for ROAD TRIPS; they are a list of put-away sections now.
+ * A report written before that has the column but nothing in it, so its old answer is carried over
+ * rather than lost — a night that had ROAD TRIPS showing keeps it, and one that did not keeps it
+ * put away. Only ever touches rows that have not been converted, so it is safe on every launch.
+ */
+async function carryRoadTripsIntoHiddenSections(client: PrismaClient): Promise<void> {
+  await client.$executeRawUnsafe(
+    `UPDATE "Report" SET "hiddenSections" = CASE WHEN "roadTripsVisible" THEN '[]' ELSE '["human-road-trips"]' END WHERE "hiddenSections" IS NULL`,
+  );
+}
+
 export async function migrate(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe("PRAGMA foreign_keys = ON");
   for (const statement of statements) await client.$executeRawUnsafe(statement);
   await applyAddedColumns(client);
+  await carryRoadTripsIntoHiddenSections(client);
   await applyDroppedColumns(client);
   for (const table of droppedTables) await client.$executeRawUnsafe(`DROP TABLE IF EXISTS "${table}"`);
   await client.printPreference.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });

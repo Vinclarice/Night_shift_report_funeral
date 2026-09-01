@@ -97,13 +97,13 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     () =>
       JSON.stringify({
         sections: deferredReport?.sections,
-        roadTrips: deferredReport?.roadTripsVisible,
+        hidden: deferredReport?.hiddenSections,
         margin: deferredLayout?.marginInches,
         scale: deferredLayout?.scale,
         offsetY: deferredLayout?.offsetYInches,
         pages,
       }),
-    [deferredReport?.sections, deferredReport?.roadTripsVisible, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches, pages],
+    [deferredReport?.sections, deferredReport?.hiddenSections, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches, pages],
   );
 
   // Memoised: a fresh object on every render would re-run the measuring effect on every render,

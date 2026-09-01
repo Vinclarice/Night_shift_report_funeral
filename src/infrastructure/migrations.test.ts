@@ -26,6 +26,7 @@ describe("migrate", () => {
   const ADDED = [
     { table: "Report", column: "notes" },
     { table: "Report", column: "roadTripsVisible" },
+    { table: "Report", column: "hiddenSections" },
     { table: "Entry", column: "pinnedBottom" },
     { table: "Entry", column: "rushBy" },
   ];
@@ -41,7 +42,7 @@ describe("migrate", () => {
     await repository.initialize();
     const report = createEmptyReport("2026-07-26");
     report.notes = "Ron called about the Helwig roadtrip";
-    report.roadTripsVisible = true;
+    report.hiddenSections = [];
     report.sections[0].entries.push({
       id: "kept-entry",
       type: "funeral",
@@ -94,7 +95,7 @@ describe("migrate", () => {
       // What the dropped columns held is gone, because an older database never had it — but it
       // comes back as a usable default rather than as a null that breaks the page.
       expect(loaded!.notes).toBe("");
-      expect(loaded!.roadTripsVisible).toBe(false);
+      expect(loaded!.hiddenSections).toEqual(["human-road-trips"]);
       expect(entries[0].pinnedBottom).toBe(false);
     } finally {
       await reopened.close();
@@ -141,9 +142,43 @@ describe("migrate", () => {
     try {
       const loaded = await repository.findByDate("2026-07-26");
       expect(loaded!.notes).toBe("Ron called about the Helwig roadtrip");
-      expect(loaded!.roadTripsVisible).toBe(true);
+      expect(loaded!.hiddenSections).toEqual([]);
     } finally {
       await repository.close();
+    }
+  });
+  it("carries an older report's road-trips flag into the put-away list", async () => {
+    // Optional cards were one boolean for ROAD TRIPS before they were a list. A report written then
+    // has to keep the answer it had: showing stays showing, put away stays put away.
+    await seedCurrentDatabase();
+    const client = rawClient();
+    try {
+      // Wind that one column back to how the older build left it, both ways round.
+      await client.$executeRawUnsafe(`UPDATE "Report" SET "hiddenSections" = NULL, "roadTripsVisible" = 1`);
+    } finally {
+      await client.$disconnect();
+    }
+
+    const showing = new PrismaReportRepository(databasePath);
+    await showing.initialize();
+    try {
+      expect((await showing.findByDate("2026-07-26"))!.hiddenSections).toEqual([]);
+    } finally {
+      await showing.close();
+    }
+
+    const again = rawClient();
+    try {
+      await again.$executeRawUnsafe(`UPDATE "Report" SET "hiddenSections" = NULL, "roadTripsVisible" = 0`);
+    } finally {
+      await again.$disconnect();
+    }
+    const putAway = new PrismaReportRepository(databasePath);
+    await putAway.initialize();
+    try {
+      expect((await putAway.findByDate("2026-07-26"))!.hiddenSections).toEqual(["human-road-trips"]);
+    } finally {
+      await putAway.close();
     }
   });
 });
