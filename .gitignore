@@ -15,3 +15,6 @@ src/generated/
 .e2e-data/
 print-gate/
 print-spike/
+
+# Scratch space for one-off probes and mockups; nothing here belongs in the repo.
+tmp/
