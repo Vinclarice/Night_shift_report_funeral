@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { addEntry, moveEntry, movePerson, parsePastedLines, removeEntry, replaceEntryInPlace, toggleEntryRush } from "@/domain/entries";
@@ -102,11 +102,13 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     if (parseWarning) toast.warning(parseWarning);
   }, [report, controller, dispatch, toast]);
 
-  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryId: string, beforeEntryId?: string | null, personId?: string) {
+  const movePreviewEntry = useCallback(function movePreviewEntry(sourceKey: SectionKey, targetKey: SectionKey, entryIds: string[], beforeEntryId?: string | null, personId?: string) {
     const next = structuredClone(report);
+    // Splitting one deceased off a row is always a single-entry gesture; only whole rows travel in
+    // runs. Each is moved to the same landing point in turn, so a run arrives in the order it left.
     const moved = personId
-      ? movePerson(next, sourceKey, targetKey, entryId, personId, beforeEntryId)
-      : moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId);
+      ? movePerson(next, sourceKey, targetKey, entryIds[0], personId, beforeEntryId)
+      : entryIds.reduce((any, entryId) => moveEntry(next, sourceKey, targetKey, entryId, beforeEntryId) || any, false);
     if (!moved) return;
     dispatch({ type: "SELECT_SECTION", sectionKey: targetKey, mode: "browse" });
     void controller.persist(next);
@@ -126,12 +128,27 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     void controller.persist(next);
   }, [report, controller]);
 
-  const deleteContextEntry = useCallback((sectionKey: SectionKey, entryId: string) => {
+  const deleteContextEntries = useCallback((sectionKey: SectionKey, entryIds: string[]) => {
     const next = structuredClone(report);
-    if (!removeEntry(next.sections.find((item) => item.key === sectionKey)!, entryId)) return;
+    const section = next.sections.find((item) => item.key === sectionKey)!;
+    const removed = entryIds.reduce((any, entryId) => removeEntry(section, entryId) || any, false);
+    if (!removed) return;
     void controller.persist(next);
     void controller.resetSectionWidth(sectionKey);
   }, [report, controller]);
+
+  /**
+   * The rows the context menu acts on: the whole selection when the row that was right-clicked is
+   * part of it, and that row alone otherwise. Right-clicking outside a selection is how someone
+   * means "this one, never mind what is highlighted".
+   */
+  const contextMenuIds = useMemo(() => {
+    if (!contextMenu) return [];
+    const selection = workspace.selection;
+    return selection.kind === "entry" && selection.sectionKey === contextMenu.sectionKey && selection.entryIds.includes(contextMenu.entryId)
+      ? selection.entryIds
+      : [contextMenu.entryId];
+  }, [contextMenu, workspace.selection]);
 
   const contextMenuEntry = contextMenu
     ? report.sections.find((section) => section.key === contextMenu.sectionKey)?.entries.find((entry) => entry.id === contextMenu.entryId)
@@ -144,7 +161,11 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, [report, controller]);
 
   const handleSelectSection = useCallback((sectionKey: SectionKey) => dispatch({ type: "SELECT_SECTION", sectionKey, mode: "create" }), [dispatch]);
-  const handleSelectEntry = useCallback((sectionKey: SectionKey, entryId: string) => dispatch({ type: "SELECT_ENTRY", sectionKey, entryId }), [dispatch]);
+  const handleSelectEntry = useCallback((sectionKey: SectionKey, entryId: string, extend?: "range" | "toggle") => {
+    // The section's rows in drawn order, which is what a shift-click's range is measured along.
+    const orderedIds = report.sections.find((section) => section.key === sectionKey)?.entries.map((entry) => entry.id);
+    dispatch({ type: "SELECT_ENTRY", sectionKey, entryId, extend, orderedIds });
+  }, [dispatch, report]);
   const handleWidthChange = useCallback((key: SectionKey, width: number) => {
     const current = controller.layout!;
     controller.previewLayout({ ...current, sectionWidths: { ...current.sectionWidths, [key]: width } });
@@ -182,7 +203,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
             <ReportPage
               report={deferredReport} layout={deferredLayout} dateOverride={controller.dateOverride} printedAt={controller.printedAt} tighten={controller.tighten} calibration={controller.calibration} interactive
               selectedSectionKey={workspace.selection.sectionKey}
-              selectedEntryId={workspace.selection.kind === "entry" ? workspace.selection.entryId : undefined}
+              selectedEntryIds={workspace.selection.kind === "entry" ? workspace.selection.entryIds : undefined}
               onSelectSection={handleSelectSection}
               onSelectEntry={handleSelectEntry}
               onLineCommit={commitPreviewLine}
@@ -203,7 +224,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
           items={[
             { key: "edit", label: "Edit entry", icon: <IconPencil />, onSelect: () => editContextEntry(contextMenu.sectionKey, contextMenu.entryId) },
             { key: "rush", label: contextMenuEntry.rush ? "Remove rush" : "Mark as rush", icon: <IconFlag />, onSelect: () => toggleContextEntryRush(contextMenu.sectionKey, contextMenu.entryId) },
-            { key: "delete", label: "Delete entry", icon: <IconTrash />, tone: "danger", onSelect: () => deleteContextEntry(contextMenu.sectionKey, contextMenu.entryId) },
+            { key: "delete", label: contextMenuIds.length > 1 ? `Delete ${contextMenuIds.length} entries` : "Delete entry", icon: <IconTrash />, tone: "danger", onSelect: () => deleteContextEntries(contextMenu.sectionKey, contextMenuIds) },
           ]}
         />
       )}

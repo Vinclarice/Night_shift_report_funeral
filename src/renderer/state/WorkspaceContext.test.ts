@@ -22,8 +22,46 @@ describe("workspaceReducer", () => {
 
   it("moves entry selection into edit mode", () => {
     const next = workspaceReducer(initial, { type: "SELECT_ENTRY", sectionKey: "human-deliver", entryId: "entry-1", personId: "person-1" });
-    expect(next.selection).toEqual({ kind: "entry", sectionKey: "human-deliver", entryId: "entry-1", personId: "person-1" });
+    expect(next.selection).toEqual({ kind: "entry", sectionKey: "human-deliver", entryId: "entry-1", personId: "person-1", entryIds: ["entry-1"], anchorId: "entry-1" });
     expect(next.inspectorMode).toBe("edit");
+  });
+
+  const ORDER = ["a", "b", "c", "d"];
+  const selectRow = (state: WorkspaceState, entryId: string, extend?: "range" | "toggle") =>
+    workspaceReducer(state, { type: "SELECT_ENTRY", sectionKey: "human-deliver", entryId, extend, orderedIds: ORDER });
+
+  it("takes every row between the anchor and a shift-clicked one", () => {
+    const selected = selectRow(selectRow(initial, "b"), "d", "range");
+    expect(selected.selection).toMatchObject({ entryIds: ["b", "c", "d"], entryId: "d", anchorId: "b" });
+  });
+
+  it("measures a run of shift-clicks from the first row, not the last one landed on", () => {
+    // Otherwise each shift-click would re-anchor and the range would crawl instead of resize.
+    const widened = selectRow(selectRow(selectRow(initial, "b"), "d", "range"), "c", "range");
+    expect(widened.selection).toMatchObject({ entryIds: ["b", "c"], anchorId: "b" });
+  });
+
+  it("selects upwards as readily as downwards", () => {
+    const upwards = selectRow(selectRow(initial, "c"), "a", "range");
+    expect(upwards.selection).toMatchObject({ entryIds: ["a", "b", "c"] });
+  });
+
+  it("adds and removes single rows with a toggling click", () => {
+    const added = selectRow(selectRow(initial, "a"), "c", "toggle");
+    expect(added.selection).toMatchObject({ entryIds: ["a", "c"] });
+    expect(selectRow(added, "a", "toggle").selection).toMatchObject({ entryIds: ["c"] });
+  });
+
+  it("keeps the last row selected rather than leaving nothing selected", () => {
+    const only = selectRow(initial, "a");
+    expect(selectRow(only, "a", "toggle").selection).toMatchObject({ entryIds: ["a"] });
+  });
+
+  it("starts a new selection when the shift-click lands in another section", () => {
+    // A range across two cards would need an order between the columns that the sheet has not got.
+    const first = selectRow(initial, "b");
+    const elsewhere = workspaceReducer(first, { type: "SELECT_ENTRY", sectionKey: "cremated-fdp", entryId: "z", extend: "range", orderedIds: ["y", "z"] });
+    expect(elsewhere.selection).toMatchObject({ sectionKey: "cremated-fdp", entryIds: ["z"] });
   });
 
   it("clamps manual zoom and can return to fit mode", () => {

@@ -27,11 +27,11 @@ interface Props {
    * `personId` is present only when just one deceased person was dragged off a multi-person entry
    * rather than the whole row.
    */
-  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null, personId?: string) => void;
+  onEntryMove?: (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryIds: string[], beforeEntryId?: string | null, personId?: string) => void;
   selectedSectionKey?: ReportSection["key"];
-  selectedEntryId?: string;
+  selectedEntryIds?: readonly string[];
   onSelectSection?: (key: ReportSection["key"]) => void;
-  onSelectEntry?: (key: ReportSection["key"], entryId: string) => void;
+  onSelectEntry?: (key: ReportSection["key"], entryId: string, extend?: "range" | "toggle") => void;
   onEntryContextMenu?: (key: ReportSection["key"], entryId: string, x: number, y: number) => void;
 }
 
@@ -140,7 +140,7 @@ function columnRows(from: HTMLElement): HTMLElement[] {
   return column ? [...column.querySelectorAll<HTMLElement>(".inline-row-button, .inline-row-input")] : [];
 }
 
-function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, autoWidth, freeRowIndex = 0, onEntryMove, selected, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; onContinueEntry?: () => void; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
+function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, autoWidth, freeRowIndex = 0, onEntryMove, selected, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu, dropBefore, onDropBeforeChange }: { section: ReportSection; entry?: ReportEntry; onLineCommit: NonNullable<Props["onLineCommit"]>; onContinueEntry?: () => void; autoWidth: boolean; freeRowIndex?: number; onEntryMove?: Props["onEntryMove"]; selected?: boolean; selectedEntryIds?: readonly string[]; onSelectSection?: Props["onSelectSection"]; onSelectEntry?: Props["onSelectEntry"]; onEntryContextMenu?: Props["onEntryContextMenu"]; dropBefore?: boolean; onDropBeforeChange?: (entryId: string | null) => void }) {
   const original = entry ? formatEntryLine(entry) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(original);
@@ -210,7 +210,12 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
     target.focus();
   }
 
-  const { beginDrag, beginPersonDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange);
+  // Dragging a row that is part of a multi-row selection carries the whole selection; dragging any
+  // other row carries just itself, so a stale selection elsewhere cannot come along uninvited.
+  const draggedIds = entry && selectedEntryIds && selectedEntryIds.length > 1 && selectedEntryIds.includes(entry.id)
+    ? section.entries.filter((candidate) => selectedEntryIds.includes(candidate.id)).map((candidate) => candidate.id)
+    : undefined;
+  const { beginDrag, beginPersonDrag, dragProps } = useEntryDrag(section, entry, onEntryMove, onDropBeforeChange, draggedIds);
 
   function handleContextMenu(event: ReactMouseEvent<HTMLButtonElement>) {
     // Blank/free rows have nothing to act on, so the browser's default menu is left alone there.
@@ -237,7 +242,20 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
       className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${entry?.rush ? " rush-row" : ""}${entry?.pinnedBottom ? " pinned-row" : ""}${selected ? " selected" : ""}${dropBefore ? " drop-before" : ""}`}
       aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`}
       onDragStart={beginDrag}
-      onClick={() => { if (entry) onSelectEntry?.(section.key, entry.id); else onSelectSection?.(section.key); setDraft(original); setEditing(true); }}
+      onClick={(event) => {
+        if (entry) {
+          // Shift takes everything between the anchor and here; ctrl adds or drops this row alone.
+          // Either way the row is not opened for editing: the click was about choosing rows, and
+          // dropping an input over one of them would hide what had just been selected.
+          const extend = event.shiftKey ? "range" : event.ctrlKey || event.metaKey ? "toggle" : undefined;
+          onSelectEntry?.(section.key, entry.id, extend);
+          if (extend) return;
+        } else {
+          onSelectSection?.(section.key);
+        }
+        setDraft(original);
+        setEditing(true);
+      }}
       onContextMenu={handleContextMenu}
       onKeyDown={handleButtonKey}
       title={entry ? "Click to edit, or drag to reorder or move to another section" : "Click to type directly in the report"}
@@ -363,7 +381,7 @@ const SectionCard = memo(function SectionCard({
   onLineCommit,
   onEntryMove,
   selected,
-  selectedEntryId,
+  selectedEntryIds,
   onSelectSection,
   onSelectEntry,
   onEntryContextMenu,
@@ -376,7 +394,7 @@ const SectionCard = memo(function SectionCard({
   onLineCommit?: Props["onLineCommit"];
   onEntryMove?: Props["onEntryMove"];
   selected?: boolean;
-  selectedEntryId?: string;
+  selectedEntryIds?: readonly string[];
   onSelectSection?: Props["onSelectSection"];
   onSelectEntry?: Props["onSelectEntry"];
   onEntryContextMenu?: Props["onEntryContextMenu"];
@@ -442,7 +460,7 @@ const SectionCard = memo(function SectionCard({
       </h3>
       {section.entries.map((entry) => (
         onLineCommit
-          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={entry.id === selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
+          ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={selectedEntryIds?.includes(entry.id) ?? false} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
           : <div className={`report-row${entry.rush ? " rush-row" : ""}${entry.pinnedBottom ? " pinned-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
@@ -466,7 +484,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryId, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   const pageStyle = {
     "--tighten": String(tighten),
     "--report-margin": `${layout.marginInches}in`,
@@ -506,13 +524,13 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           <div className="report-column human-column">
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
           <div className="report-column cremated-column">
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryId={selectedEntryId} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
         </div>

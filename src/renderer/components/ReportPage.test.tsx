@@ -170,7 +170,7 @@ describe("print report", () => {
     fireEvent.dragStart(screen.getByRole("button", { name: /Edit Human Remains HR DEL/ }), { dataTransfer });
     fireEvent.drop(container.querySelector('[data-section-key="human-deliver"]')!, { dataTransfer });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-pending", "human-deliver", "move-me", undefined, undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-pending", "human-deliver", ["move-me"], undefined, undefined);
   });
 });
 
@@ -223,7 +223,7 @@ describe("drag to reorder", () => {
     // Released on the top half of "Beta", so the dragged entry lands above it.
     dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 4);
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", "entry-Beta", undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", ["entry-Alpha"], "entry-Beta", undefined);
   });
 
   it("targets the following row when released on the bottom half", () => {
@@ -235,7 +235,7 @@ describe("drag to reorder", () => {
     dropAt(rows[0], { sectionKey: "human-deliver", entryId: "entry-Gamma" }, 16);
 
     // Below the midpoint of "Alpha" means "after Alpha", which is above the next row, "Beta".
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Gamma", "entry-Beta", undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", ["entry-Gamma"], "entry-Beta", undefined);
   });
 
   it("pins when released on the bottom half of the last row, matching the drag-to-bottom rule", () => {
@@ -246,7 +246,7 @@ describe("drag to reorder", () => {
     stubHeight(rows[1]);
     dropAt(rows[1], { sectionKey: "human-deliver", entryId: "entry-Alpha" }, 16);
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null, undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", ["entry-Alpha"], null, undefined);
   });
 
   it("requests a pin when an entry is dropped on the blank row past the end", () => {
@@ -256,7 +256,7 @@ describe("drag to reorder", () => {
     const blank = screen.getByRole("button", { name: "Type in Human Remains DELIVER" });
     fireEvent.drop(blank, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", "entry-Alpha", null, undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-deliver", ["entry-Alpha"], null, undefined);
   });
 
   it("leaves position unspecified for a drop on the card body so nothing is pinned by accident", () => {
@@ -266,7 +266,7 @@ describe("drag to reorder", () => {
     const card = container.querySelector('[data-section-key="human-fdp"]')!;
     fireEvent.drop(card, { dataTransfer: dataTransfer({ sectionKey: "human-deliver", entryId: "entry-Alpha" }) });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "entry-Alpha", undefined, undefined);
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", ["entry-Alpha"], undefined, undefined);
   });
 
   it("ignores a drop of the entry onto itself", () => {
@@ -315,7 +315,7 @@ describe("drag to reorder", () => {
     fireEvent.dragStart(jones, { dataTransfer });
     fireEvent.drop(container.querySelector('[data-section-key="human-fdp"]')!, { dataTransfer });
 
-    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", "merged", undefined, "jones");
+    expect(onEntryMove).toHaveBeenCalledWith("human-deliver", "human-fdp", ["merged"], undefined, "jones");
   });
 
   it("does not make a lone deceased's name separately draggable, since it's the same as dragging the row", () => {
@@ -450,5 +450,52 @@ describe("drag to reorder", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }));
     expect(screen.getByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toHaveAttribute("list");
+  });
+  it("reports the modifier a row was clicked with, so a range can be selected", () => {
+    const onSelectEntry = vi.fn();
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push(
+      { id: "one", type: "plain", text: "One", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z" },
+    );
+    render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} onSelectEntry={onSelectEntry} />);
+    const row = screen.getByRole("button", { name: "Edit Human Remains DELIVER" });
+
+    fireEvent.click(row, { shiftKey: true });
+    expect(onSelectEntry).toHaveBeenLastCalledWith("human-deliver", "one", "range");
+    fireEvent.click(row, { ctrlKey: true });
+    expect(onSelectEntry).toHaveBeenLastCalledWith("human-deliver", "one", "toggle");
+    fireEvent.click(row);
+    expect(onSelectEntry).toHaveBeenLastCalledWith("human-deliver", "one", undefined);
+  });
+
+  it("does not open a row for editing when it was clicked to select a range", () => {
+    // The point of the click was to choose rows; dropping an input over one would hide them.
+    const report = createEmptyReport("2026-07-26");
+    report.sections.find((section) => section.key === "human-deliver")!.entries.push(
+      { id: "one", type: "plain", text: "One", rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z" },
+    );
+    render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} onSelectEntry={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Human Remains DELIVER" }), { shiftKey: true });
+    expect(screen.queryByRole("textbox", { name: "Edit Human Remains DELIVER" })).not.toBeInTheDocument();
+  });
+
+  it("carries the whole selection when one of its rows is dragged", () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-deliver")!;
+    for (const id of ["one", "two", "three"]) {
+      section.entries.push({ id, type: "plain", text: id, rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z" });
+    }
+    const { container } = render(<ReportPage report={report} layout={LAYOUT} interactive onLineCommit={vi.fn()} onEntryMove={vi.fn()} selectedEntryIds={["one", "three"]} />);
+
+    const rows = [...container.querySelectorAll('[data-section-key="human-deliver"] .draggable-row')];
+    const transfer = dataTransfer({});
+    fireEvent.dragStart(rows[0], { dataTransfer: transfer });
+    expect(JSON.parse(transfer.setData.mock.calls[0][1]).entryIds).toEqual(["one", "three"]);
+
+    // A row outside the selection takes only itself, so a stale highlight elsewhere cannot tag along.
+    const alone = dataTransfer({});
+    fireEvent.dragStart(rows[1], { dataTransfer: alone });
+    expect(JSON.parse(alone.setData.mock.calls[0][1]).entryIds).toBeUndefined();
   });
 });

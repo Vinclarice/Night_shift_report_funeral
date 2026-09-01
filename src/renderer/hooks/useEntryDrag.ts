@@ -7,7 +7,14 @@ const DRAG_MIME = "application/x-night-shift-entry";
 
 /** `personId` is present only when the drag started from one deceased person within a
  * multi-person funeral entry, rather than the row (whole entry) itself. */
-interface DragPayload { sectionKey: ReportSection["key"]; entryId: string; personId?: string }
+interface DragPayload {
+  sectionKey: ReportSection["key"];
+  /** The row the drag started on, and the one a same-row drop is checked against. */
+  entryId: string;
+  /** Every row travelling with it, in section order. One entry unless a range was selected. */
+  entryIds?: string[];
+  personId?: string;
+}
 
 function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null {
   try {
@@ -18,7 +25,7 @@ function readDragPayload(event: ReactDragEvent<HTMLElement>): DragPayload | null
   }
 }
 
-type EntryMoveHandler = (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryId: string, beforeEntryId?: string | null, personId?: string) => void;
+type EntryMoveHandler = (sourceKey: ReportSection["key"], targetKey: ReportSection["key"], entryIds: string[], beforeEntryId?: string | null, personId?: string) => void;
 
 /**
  * Drag-and-drop for a single report row: starting a drag on an entry row, and accepting a drop on
@@ -32,12 +39,14 @@ export function useEntryDrag(
   entry: ReportEntry | undefined,
   onEntryMove: EntryMoveHandler | undefined,
   onDropBeforeChange?: (entryId: string | null) => void,
+  /** Set when this row is part of a multi-row selection, so the whole run travels together. */
+  draggedIds?: string[],
 ) {
   const beginDrag = useCallback((event: ReactDragEvent<HTMLButtonElement>) => {
     if (!entry || !onEntryMove) return;
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id } satisfies DragPayload));
-  }, [section.key, entry, onEntryMove]);
+    event.dataTransfer.setData(DRAG_MIME, JSON.stringify({ sectionKey: section.key, entryId: entry.id, entryIds: draggedIds } satisfies DragPayload));
+  }, [section.key, entry, onEntryMove, draggedIds]);
 
   // A separate drag source for one deceased person within a multi-person entry, so grabbing their
   // name splits just them off instead of dragging the whole row — see EntryLine, the only caller.
@@ -76,7 +85,7 @@ export function useEntryDrag(
       event.stopPropagation();
       const payload = readDragPayload(event);
       onDropBeforeChange?.(null);
-      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, null, payload.personId);
+      if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryIds ?? [payload.entryId], null, payload.personId);
     },
   } : {
     onDragOver: (event: ReactDragEvent<HTMLElement>) => {
@@ -91,7 +100,10 @@ export function useEntryDrag(
       const payload = readDragPayload(event);
       const before = pointerTarget(event);
       onDropBeforeChange?.(null);
-      if (payload && payload.entryId !== entry.id) onEntryMove(payload.sectionKey, section.key, payload.entryId, before, payload.personId);
+      // A drop onto a row that is itself part of the dragged run would be a move to where it
+      // already is, and would reorder the run around one of its own members.
+      const moving = payload?.entryIds ?? (payload ? [payload.entryId] : []);
+      if (payload && !moving.includes(entry.id)) onEntryMove(payload.sectionKey, section.key, moving, before, payload.personId);
     },
   };
 
@@ -114,7 +126,7 @@ export function useSectionDropZone(section: ReportSection, onEntryMove: EntryMov
     setDropBefore(null);
     if (!onEntryMove) return;
     const payload = readDragPayload(event);
-    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryId, undefined, payload.personId);
+    if (payload) onEntryMove(payload.sectionKey, section.key, payload.entryIds ?? [payload.entryId], undefined, payload.personId);
   }, [section.key, onEntryMove]);
 
   const cardDragProps = !onEntryMove ? {} : {

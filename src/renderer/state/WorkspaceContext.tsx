@@ -7,7 +7,12 @@ export type InspectorMode = "browse" | "create" | "edit" | "paste";
 export type UtilityKey = "directory" | "recovery" | "print" | null;
 export type WorkspaceSelection =
   | { kind: "section"; sectionKey: SectionKey }
-  | { kind: "entry"; sectionKey: SectionKey; entryId: string; personId?: string };
+  /**
+   * `entryId` is the row the inspector is pointed at and `entryIds` is everything selected, which
+   * is usually just that one. `anchorId` is where a shift-click measures its range from, so a run
+   * of them all extend from the row first clicked rather than from the last one landed on.
+   */
+  | { kind: "entry"; sectionKey: SectionKey; entryId: string; personId?: string; entryIds: string[]; anchorId: string };
 
 export interface WorkspacePreferences {
   inspectorOpen: boolean;
@@ -23,7 +28,12 @@ export interface WorkspaceState extends WorkspacePreferences {
 
 export type WorkspaceAction =
   | { type: "SELECT_SECTION"; sectionKey: SectionKey; mode?: InspectorMode }
-  | { type: "SELECT_ENTRY"; sectionKey: SectionKey; entryId: string; personId?: string }
+  /**
+   * `extend` is the modifier the click carried: "range" for shift, adding every row between the
+   * anchor and this one, "toggle" for ctrl, adding or removing this row alone. `orderedIds` is the
+   * section's rows in the order they are drawn, which is what a range is measured along.
+   */
+  | { type: "SELECT_ENTRY"; sectionKey: SectionKey; entryId: string; personId?: string; extend?: "range" | "toggle"; orderedIds?: string[] }
   | { type: "SET_INSPECTOR_MODE"; mode: InspectorMode }
   | { type: "SET_INSPECTOR_OPEN"; open: boolean }
   | { type: "SET_UTILITY"; utility: UtilityKey }
@@ -65,13 +75,36 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         inspectorMode: action.mode ?? "create",
         inspectorOpen: true,
       };
-    case "SELECT_ENTRY":
+    case "SELECT_ENTRY": {
+      const previous = state.selection;
+      // Extending only means anything within one section: a range that crossed cards would have to
+      // invent an order between two columns that the sheet does not have.
+      const continuing = previous.kind === "entry" && previous.sectionKey === action.sectionKey ? previous : null;
+      let entryIds = [action.entryId];
+      let anchorId = action.entryId;
+      if (continuing && action.extend === "toggle") {
+        entryIds = continuing.entryIds.includes(action.entryId)
+          ? continuing.entryIds.filter((id) => id !== action.entryId)
+          : [...continuing.entryIds, action.entryId];
+        // Ctrl-clicking the last selected row leaves it selected rather than nothing: the inspector
+        // is pointed at a row either way, and an empty selection has no meaning here.
+        if (!entryIds.length) entryIds = [action.entryId];
+        anchorId = action.entryId;
+      } else if (continuing && action.extend === "range" && action.orderedIds) {
+        const from = action.orderedIds.indexOf(continuing.anchorId);
+        const to = action.orderedIds.indexOf(action.entryId);
+        if (from >= 0 && to >= 0) {
+          entryIds = action.orderedIds.slice(Math.min(from, to), Math.max(from, to) + 1);
+          anchorId = continuing.anchorId;
+        }
+      }
       return {
         ...state,
-        selection: { kind: "entry", sectionKey: action.sectionKey, entryId: action.entryId, personId: action.personId },
+        selection: { kind: "entry", sectionKey: action.sectionKey, entryId: action.entryId, personId: action.personId, entryIds, anchorId },
         inspectorMode: "edit",
         inspectorOpen: true,
       };
+    }
     case "SET_INSPECTOR_MODE":
       return { ...state, inspectorMode: action.mode, inspectorOpen: true };
     case "SET_INSPECTOR_OPEN":
