@@ -430,8 +430,18 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .cremated-column > h2 { min-width: 1.62in; text-align: right; }
 .section-card { --card-header-h: .29in; position: relative; width: fit-content; min-width: 2.42in; max-width: 3.55in; overflow: hidden; border: .65px solid var(--column-rule); border-top: 2px solid var(--column-accent); border-radius: .05in; background: white; break-inside: avoid; }
 /* Cremated sections are usually just a funeral-home name, so they start much narrower. width is
-   still fit-content, so an edge case carrying a deceased name expands the card as before. */
-.cremated-column .section-card { min-width: 1.62in; }
+   still fit-content, so an edge case carrying a deceased name expands the card as before.
+
+   Halved from 1.62in. What a card of this column actually needs is its own heading, which is set
+   nowrap inside an overflow:hidden card and so is the thing that would clip: measured, DELIVER
+   wants .67in, MAIL .49in and FDP .41in, and .85in clears all three with room for a count of any
+   size. CERTS/OTHER TO DEL is the exception at 1.5in — it is simply a longer title, and holding
+   the whole column up to it was what made the other three wider than they had to be. */
+.cremated-column .section-card { min-width: .85in; }
+/* DELIVER is a longer word than MAIL or FDP, and its count sits at the other end of the same line:
+   at .85in the two were .08in apart and read as one word. CERTS/OTHER TO DEL is longer again. */
+.cremated-column [data-section-key="cremated-deliver"] { min-width: 1in; }
+.cremated-column [data-section-key="cremated-certs"] { min-width: 1.55in; }
 /* Human cards can be dragged well past their grid track, which only holds a card whose width is
    decided by its content. The ceiling is where the card would start covering the Cremated column,
    and it is worked out rather than written down, because the print margin moves both edges: the
