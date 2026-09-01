@@ -4,6 +4,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { _electron as electron, expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+/**
+ * Drags one row onto another card by dispatching the drag events directly, sharing one DataTransfer
+ * between them the way a real drag does.
+ *
+ * Playwright's dragTo drives HTML5 drag-and-drop with synthetic mouse movement, and Chromium starts
+ * a native drag from those only sometimes — this assertion failed roughly one run in three while
+ * the code under it was fine. What matters here is that the app's handlers move the entry, not that
+ * the browser recognises a gesture, so the gesture is not the part worth simulating.
+ */
+async function dragRowOntoCard(page: Page, rowSelector: string, cardSelector: string) {
+  await page.evaluate(({ rowSelector, cardSelector }) => {
+    const row = document.querySelector(rowSelector);
+    const card = document.querySelector(cardSelector);
+    if (!row || !card) throw new Error(`drag needs both ${rowSelector} and ${cardSelector}`);
+    const dataTransfer = new DataTransfer();
+    row.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+    card.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+    card.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+    row.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+  }, { rowSelector, cardSelector });
+}
 
 test("launches portably and renders the exact nine-card page", async () => {
   test.setTimeout(60_000);
@@ -54,7 +77,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await pendingInput.fill("beltway crem - jane doe (13a)");
     await pendingInput.press("Enter");
     await expect(page.getByText("Jane Doe").first()).toBeVisible();
-    await pendingCard.locator(".draggable-row").dragTo(humanDeliverCard);
+    await dragRowOntoCard(page, '.page-stage [data-section-key="human-pending"] .draggable-row', '.page-stage [data-section-key="human-deliver"]');
     await expect(humanDeliverCard).toContainText("Jane Doe");
     await expect(pendingCard).not.toContainText("Jane Doe");
     await humanDeliverCard.locator(".draggable-row").dblclick();
