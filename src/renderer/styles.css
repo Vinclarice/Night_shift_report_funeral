@@ -556,10 +556,14 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    card the operator has narrowed — and positioning the grip inside that clip is what forced it
    indoors in the first place. */
 .section-card-shell { position: relative; width: fit-content; }
-/* Centred and always on show, straddling the card's right edge as it did originally. Sitting half
+/* Centred and always on show, straddling the edge of the card that actually moves. Sitting half
    outside costs nothing: the grip is screen-only and never prints. */
 .width-handle { position: absolute; right: -7px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
 .width-handle::after { content: "⋮"; }
+/* The Cremated column is right-aligned, so widening one of its cards extends it leftwards and its
+   right edge never moves. The grip belongs on the edge that does — and dragging that edge outwards,
+   which is leftwards here, is what makes the card wider. beginResize reads the same rule. */
+.cremated-column .width-handle { right: auto; left: -7px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

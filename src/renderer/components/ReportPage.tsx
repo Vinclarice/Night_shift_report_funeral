@@ -419,6 +419,9 @@ const SectionCard = memo(function SectionCard({
     if (!card) return;
     const startX = event.clientX;
     const startWidth = card.getBoundingClientRect().width / 96;
+    // Cremated cards are right-aligned and grow to the left, so their grip sits on the left edge
+    // and pulling it left is what widens them. Human cards grow to the right, as before.
+    const towardsWider = section.category === "cremated" ? -1 : 1;
     let latest = startWidth;
     // Taken from the card's own computed bounds rather than written out here. The two columns have
     // different floors — 2.42in for Human Remains, 1.62in for the narrower Cremated cards — and a
@@ -428,7 +431,7 @@ const SectionCard = memo(function SectionCard({
     const minWidth = (parseFloat(bounds.minWidth) || 0) / 96;
     const maxWidth = (parseFloat(bounds.maxWidth) || Infinity) / 96;
     const move = (moveEvent: PointerEvent) => {
-      latest = Math.min(maxWidth, Math.max(minWidth, startWidth + (moveEvent.clientX - startX) / 96));
+      latest = Math.min(maxWidth, Math.max(minWidth, startWidth + towardsWider * (moveEvent.clientX - startX) / 96));
       onWidthChange?.(section.key, Number(latest.toFixed(2)));
     };
     const finish = () => {
