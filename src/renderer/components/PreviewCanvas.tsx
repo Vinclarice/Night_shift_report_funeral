@@ -35,7 +35,9 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   const entryCount = report.sections.reduce((total, section) => total + section.entries.length, 0);
   // Rounded to whole percent for the readout. The underlying value is continuous, but a number
   // that twitched by a fraction on every keystroke would read as noise rather than as information.
-  const tightenPercent = Math.round(controller.tighten * 100);
+  // The tighter of the two columns: it is the one the reader will notice, and the masthead follows
+  // it too, so it is the honest single number for a readout that only has room for one.
+  const tightenPercent = Math.round(Math.max(controller.tighten.human, controller.tighten.cremated) * 100);
   const compacted = tightenPercent > 0;
   // Spelled out rather than left to the bare percentage, so the readout answers the question the
   // number raises — what got smaller, and whether anything was taken away. Nothing is: the writing

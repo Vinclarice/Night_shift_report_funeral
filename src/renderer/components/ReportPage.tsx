@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 
 import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
+import type { ColumnTightness } from "../hooks/useOverflowCompaction";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 
 interface Props {
@@ -13,8 +14,8 @@ interface Props {
   dateOverride?: string | null;
   /** Stamped into the footer so two printed copies of one night can be told apart. */
   printedAt?: Date | null;
-  /** How far the sheet is tightened to fit one page: 0 is its natural size, 1 the tightest drawn. */
-  tighten?: number;
+  /** How far each column is tightened to fit one page: 0 is its natural size, 1 the tightest drawn. */
+  tighten?: ColumnTightness;
   calibration?: boolean;
   interactive?: boolean;
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
@@ -285,6 +286,9 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
  */
 const trimTrailing = (value: string): string => value.replace(/\s+$/, "");
 
+/** A sheet drawn at its natural size, which is what the print copy gets unless told otherwise. */
+const NO_TIGHTENING: ColumnTightness = { human: 0, cremated: 0 };
+
 const NOTES_LINES = 2;
 
 /**
@@ -499,9 +503,13 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = 0, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = NO_TIGHTENING, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+  // The masthead spans both columns, so it follows whichever is tighter: shrinking it hands
+  // vertical space back to the column that needed it. Everything else inside a column reads that
+  // column's own value instead, set below — custom properties inherit, so no rule has to know.
+  const pageTighten = Math.max(tighten.human, tighten.cremated);
   const pageStyle = {
-    "--tighten": String(tighten),
+    "--tighten": String(pageTighten),
     "--report-margin": `${layout.marginInches}in`,
     "--report-scale": String(layout.scale),
     "--report-offset-x": `${layout.offsetXInches}in`,
@@ -519,7 +527,9 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
       style={pageStyle}
       // Readable back out for the print gate and the desktop tests, which need to know how hard a
       // given sheet was squeezed and can no longer read it off a class name.
-      data-tighten={tighten.toFixed(3)}
+      data-tighten={pageTighten.toFixed(3)}
+      data-tighten-human={tighten.human.toFixed(3)}
+      data-tighten-cremated={tighten.cremated.toFixed(3)}
       data-calibration={calibration || undefined}
       // Marks the one instance meant to be measured for page overflow — the interactive canvas
       // copy, never the hidden print-only one. useOverflowCompaction looks for this attribute
@@ -536,13 +546,13 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           </div>
         </header>
         <div className="report-columns">
-          <div className="report-column human-column">
+          <div className="report-column human-column" style={{ "--tighten": String(tighten.human) } as CSSProperties}>
             <h2>HUMAN REMAINS</h2>
             {human.map((section) => (
               <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
-          <div className="report-column cremated-column">
+          <div className="report-column cremated-column" style={{ "--tighten": String(tighten.cremated) } as CSSProperties}>
             <h2>CREMATED REMAINS</h2>
             {cremated.map((section) => (
               <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />

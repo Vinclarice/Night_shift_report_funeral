@@ -5,6 +5,7 @@ import { MutationQueue } from "@/application/mutationQueue";
 import type { LayoutSettings, NightReport } from "@/domain/types";
 import type { BootstrapData } from "@/shared/contracts";
 import { useOverflowCompaction } from "../hooks/useOverflowCompaction";
+import type { ColumnTightness } from "../hooks/useOverflowCompaction";
 import { useToast } from "../ui/Toast";
 import type { DraftActions } from "./useDraftActions";
 import { useDraftActions } from "./useDraftActions";
@@ -39,8 +40,8 @@ export interface ReportState {
   calibration: boolean;
   undoAvailable: boolean;
   redoAvailable: boolean;
-  /** How hard the sheet is squeezed to fit one page: 0 natural, 1 the tightest drawn. */
-  tighten: number;
+  /** How hard each column is squeezed to fit one page: 0 natural, 1 the tightest drawn. */
+  tighten: ColumnTightness;
   overflow: boolean;
 }
 

@@ -29,20 +29,37 @@ describe("print report", () => {
     expect(screen.queryByText("JULY 26, 2026")).not.toBeInTheDocument();
   });
 
-  it("hands the requested tightness to the shared page", () => {
-    // The stylesheet interpolates every measurement off this one number, so it is the whole of
-    // what the page needs to be told; the print copy is squeezed by passing it the same value.
+  it("gives each column its own tightness and the masthead the tighter of them", () => {
+    // The stylesheet interpolates every measurement off this one number, and custom properties
+    // inherit, so setting it per column is the whole of what a column needs to be told. The
+    // masthead spans both, so it follows the tighter one.
     const { container } = render(
       <ReportPage
         report={createEmptyReport("2026-07-26")}
         layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
-        tighten={0.375}
+        tighten={{ human: 0.75, cremated: 0.25 }}
       />,
     );
 
     const page = container.querySelector<HTMLElement>(".report-page")!;
-    expect(page.style.getPropertyValue("--tighten")).toBe("0.375");
-    expect(page).toHaveAttribute("data-tighten", "0.375");
+    expect(page.style.getPropertyValue("--tighten")).toBe("0.75");
+    expect(page).toHaveAttribute("data-tighten", "0.750");
+    expect(container.querySelector<HTMLElement>(".human-column")!.style.getPropertyValue("--tighten")).toBe("0.75");
+    expect(container.querySelector<HTMLElement>(".cremated-column")!.style.getPropertyValue("--tighten")).toBe("0.25");
+  });
+
+  it("leaves a light column alone when the other one is over", () => {
+    // The whole page used to shrink because one column was long, which set a nearly empty Cremated
+    // column at 7.2pt for no reason.
+    const { container } = render(
+      <ReportPage
+        report={createEmptyReport("2026-07-26")}
+        layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
+        tighten={{ human: 1, cremated: 0 }}
+      />,
+    );
+
+    expect(container.querySelector<HTMLElement>(".cremated-column")!.style.getPropertyValue("--tighten")).toBe("0");
   });
 
   it("lets the operator type into an empty preview row and commit with Enter", () => {
@@ -112,7 +129,7 @@ describe("print report", () => {
       <ReportPage
         report={report}
         layout={{ sectionWidths: {}, marginInches: 0.35, scale: 1, offsetXInches: 0, offsetYInches: 0 }}
-        tighten={tighten}
+        tighten={{ human: tighten, cremated: tighten }}
       />,
     );
 
