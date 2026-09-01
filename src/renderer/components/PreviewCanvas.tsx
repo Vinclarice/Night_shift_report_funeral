@@ -128,14 +128,36 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
     void controller.persist(next);
   }, [report, controller]);
 
-  const deleteContextEntries = useCallback((sectionKey: SectionKey, entryIds: string[]) => {
+  const deleteEntries = useCallback((sectionKey: SectionKey, entryIds: string[]) => {
     const next = structuredClone(report);
     const section = next.sections.find((item) => item.key === sectionKey)!;
     const removed = entryIds.reduce((any, entryId) => removeEntry(section, entryId) || any, false);
     if (!removed) return;
+    // Nothing is left to point the inspector at, and a selection naming rows that no longer exist
+    // would keep the next Delete looking for them.
+    dispatch({ type: "SELECT_SECTION", sectionKey, mode: "browse" });
     void controller.persist(next);
     void controller.resetSectionWidth(sectionKey);
-  }, [report, controller]);
+  }, [report, controller, dispatch]);
+
+  /**
+   * Delete removes whatever rows are selected. Undo covers it, so it does not stop to ask — but it
+   * does refuse to fire while something is being typed into, or the key would eat a character out
+   * of a row, a note, or an inspector field instead of deleting anything.
+   */
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key !== "Delete" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      const selection = workspace.selection;
+      if (selection.kind !== "entry" || !selection.entryIds.length) return;
+      event.preventDefault();
+      deleteEntries(selection.sectionKey, selection.entryIds);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [workspace.selection, deleteEntries]);
 
   /**
    * The rows the context menu acts on: the whole selection when the row that was right-clicked is
@@ -224,7 +246,7 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
           items={[
             { key: "edit", label: "Edit entry", icon: <IconPencil />, onSelect: () => editContextEntry(contextMenu.sectionKey, contextMenu.entryId) },
             { key: "rush", label: contextMenuEntry.rush ? "Remove rush" : "Mark as rush", icon: <IconFlag />, onSelect: () => toggleContextEntryRush(contextMenu.sectionKey, contextMenu.entryId) },
-            { key: "delete", label: contextMenuIds.length > 1 ? `Delete ${contextMenuIds.length} entries` : "Delete entry", icon: <IconTrash />, tone: "danger", onSelect: () => deleteContextEntries(contextMenu.sectionKey, contextMenuIds) },
+            { key: "delete", label: contextMenuIds.length > 1 ? `Delete ${contextMenuIds.length} entries` : "Delete entry", icon: <IconTrash />, tone: "danger", onSelect: () => deleteEntries(contextMenu.sectionKey, contextMenuIds) },
           ]}
         />
       )}

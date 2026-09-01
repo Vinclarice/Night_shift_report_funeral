@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, vi } from "vitest";
 
 import { createEmptyReport } from "@/domain/report";
@@ -269,5 +269,40 @@ describe("App", () => {
     const columns = [...container.querySelectorAll(".studio-workspace > *")].map((element) => element.className.split(" ")[0]);
 
     expect(columns).toEqual(["studio-inspector", "studio-canvas"]);
+  });
+  it("deletes every selected row when Delete is pressed, and not while something is being typed into", async () => {
+    const report = createEmptyReport("2026-07-26");
+    const section = report.sections.find((item) => item.key === "human-fdp")!;
+    for (const name of ["Alpha", "Beta", "Gamma"]) {
+      section.entries.push({ id: name, type: "plain", text: name, rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z" });
+    }
+    window.nightShift = mockApi(report);
+    const { container } = render(<App />);
+    await screen.findByText("Night Shift Report");
+    // Scoped to the canvas: the hidden print copy carries the same rows and the same text.
+    const card = () => container.querySelector('.page-stage [data-section-key="human-fdp"]')!;
+    const rows = () => [...card().querySelectorAll<HTMLElement>(".draggable-row")];
+    await waitFor(() => expect(rows()).toHaveLength(3));
+
+    // A row open for editing owns the key: Delete belongs to the field, not to the sheet.
+    fireEvent.click(rows()[0]);
+    const input = await screen.findByRole("textbox", { name: "Edit Human Remains FDP" });
+    // Dispatched on the field, which is where the key really lands; it bubbles to the window
+    // listener carrying the field as its target, which is what the guard reads.
+    fireEvent.keyDown(input, { key: "Delete" });
+    expect(screen.getByRole("textbox", { name: "Edit Human Remains FDP" })).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    await waitFor(() => expect(rows()).toHaveLength(3));
+
+    // Clicking a row both selects it and opens it, so the editor is closed again before the
+    // shift-click — while it is open that row is an input and is not among .draggable-row.
+    fireEvent.click(rows()[0]);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Edit Human Remains FDP" }), { key: "Escape" });
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    fireEvent.click(rows()[2], { shiftKey: true });
+    expect(card().querySelectorAll(".draggable-row.selected")).toHaveLength(3);
+
+    fireEvent.keyDown(rows()[2], { key: "Delete" });
+    await waitFor(() => expect(rows()).toHaveLength(0));
   });
 });
