@@ -20,7 +20,7 @@ export const REPORT_SECTIONS: ReadonlyArray<{
   { key: "human-pending", category: "human", title: "HR DEL – PENDING" },
   { key: "human-ship-outs", category: "human", title: "SHIP-OUTS – NFS" },
   { key: "cremated-deliver", category: "cremated", title: "DELIVER" },
-  { key: "cremated-mail", category: "cremated", title: "MAIL" },
+  { key: "cremated-mail", category: "cremated", title: "MAIL", optional: true },
   { key: "cremated-fdp", category: "cremated", title: "FDP" },
   { key: "cremated-certs", category: "cremated", title: "CERTS/OTHER TO DEL", optional: true },
 ];
