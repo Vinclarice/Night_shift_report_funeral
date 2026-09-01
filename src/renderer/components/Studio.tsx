@@ -1,3 +1,4 @@
+import { useSecondPageSplit } from "../hooks/useSecondPageSplit";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Drawer } from "../ui/Drawer";
@@ -29,6 +30,8 @@ export function Studio() {
   const report = controller.report!;
   const utilityTitle = UTILITY_TITLES[workspace.utility ?? ""] ?? "Tools";
   const selectedSection = workspace.selection.sectionKey;
+  // Where each section is cut between the two sheets, measured off the live canvas.
+  const entryLimits = useSecondPageSplit(controller.allowSecondPage, report);
 
   return (
     <main className={`studio-shell${workspace.inspectorOpen ? " inspector-visible" : ""}`}>
@@ -40,11 +43,28 @@ export function Studio() {
       <datalist id="funeral-home-options">
         {(controller.bootstrap?.funeralHomes ?? []).map((home) => <option key={home.id} value={home.name} />)}
       </datalist>
-      {controller.overflow && <div className="overflow-warning no-print">Printing is paused because this report exceeds one page. Adjust card widths, print scale, or entries before printing.</div>}
+      {controller.overflow && (
+        <div className="overflow-warning no-print">
+          <span>Printing is paused because this report exceeds one page even at its smallest. Adjust card widths, print scale, or entries — or print it across two sheets.</span>
+          <button type="button" onClick={() => controller.setAllowSecondPage(true)}>Print on two sheets</button>
+        </div>
+      )}
+      {controller.allowSecondPage && !controller.overflow && (
+        <div className="overflow-warning second-page no-print">
+          <span>This report is printing across two sheets. Everything that does not fit the first carries on overleaf.</span>
+          <button type="button" onClick={() => controller.setAllowSecondPage(false)}>Back to one sheet</button>
+        </div>
+      )}
       {/* Inspector, canvas. Picking a section and typing into it are the two things done on every
           entry, so they sit adjacent; the canvas is mostly read and is given the rest. */}
       <div className="studio-workspace no-print">{workspace.inspectorOpen && <Inspector report={report} />}<PreviewCanvas report={report} /></div>
-      <div className="print-only"><ReportPage report={report} layout={controller.layout!} dateOverride={controller.dateOverride} printedAt={controller.printedAt} tighten={controller.tighten} calibration={controller.calibration} /></div>
+      {/* The sheet that actually reaches the printer. Split in two only when a night has been
+          allowed a second one: the first keeps what fits, the second carries the rest, and each is
+          a full sheet of its own because .report-page already breaks the page after itself. */}
+      <div className="print-only">
+        <ReportPage report={report} layout={controller.layout!} dateOverride={controller.dateOverride} printedAt={controller.printedAt} tighten={controller.tighten} calibration={controller.calibration} entryLimits={entryLimits ?? undefined} pageLabel={entryLimits ? "PAGE 1 OF 2" : undefined} />
+        {entryLimits && <ReportPage report={report} layout={controller.layout!} dateOverride={controller.dateOverride} printedAt={controller.printedAt} tighten={controller.tighten} calibration={controller.calibration} entryLimits={entryLimits} continuation pageLabel="PAGE 2 OF 2" />}
+      </div>
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
         {workspace.utility === "recovery" && <RecoveryPanel backups={controller.bootstrap!.backups} />}

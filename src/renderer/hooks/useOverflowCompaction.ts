@@ -83,7 +83,7 @@ function step(search: Search, exceedsPage: boolean): Search {
   return { tighten: (looser + settledValue) / 2, tooLoose, fits, settled: false, overflows: false };
 }
 
-export function useOverflowCompaction(report: NightReport | null, layout: LayoutSettings | null) {
+export function useOverflowCompaction(report: NightReport | null, layout: LayoutSettings | null, pages = 1) {
   // Deferred in step with the canvas, which renders a deferred copy of the report. Keyed off the
   // live one, this hook reset itself a render before the DOM caught up and measured a page that
   // still had the old content on it — taking a card away read as an overflow that was not there.
@@ -101,8 +101,9 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
         margin: deferredLayout?.marginInches,
         scale: deferredLayout?.scale,
         offsetY: deferredLayout?.offsetYInches,
+        pages,
       }),
-    [deferredReport?.sections, deferredReport?.roadTripsVisible, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches],
+    [deferredReport?.sections, deferredReport?.roadTripsVisible, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches, pages],
   );
 
   // Memoised: a fresh object on every render would re-run the measuring effect on every render,
@@ -146,7 +147,12 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
       const next = { ...columns };
       let changed = false;
       for (const { key, element } of measured) {
-        next[key] = step(columns[key], element.getBoundingClientRect().bottom > floor);
+        const box = element.getBoundingClientRect();
+        // Against however many sheets are allowed. Printing across two gives a column twice the
+        // room, so the search settles somewhere far looser — the point of a second sheet is to get
+        // the type back, not to print the same 7.2pt twice.
+        const room = (floor - box.top) * pages;
+        next[key] = step(columns[key], box.height > room);
         if (next[key] !== columns[key]) changed = true;
       }
       if (changed) setState({ key: compactionKey, columns: next });
@@ -156,7 +162,7 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
     observer.observe(content);
     measured.forEach(({ element }) => observer.observe(element));
     return () => observer.disconnect();
-  }, [deferredReport, deferredLayout, compactionKey, columns]);
+  }, [deferredReport, deferredLayout, compactionKey, columns, pages]);
 
   return { tighten, overflow };
 }

@@ -38,6 +38,8 @@ export interface ReportState {
   status: SaveStatus;
   lastSavedAt: Date | null;
   calibration: boolean;
+  /** Whether this report may print across two sheets rather than being refused. */
+  allowSecondPage: boolean;
   undoAvailable: boolean;
   redoAvailable: boolean;
   /** How hard each column is squeezed to fit one page: 0 natural, 1 the tightest drawn. */
@@ -51,6 +53,8 @@ export interface ReportState {
  * action is an implementation detail of the provider.
  */
 export type ReportActions = DraftActions & LayoutActions & {
+  /** Lets a report too big for one sheet print across two rather than be refused. */
+  setAllowSecondPage: (allow: boolean) => void;
   /** Pass null to drop the manual date and go back to the report's own. */
   setDateOverride: (date: string | null) => void;
   /** Stamps the print time onto the page, then prints. */
@@ -70,6 +74,12 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [calibration, setCalibration] = useState(false);
+  /**
+   * Set when a night is too big for one sheet even at the tightest the page is drawn and the
+   * operator has said to print it across two rather than not at all. Deliberately not stored: it is
+   * a decision about tonight's print run, and the next night should start refusing again.
+   */
+  const [allowSecondPage, setAllowSecondPage] = useState(false);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [redoAvailable, setRedoAvailable] = useState(false);
   const queue = useMemo(() => new MutationQueue(), []);
@@ -79,7 +89,9 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   const bootstrapRef = useRef<BootstrapData | null>(null);
   const undoStackRef = useRef<NightReport[]>([]);
   const redoStackRef = useRef<NightReport[]>([]);
-  const { tighten, overflow } = useOverflowCompaction(report, layout);
+  // Two sheets' worth of room once a second one has been allowed, so the search settles somewhere
+  // far looser than the 7.2pt a single sheet would have forced.
+  const { tighten, overflow } = useOverflowCompaction(report, layout, allowSecondPage ? 2 : 1);
 
   // Every action below reads live values through refs rather than closing over state, which is what
   // lets each action hook's returned object be built exactly once. Keeping bootstrap mirrored here
@@ -103,7 +115,7 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const actions = useMemo<ReportActions>(
-    () => ({ ...draftActions, ...layoutActions, setDateOverride, printReport }),
+    () => ({ ...draftActions, ...layoutActions, setDateOverride, printReport, setAllowSecondPage }),
     [draftActions, layoutActions, printReport],
   );
 
@@ -149,9 +161,9 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   }, [actions]);
 
   const state = useMemo<ReportState>(() => ({
-    bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration,
+    bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, allowSecondPage,
     undoAvailable, redoAvailable, tighten, overflow,
-  }), [bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, undoAvailable, redoAvailable, tighten, overflow]);
+  }), [bootstrap, report, layout, dateOverride, printedAt, status, lastSavedAt, calibration, allowSecondPage, undoAvailable, redoAvailable, tighten, overflow]);
 
   return (
     <ReportStateContext.Provider value={state}>

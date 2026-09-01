@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { createEmptyReport } from "@/domain/report";
+import { WHOLE_CARD_OVERLEAF } from "../hooks/useSecondPageSplit";
 import { ReportPage } from "./ReportPage";
 
 describe("print report", () => {
@@ -520,5 +521,64 @@ describe("drag to reorder", () => {
     const alone = dataTransfer({});
     fireEvent.dragStart(rows[1], { dataTransfer: alone });
     expect(JSON.parse(alone.setData.mock.calls[0][1]).entryIds).toBeUndefined();
+  });
+  describe("split across two sheets", () => {
+    const withEntries = (count: number) => {
+      const report = createEmptyReport("2026-07-26");
+      const fdp = report.sections.find((section) => section.key === "human-fdp")!;
+      for (let index = 0; index < count; index += 1) {
+        fdp.entries.push({ id: `e${index}`, type: "plain", text: `Row ${index}`, rush: false, keepSeparate: false, pinnedBottom: false, createdAt: "2026-07-25T12:00:00.000Z" });
+      }
+      return report;
+    };
+    const LIMITS = { "human-fdp": 3 } as const;
+
+    it("keeps what fits on the first sheet and carries the rest to the second", () => {
+      const report = withEntries(5);
+      const first = render(<ReportPage report={report} layout={LAYOUT} entryLimits={LIMITS} pageLabel="PAGE 1 OF 2" />);
+      expect(first.container.querySelectorAll('[data-section-key="human-fdp"] [data-entry-id]')).toHaveLength(3);
+      expect(first.getByText("PAGE 1 OF 2")).toBeInTheDocument();
+
+      const second = render(<ReportPage report={report} layout={LAYOUT} entryLimits={LIMITS} continuation pageLabel="PAGE 2 OF 2" />);
+      const carried = [...second.container.querySelectorAll('[data-section-key="human-fdp"] [data-entry-id]')].map((row) => row.getAttribute("data-entry-id"));
+      expect(carried).toEqual(["e3", "e4"]);
+    });
+
+    it("says a section is continued only when it really carries on", () => {
+      // A section pushed off the first sheet entirely did not continue onto the second; it began
+      // there, and labelling it "continued" would send someone hunting for rows that do not exist.
+      const report = withEntries(5);
+      const carried = render(<ReportPage report={report} layout={LAYOUT} entryLimits={{ "human-fdp": 3 }} continuation />);
+      expect(within(carried.container.querySelector('[data-section-key="human-fdp"]')!).getByText("(continued)")).toBeInTheDocument();
+
+      const started = render(<ReportPage report={report} layout={LAYOUT} entryLimits={{ "human-fdp": 0 }} continuation />);
+      expect(within(started.container.querySelector('[data-section-key="human-fdp"]')!).queryByText("(continued)")).toBeNull();
+    });
+
+    it("leaves a section off the first sheet when none of it fits", () => {
+      // It used to print as an empty card in the space its rows had vacated, which is what pushed
+      // the first sheet down into its own notes block.
+      const { container } = render(<ReportPage report={withEntries(5)} layout={LAYOUT} entryLimits={{ "human-fdp": 0 }} />);
+      expect(container.querySelector('[data-section-key="human-fdp"]')).toBeNull();
+    });
+
+    it("moves a whole card overleaf when it begins below the floor, empty or not", () => {
+      const { container } = render(<ReportPage report={withEntries(2)} layout={LAYOUT} entryLimits={{ "cremated-certs": WHOLE_CARD_OVERLEAF }} />);
+      expect(container.querySelector('[data-section-key="cremated-certs"]')).toBeNull();
+
+      const overleaf = render(<ReportPage report={withEntries(2)} layout={LAYOUT} entryLimits={{ "cremated-certs": WHOLE_CARD_OVERLEAF }} continuation />);
+      expect(overleaf.container.querySelector('[data-section-key="cremated-certs"]')).not.toBeNull();
+    });
+
+    it("puts the writing rows on the sheet the section ends on, and the notes on the first", () => {
+      const report = withEntries(5);
+      const first = render(<ReportPage report={report} layout={LAYOUT} entryLimits={LIMITS} />);
+      expect(first.container.querySelectorAll('[data-section-key="human-fdp"] [data-testid="free-row"]')).toHaveLength(0);
+      expect(first.container.querySelector(".notes-block")).not.toBeNull();
+
+      const second = render(<ReportPage report={report} layout={LAYOUT} entryLimits={LIMITS} continuation />);
+      expect(second.container.querySelectorAll('[data-section-key="human-fdp"] [data-testid="free-row"]')).toHaveLength(3);
+      expect(second.container.querySelector(".notes-block")).toBeNull();
+    });
   });
 });

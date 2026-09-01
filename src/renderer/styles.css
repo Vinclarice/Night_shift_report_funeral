@@ -252,6 +252,12 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .row-context-menu button.danger:hover { color: var(--rush); background: var(--rush-soft); }
 
 .overflow-warning { flex: none; z-index: 20; padding: 9px 22px; display: flex; justify-content: center; align-items: center; gap: 8px; border-bottom: 1px solid #eab9b1; color: #8c2c20; background: var(--rush-soft); font-size: 12.5px; }
+/* The banner offers the way out as well as the diagnosis, so the button reads as part of the
+   sentence rather than as a separate control. The second variant is not an alarm — the report is
+   printing, just on two sheets — so it is stated in the same calm ink as the desk. */
+.overflow-warning button { padding: 3px 10px; border: 1px solid currentColor; border-radius: var(--radius-sm); background: transparent; color: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.overflow-warning button:hover { background: rgb(255 255 255 / 35%); }
+.overflow-warning.second-page { color: var(--ink-2); background: var(--paper-2, #eef1f5); border-bottom-color: var(--rule); }
 
 .studio-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 348px minmax(0, 1fr); overflow: hidden; }
 .studio-shell:not(.inspector-visible) .studio-workspace { grid-template-columns: minmax(0, 1fr); }
@@ -437,6 +443,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    between them, which the Cremated side was never using. */
 .human-column .section-card { max-width: calc(8.5in - 2 * var(--report-margin) - .92in - 1.86in); }
 .page-stage .section-card { box-shadow: 0 0 0 1.5px rgb(26 31 38 / 11%), 0 .025in .07in rgb(29 49 38 / 8%); }
+/* Only ever on a second sheet, so a card that carries on from the first says so in its heading. */
+.section-continued { font-weight: 400; letter-spacing: 0; opacity: .75; }
+/* Beside the date, naming which of the two sheets this is. */
+.report-page-label { font-family: var(--font-display); font-stretch: 75%; font-size: 8pt; font-weight: 600; letter-spacing: .14em; color: #5f666e; }
 .section-card h3 em { float: right; font-style: normal; font-weight: 700; font-size: 9pt; letter-spacing: 0; opacity: .7; }
 .section-card h3 { height: var(--card-header-h); margin: 0; padding: .04in .085in 0; color: var(--column-accent); background: var(--column-soft); text-align: left; font-size: 10.2pt; font-weight: 760; line-height: .22in; letter-spacing: .045em; white-space: nowrap; border-bottom: .55px solid var(--column-rule); }
 .report-row { min-height: .22in; padding: .014in .075in .007in; border-bottom: .75px solid #8d97a3; color: var(--report-ink); font-size: 10pt; line-height: .205in; white-space: normal; overflow-wrap: anywhere; }

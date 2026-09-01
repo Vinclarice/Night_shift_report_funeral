@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
 import type { ColumnTightness } from "../hooks/useOverflowCompaction";
+import { WHOLE_CARD_OVERLEAF } from "../hooks/useSecondPageSplit";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
 
 interface Props {
@@ -16,6 +17,15 @@ interface Props {
   printedAt?: Date | null;
   /** How far each column is tightened to fit one page: 0 is its natural size, 1 the tightest drawn. */
   tighten?: ColumnTightness;
+  /**
+   * How many of each section's entries belong on the first sheet, when a night is too big for one
+   * and has been allowed a second. Absent on a sheet that is not being split.
+   */
+  entryLimits?: Partial<Record<ReportSection["key"], number>>;
+  /** Renders what `entryLimits` left over, rather than what it kept: the second sheet. */
+  continuation?: boolean;
+  /** "PAGE 1 OF 2" and the like, printed beside the date so a loose sheet can be placed. */
+  pageLabel?: string;
   calibration?: boolean;
   interactive?: boolean;
   onWidthChange?: (key: ReportSection["key"], width: number) => void;
@@ -248,6 +258,7 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
     <button
       type="button"
       draggable={Boolean(entry && onEntryMove)}
+      data-entry-id={entry?.id}
       className={`report-row inline-row-button no-print${entry ? " draggable-row" : " blank-row"}${entry?.rush ? " rush-row" : ""}${entry?.pinnedBottom ? " pinned-row" : ""}${selected ? " selected" : ""}${dropBefore ? " drop-before" : ""}`}
       aria-label={`${entry ? "Edit" : "Type in"} ${rowLabel}${!entry && freeRowIndex > 0 ? ` free row ${freeRowIndex + 1}` : ""}`}
       onDragStart={beginDrag}
@@ -391,6 +402,8 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
 const SectionCard = memo(function SectionCard({
   section,
   width,
+  continued,
+  showFreeRows = true,
   interactive,
   onWidthChange,
   onWidthCommit,
@@ -404,6 +417,10 @@ const SectionCard = memo(function SectionCard({
 }: {
   section: ReportSection;
   width?: number;
+  /** On the second sheet, so the heading says the section carries on from the first. */
+  continued?: boolean;
+  /** False on a card whose section continues overleaf: the writing rows belong where it ends. */
+  showFreeRows?: boolean;
   interactive?: boolean;
   onWidthChange?: Props["onWidthChange"];
   onWidthCommit?: Props["onWidthCommit"];
@@ -417,7 +434,7 @@ const SectionCard = memo(function SectionCard({
 }) {
   const { dropActive, dropBefore, setDropBefore, cardDragProps } = useSectionDropZone(section, onEntryMove);
   const itemCount = sectionItemCount(section);
-  const freeRows = FREE_ROW_COUNTS[section.key] ?? 1;
+  const freeRows = showFreeRows ? FREE_ROW_COUNTS[section.key] ?? 1 : 0;
   const cardRef = useRef<HTMLElement>(null);
   const continueFromEntriesRef = useRef<ReportEntry[] | null>(null);
 
@@ -474,13 +491,13 @@ const SectionCard = memo(function SectionCard({
           does that. Interactive canvas only; the print copy keeps a plain heading. Keyboard users
           reach the same selection by tabbing to any row in the card. */}
       <h3 onClick={interactive ? () => onSelectSection?.(section.key) : undefined} title={interactive ? `Show ${section.title} in the inspector` : undefined}>
-        {section.title}
+        {section.title}{continued && <span className="section-continued"> (continued)</span>}
         {itemCount > 0 && <em aria-label={`${itemCount} in this section`}>{itemCount}</em>}
       </h3>
       {section.entries.map((entry) => (
         onLineCommit
           ? <EditableReportRow key={entry.id} section={section} entry={entry} onLineCommit={onLineCommit} autoWidth={!width} onEntryMove={onEntryMove} selected={selectedEntryIds?.includes(entry.id) ?? false} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} dropBefore={dropBefore === entry.id} onDropBeforeChange={setDropBefore} />
-          : <div className={`report-row${entry.rush ? " rush-row" : ""}${entry.pinnedBottom ? " pinned-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
+          : <div data-entry-id={entry.id} className={`report-row${entry.rush ? " rush-row" : ""}${entry.pinnedBottom ? " pinned-row" : ""}`} key={entry.id}><EntryLine entry={entry} /></div>
       ))}
       {Array.from({ length: freeRows }, (_, index) => (
         onLineCommit
@@ -503,7 +520,7 @@ const SectionCard = memo(function SectionCard({
  * handler props it receives from PreviewCanvas are defined inline there, so memo only pays off in
  * combination with those being stable — see PreviewCanvas, where they are wrapped in useCallback.
  */
-export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = NO_TIGHTENING, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
+export const ReportPage = memo(function ReportPage({ report, layout, dateOverride = null, printedAt = null, tighten = NO_TIGHTENING, entryLimits, continuation = false, pageLabel, calibration = false, interactive = false, onWidthChange, onWidthCommit, onLineCommit, onNotesCommit, onEntryMove, selectedSectionKey, selectedEntryIds, onSelectSection, onSelectEntry, onEntryContextMenu }: Props) {
   // The masthead spans both columns, so it follows whichever is tighter: shrinking it hands
   // vertical space back to the column that needed it. Everything else inside a column reads that
   // column's own value instead, set below — custom properties inherit, so no rule has to know.
@@ -517,9 +534,34 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
   } as CSSProperties;
   // ROAD TRIPS is filtered out of the page rather than out of the report, so a night that is put
   // away with entries still in it keeps them, and they reappear with the card.
-  const human = report.sections.filter((section) =>
-    section.category === "human" && (section.key !== "human-road-trips" || report.roadTripsVisible));
-  const cremated = report.sections.filter((section) => section.category === "cremated");
+  const shown = report.sections.filter((section) =>
+    section.key !== "human-road-trips" || report.roadTripsVisible);
+  // Split across two sheets: the first keeps what fits, the second carries the rest. A section
+  // whose entries all landed on the first sheet is simply not on the second, and the blank writing
+  // rows follow the end of the section, so a continued card has them on the sheet it finishes on.
+  const paged = shown.map((section) => {
+    const limit = entryLimits?.[section.key];
+    if (limit === undefined) return { section, ends: !continuation, carried: false, keep: !continuation };
+    // A card that begins below the floor goes over whole, entries or none.
+    const whole = limit === WHOLE_CARD_OVERLEAF;
+    const entries = whole
+      ? (continuation ? section.entries : [])
+      : (continuation ? section.entries.slice(limit) : section.entries.slice(0, limit));
+    const hadEntries = section.entries.length > 0;
+    return {
+      section: { ...section, entries },
+      ends: continuation || (!whole && limit >= section.entries.length),
+      // "(continued)" only where the section really does carry on. A section pushed off the first
+      // sheet entirely did not continue onto the second, it started there.
+      carried: continuation && !whole && limit > 0,
+      // The second sheet carries only what actually spilled onto it. The first leaves out a section
+      // whose entries all spilled, rather than printing an empty card in the space they vacated —
+      // which is what pushed the first sheet into its own notes block.
+      keep: continuation ? whole || entries.length > 0 : !whole && !(hadEntries && limit === 0),
+    };
+  }).filter(({ keep }) => keep);
+  const human = paged.filter(({ section }) => section.category === "human");
+  const cremated = paged.filter(({ section }) => section.category === "cremated");
 
   return (
     <article
@@ -543,26 +585,27 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           <div>
             <span className="report-weekday">{weekdayName(dateOverride ?? report.reportDate)}</span>
             <span className="report-date"><strong>DATE:</strong> {displayDate(dateOverride ?? report.reportDate)}</span>
+            {pageLabel && <span className="report-page-label">{pageLabel}</span>}
           </div>
         </header>
         <div className="report-columns">
           <div className="report-column human-column" style={{ "--tighten": String(tighten.human) } as CSSProperties}>
             <h2>HUMAN REMAINS</h2>
-            {human.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+            {human.map(({ section, ends, carried }) => (
+              <SectionCard key={section.key} section={section} continued={carried} showFreeRows={ends} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
           <div className="report-column cremated-column" style={{ "--tighten": String(tighten.cremated) } as CSSProperties}>
             <h2>CREMATED REMAINS</h2>
-            {cremated.map((section) => (
-              <SectionCard key={section.key} section={section} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
+            {cremated.map(({ section, ends, carried }) => (
+              <SectionCard key={section.key} section={section} continued={carried} showFreeRows={ends} width={layout.sectionWidths[section.key]} interactive={interactive} onWidthChange={onWidthChange} onWidthCommit={onWidthCommit} onLineCommit={onLineCommit} onEntryMove={onEntryMove} selected={selectedSectionKey === section.key} selectedEntryIds={selectedEntryIds} onSelectSection={onSelectSection} onSelectEntry={onSelectEntry} onEntryContextMenu={onEntryContextMenu} />
             ))}
           </div>
         </div>
         {/* Anchored to the foot of the content box so it lands in the same place every night
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
             the floor, so typing enough here compacts the columns rather than colliding with them. */}
-        <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />
+        {!continuation && <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />}
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>
