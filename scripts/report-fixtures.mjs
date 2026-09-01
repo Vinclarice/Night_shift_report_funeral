@@ -124,7 +124,7 @@ export const CASES = [
     extra: [
       "ROAD TRIPS sits between AIRPORT DROPS and FDP, not at the foot of the column",
       "Its header and rules match the cards around it — nothing about it reads as bolted on",
-      "It shows two blank writing rows",
+      "It shows one blank writing row",
     ],
     entries: {
       "human-deliver": [fun("McGuire", "Priority Family", "13A", "Rush delivery", true)],

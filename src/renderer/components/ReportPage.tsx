@@ -47,7 +47,7 @@ interface Props {
  */
 const FREE_ROW_COUNTS: Partial<Record<ReportSection["key"], number>> = {
   "human-deliver": 3,
-  "human-road-trips": 2,
+  "human-road-trips": 1,
   "human-fdp": 3,
   "human-pending": 2,
   "human-ship-outs": 1,

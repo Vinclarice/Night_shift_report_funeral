@@ -411,7 +411,7 @@ describe("drag to reorder", () => {
     // Between AIRPORT DROPS and FDP, which is the whole point of where it goes.
     const humanKeys = [...container.querySelectorAll('.human-column [data-section-key]')].map((el) => el.getAttribute("data-section-key"));
     expect(humanKeys).toEqual(["human-deliver", "human-airport", "human-road-trips", "human-fdp", "human-pending", "human-ship-outs"]);
-    expect(card!.querySelectorAll('[data-testid="free-row"]')).toHaveLength(2);
+    expect(card!.querySelectorAll('[data-testid="free-row"]')).toHaveLength(1);
   });
 
   it("keeps road trip entries when the card is put away", () => {
