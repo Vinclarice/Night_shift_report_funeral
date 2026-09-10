@@ -184,11 +184,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .studio-shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
 
 /* The command bar is the app's one band of colour, taken from the forest rule the report already
-   prints under its own title. The OS frame is removed in the main process, so this is also the
-   title bar: the empty middle is the drag region and everything interactive opts back out. */
+   prints under its own title. The window has no OS frame, so this is also the title bar: the empty
+   middle carries data-tauri-drag-region, which is what makes it drag the window. */
 .studio-commandbar { flex: none; height: 58px; z-index: 30; display: flex; align-items: center; gap: 14px; padding: 0 0 0 18px; background: var(--band); color: #fff; }
-.command-drag-region { flex: 1; align-self: stretch; -webkit-app-region: drag; }
-.studio-commandbar button, .studio-commandbar input, .studio-commandbar [role="menu"] { -webkit-app-region: no-drag; }
+.command-drag-region { flex: 1; align-self: stretch; }
 .studio-commandbar button.quiet { color: rgb(255 255 255 / 82%); }
 .studio-commandbar button.quiet:hover { color: #fff; background: rgb(255 255 255 / 14%); }
 /* A quiet command-bar button that is currently on, e.g. the Road trips toggle. The bar is dark and
@@ -198,7 +197,7 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .studio-commandbar .icon-button { color: rgb(255 255 255 / 78%); }
 .studio-commandbar .icon-button:hover { color: #fff; background: rgb(255 255 255 / 16%); }
 .studio-commandbar button:focus-visible { outline-color: #fff; }
-.window-controls { display: flex; align-self: stretch; margin-left: 6px; -webkit-app-region: no-drag; }
+.window-controls { display: flex; align-self: stretch; margin-left: 6px; }
 .window-controls button { display: grid; place-items: center; width: 44px; height: 100%; padding: 0; border-radius: 0; color: rgb(255 255 255 / 85%); background: transparent; }
 .window-controls button:hover { color: #fff; background: rgb(255 255 255 / 16%); }
 .window-controls button:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }

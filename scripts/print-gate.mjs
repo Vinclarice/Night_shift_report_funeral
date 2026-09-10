@@ -14,14 +14,24 @@
  *
  *   pnpm build && node scripts/print-gate.mjs
  */
-import { mkdtemp, readdir, rm, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, rm, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { _electron as electron } from "playwright";
 
+import { launchApp, projectRoot } from "./launch-app.mjs";
 import { CASES, fun, seedInPage } from "./report-fixtures.mjs";
 
-const projectRoot = resolve(import.meta.dirname, "..");
+/** The page as the printer receives it: Letter, no margins, backgrounds included. */
+const printPdf = async (page) => {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const { data } = await session.send("Page.printToPDF", {
+      paperWidth: 8.5, paperHeight: 11, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0, printBackground: true,
+    });
+    return Buffer.from(data, "base64");
+  } finally {
+    await session.detach();
+  }
+};
 // Not under test-results/: Playwright clears that directory on every run, which would
 // delete the pack the moment the desktop suite is run again.
 const outDir = resolve(projectRoot, "print-gate");
@@ -95,15 +105,11 @@ const run = async () => {
       stranded.push(name);
     }
   }
-  const dataDir = await mkdtemp(join(tmpdir(), "night-shift-print-gate-"));
-  const app = await electron.launch({
-    args: [join(projectRoot, "out", "main", "index.js")],
-    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDir, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
-  });
+  const app = await launchApp({ prefix: "night-shift-print-gate-" });
   const failures = [];
   try {
-    const page = await app.firstWindow();
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    const { page } = app;
+    await page.setViewportSize({ width: 1500, height: 1400 });
     await page.waitForSelector(".studio-canvas");
 
     for (const testCase of CASES) {
@@ -142,12 +148,7 @@ const run = async () => {
       await page.screenshot({ path: join(outDir, `${testCase.id}.png`), clip: { x: 0, y: 0, width: 816, height: 1056 } });
       await page.emulateMedia({ media: "screen" });
 
-      const pdf = await app.evaluate(async ({ BrowserWindow }) => {
-        const contents = BrowserWindow.getAllWindows()[0].webContents;
-        const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
-        return buffer.toString("base64");
-      });
-      await writeFile(join(outDir, `${testCase.id}.pdf`), Buffer.from(pdf, "base64"));
+      await writeFile(join(outDir, `${testCase.id}.pdf`), await printPdf(page));
 
       const status = problems.length ? `FAIL — ${problems.join("; ")}` : `ok  (tightened ${(report.tighten * 100).toFixed(0)}%, ${report.bottomClearanceIn}in clear, widest human ${report.widestHumanIn}in, cremated ${report.widestCrematedIn}in)`;
       console.log(`${testCase.id.padEnd(20)} ${status}`);
@@ -164,12 +165,7 @@ const run = async () => {
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
     await page.screenshot({ path: join(outDir, "00-calibration.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
-    const calPdf = await app.evaluate(async ({ BrowserWindow }) => {
-      const contents = BrowserWindow.getAllWindows()[0].webContents;
-      const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
-      return buffer.toString("base64");
-    });
-    await writeFile(join(outDir, "00-calibration.pdf"), Buffer.from(calPdf, "base64"));
+    await writeFile(join(outDir, "00-calibration.pdf"), await printPdf(page));
     console.log("00-calibration       ok  (print this first and confirm all four dashed edges)");
 
     // Row-rule comparison: the same rows at several hairline treatments, labelled, so the choice
@@ -197,19 +193,13 @@ const run = async () => {
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((el) => { el.style.position = "absolute"; el.style.inset = "0"; });
     await page.screenshot({ path: join(outDir, "13-rule-weights.png"), clip: { x: 0, y: 0, width: 816, height: 1056 } });
-    const rulePdf = await app.evaluate(async ({ BrowserWindow }) => {
-      const contents = BrowserWindow.getAllWindows()[0].webContents;
-      const buffer = await contents.printToPDF({ pageSize: { width: 8.5, height: 11 }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, printBackground: true });
-      return buffer.toString("base64");
-    });
-    await writeFile(join(outDir, "13-rule-weights.pdf"), Buffer.from(rulePdf, "base64"));
+    await writeFile(join(outDir, "13-rule-weights.pdf"), await printPdf(page));
     await page.emulateMedia({ media: "screen" });
     console.log("13-rule-weights      ok  (print and pick the hairline that reads best)");
 
     await writeFile(join(outDir, "CHECKLIST.md"), checklist(), "utf-8");
   } finally {
     await app.close();
-    await rm(dataDir, { recursive: true, force: true });
   }
 
   console.log(`\nPrint pack: ${outDir}`);

@@ -4,7 +4,7 @@ A local, print-first Windows application for preparing the nightly Human Remains
 
 ## Use the built app
 
-1. Double-click `Start Night Shift Report.bat` in the production folder. The app opens directly into tonight's report — no start screen or click required. If a report already exists for tonight it opens as-is; otherwise a new one is created automatically, pre-populated with the previous report's entries so nothing has to be retyped.
+1. Double-click `Night Shift Report.exe`. The app opens directly into tonight's report — no start screen or click required. If a report already exists for tonight it opens as-is; otherwise a new one is created automatically, pre-populated with the previous report's entries so nothing has to be retyped.
 2. Add or edit entries in the inspector beside the live canvas; you can also click any ruled line on the canvas to type directly. Press **Enter** or **Tab** to save and continue in the next blank line, click away to save and stop, or press **Escape** to cancel.
 3. As you type, an Auto-width card expands immediately to fit the line. Funeral-home and deceased names typed in lowercase are capitalized automatically when saved.
 4. Drag an existing entry onto another card to move it. Moving into Deliver also applies its merge and Rush-first rules.
@@ -19,21 +19,21 @@ Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while
 
 A report is named for the next calendar day, so that name changes at midnight — partway through a shift. If the app is restarted after midnight and tonight's work hasn't been superseded yet, it resumes that same report unchanged rather than starting a new one; nothing is written until the next edit.
 
-Only the most recently worked-on report is retained — it exists purely to seed the next night's entries, so there is no report archive. The app stores its database, backups, logs, and window state in `%LOCALAPPDATA%\Night Shift Report`. Database backups are retained for 14 days, with a fresh one taken automatically whenever a new night's report is created. **Recovery** can restore a retained backup. Main-process errors are written to `logs\main-<date>.log`, which is the first place to look if something fails overnight.
+Only the most recently worked-on report is retained — it exists purely to seed the next night's entries, so there is no report archive. The app stores its database, backups, logs, window state, and the interface's own preferences (in `WebView2`) in `%LOCALAPPDATA%\Night Shift Report`. Database backups are retained for 14 days, with a fresh one taken automatically whenever a new night's report is created. **Recovery** can restore a retained backup. Errors are written to `logs\main-<date>.log`, which is the first place to look if something fails overnight.
 
 The window is frameless: the dark command bar is also the title bar, with its own minimize, maximize, and close controls at the right. Window size, position, and maximized state are restored on next launch.
 
 ## Moving to another computer
 
-- One-time production setup: copy the contents of `production-runtime` to a permanent folder on the production computer, open a terminal there, and run `pnpm install --prod`. Then copy the laptop's built `out` folder into that same folder. This installs only Electron in `node_modules`; Node.js and pnpm are needed for setup, but the launcher calls Electron directly afterward.
-- Build updates on the laptop with `pnpm build`. Close the production app, replace only its `out` folder with the newly built `out` folder, and relaunch it with `Start Night Shift Report.bat`. No installer or compression step is involved.
-- Copy the entire `out` folder as one unit. It contains the application and Prisma query engine that belong to that build.
-- Repeat the one-time dependency setup whenever the Electron version in `production-runtime/package.json` changes. Ordinary application updates only require `out`.
+- The whole application is one file, `Night Shift Report.exe`, of about 4 MB. Build it on the laptop with `pnpm build`, which puts it in `out`, or `pnpm package:portable`, which also puts a versioned copy in `release`. Copy it to any folder on the production computer. Nothing is installed and nothing travels with it — no Node.js, pnpm, or `node_modules`.
+- It draws its window with Microsoft Edge WebView2, which is part of Windows 11. A Windows 10 machine without WebView2 will not open the app until Microsoft's free WebView2 Runtime is installed.
+- To update, close the app and replace the exe with the new build. No installer or compression step is involved.
 - Report data is not stored beside the executable. To transfer existing reports, close the app and separately copy `%LOCALAPPDATA%\Night Shift Report` to the same location on the destination computer.
+- Moving up from an Electron build (2.8.0 or earlier) needs nothing done: this build opens the same database, backups, and window position from that folder. The canvas zoom and inspector preferences start from their defaults once. Do not run an old build and this one at the same time.
 
 ## When Windows blocks the app
 
-Nothing here is code-signed — not the portable executable, and not the Electron runtime the `.bat` launcher calls, which ships unsigned from npm. Signing costs money every year and buys nothing the report itself needs, so it is deliberately not done. The cost is that a fresh Windows 11 computer may refuse to start the app until one of the following is dealt with. Expect this on any new production machine.
+Nothing here is code-signed, including `Night Shift Report.exe`. Signing costs money every year and buys nothing the report itself needs, so it is deliberately not done. The cost is that a fresh Windows 11 computer may refuse to start the app until one of the following is dealt with. Expect this on any new production machine.
 
 **Smart App Control** blocks unsigned applications outright and has no allowlist — it is on or off, so there is no exception to add. It arrives on a clean Windows 11 install in *evaluation mode*, where it watches what gets run and then decides: seeing unsigned software in real use, it switches itself off, permanently. That is the likely course on a machine whose job is running this app, and it is why the app can be blocked once and then start normally a while later with nothing having been changed. Check which state a machine is in:
 
@@ -71,24 +71,25 @@ The automated print references are written to `test-results/empty-report-page.pn
 
 ## Development
 
-Requirements: Windows, Node.js 24+, and pnpm.
+Requirements: Windows, Node.js 24+, pnpm, and Rust (`winget install Rustlang.Rustup`), plus the Microsoft C++ build tools that come with Visual Studio.
 
 ```powershell
 pnpm install
+pnpm dev
 pnpm verify
 pnpm build
 pnpm start
 pnpm package:portable
 ```
 
-`pnpm build` writes the directly runnable application to `out`; it also stages the Prisma engine there. `pnpm start` runs that build through the local Electron runtime. `pnpm package:portable` additionally creates a self-contained Windows executable in `release` when a portable handoff is needed. `pnpm verify` runs lint checks, type checking, unit and integration tests, Prisma schema validation, the production build, and Electron desktop tests. Persistence tests use temporary real SQLite databases.
+`pnpm dev` runs the app with the interface reloading as it is edited; like the built app, it uses the real data folder. `pnpm build` compiles the Rust side in release mode and writes the runnable `Night Shift Report.exe` to `out` — close the app first, since a running copy holds that file open. `pnpm start` runs that build. `pnpm package:portable` also writes a versioned copy to `release` for handing over. `pnpm verify` runs lint checks, type checking, the TypeScript unit tests, the Rust storage tests, the production build, and the desktop tests, which drive the built exe through WebView2's DevTools port against a throwaway data folder. The Rust tests use temporary real SQLite databases. Cargo's build output goes to `%LOCALAPPDATA%\night-shift-report-tauri-target`, set in `src-tauri/.cargo/config.toml`, so that several gigabytes of it stay out of OneDrive.
 
 The implementation is separated into:
 
 - `src/domain`: dates, parsing, normalization, merging, duplicate handling, rush ordering, and report types.
 - `src/application`: the tonight-report resolver (auto-create/clone/resume), version conflicts, and the serialized mutation queue.
-- `src/infrastructure`: SQLite migrations, Prisma repositories, retention, and backups.
-- `src/main` and `src/preload`: Electron lifecycle, protected IPC, local data paths, window state, logging, and printing.
+- `src-tauri`: the Rust side — SQLite migrations and storage in the same format the Electron builds wrote, retention, backups, local data paths, window state, and logging.
+- `src/tauri`: the bridge that gives the interface its `window.nightShift` API over Tauri commands, including printing.
 - `src/renderer`: the React report controller, workspace state, document studio, contextual inspector, command palette, and shared preview/print component.
 
 Renderer state is split into two contexts. `useReportState` carries values that change (report, layout, save status); `useReportActions` carries an identity-stable set of operations. Components needing only actions — the command palette, for example — therefore never re-render on report changes. `useReportController` remains as a combined shim for older call sites.

@@ -11,10 +11,14 @@ coverage/
 *.db-shm
 playwright-report/
 test-results/
-src/generated/
 .e2e-data/
 print-gate/
 print-spike/
+
+# Build output. Rust's own target folder is redirected outside the repo by src-tauri/.cargo.
+dist/
+src-tauri/target/
+src-tauri/gen/
 
 # Scratch space for one-off probes and mockups; nothing here belongs in the repo.
 tmp/

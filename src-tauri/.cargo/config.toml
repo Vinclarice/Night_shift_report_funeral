@@ -1,0 +1,4 @@
+# Rust build output runs to several GB and changes on every build, so it is kept out of the OneDrive
+# folder this project lives in rather than left to sync.
+[build]
+target-dir = "C:/Users/vince/AppData/Local/night-shift-report-tauri-target"

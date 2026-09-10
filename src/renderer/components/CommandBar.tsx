@@ -98,8 +98,8 @@ export function CommandBar({ report }: { report: NightReport }) {
           )}
         </div>
       </div>
-      {/* Empty space between the two clusters is the window drag handle. */}
-      <div className="command-drag-region" aria-hidden="true" />
+      {/* Empty space between the two clusters is the window drag handle; double-click maximizes. */}
+      <div className="command-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="command-actions">
         <Badge className="save-state studio-save-state" tone={controller.status === "saved" ? "success" : controller.status === "saving" ? "warning" : "danger"} dot role="status" aria-live="polite">
           {controller.status === "saving" ? "Saving…" : controller.status === "error" ? "Save error" : "Saved"}

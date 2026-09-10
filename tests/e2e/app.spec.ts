@@ -1,10 +1,7 @@
-import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { _electron as electron, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+
+import { launchApp } from "../../scripts/launch-app.mjs";
 
 /**
  * Drags one row onto another card by dispatching the drag events directly, sharing one DataTransfer
@@ -28,16 +25,12 @@ async function dragRowOntoCard(page: Page, rowSelector: string, cardSelector: st
   }, { rowSelector, cardSelector });
 }
 
-test("launches portably and renders the exact nine-card page", async () => {
-  test.setTimeout(60_000);
-  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-e2e-"));
-  const electronApp = await electron.launch({
-    args: [join(process.cwd(), "out/main/index.js")],
-    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
-  });
+test("launches and renders the exact nine-card page", async () => {
+  test.setTimeout(90_000);
+  const app = await launchApp({ prefix: "night-shift-e2e-" });
   try {
-    const page = await electronApp.firstWindow();
-    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    const { page } = app;
+    await page.setViewportSize({ width: 1500, height: 1400 });
     await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
     await page.screenshot({ path: "test-results/version-2-launch.png" });
     // The app opens directly into tonight's report — no welcome screen or click required.
@@ -115,7 +108,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await page.reload();
     await expect(page.getByText("Priority Family").first()).toBeVisible();
     await page.screenshot({ path: "test-results/studio-populated.png" });
-    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1180, 760));
+    await page.setViewportSize({ width: 1180, height: 760 });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await page.screenshot({ path: "test-results/studio-narrow.png" });
     await page.getByRole("button", { name: "Tools" }).click();
@@ -123,7 +116,7 @@ test("launches portably and renders the exact nine-card page", async () => {
     await expect(page.getByRole("dialog", { name: "Print setup" })).toBeVisible();
     await page.screenshot({ path: "test-results/studio-print-setup.png" });
     await page.getByRole("button", { name: "Close Print setup" }).click();
-    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    await page.setViewportSize({ width: 1500, height: 1400 });
     await page.evaluate(() => { for (const element of document.querySelectorAll<HTMLElement>("*")) element.scrollTop = 0; window.scrollTo(0, 0); });
     await page.emulateMedia({ media: "print" });
     await page.locator(".print-only").evaluate((element) => { element.style.position = "absolute"; element.style.inset = "0"; });
@@ -192,21 +185,16 @@ test("launches portably and renders the exact nine-card page", async () => {
     await expect(page.getByText(/Printing is paused/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Print report" })).toBeDisabled();
   } finally {
-    await electronApp.close();
-    await rm(dataDirectory, { recursive: true, force: true });
+    await app.close();
   }
 });
 
 test("shows and hides the road trips card, and remembers which", async () => {
-  test.setTimeout(60_000);
-  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-roadtrips-"));
-  const electronApp = await electron.launch({
-    args: [join(process.cwd(), "out/main/index.js")],
-    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
-  });
+  test.setTimeout(90_000);
+  const app = await launchApp({ prefix: "night-shift-roadtrips-" });
   try {
-    const page = await electronApp.firstWindow();
-    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1500, 1400));
+    const { page } = app;
+    await page.setViewportSize({ width: 1500, height: 1400 });
     await expect(page.getByText("Live canvas")).toBeVisible();
     const preview = page.locator(".report-page").first();
     const openSections = async () => page.getByRole("button", { name: "Sections", exact: true }).click();
@@ -231,28 +219,6 @@ test("shows and hides the road trips card, and remembers which", async () => {
     await roadTrips.click();
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
   } finally {
-    await electronApp.close();
-    await rm(dataDirectory, { recursive: true, force: true });
-  }
-});
-
-const packagedExecutable = process.env.TEST_PACKAGED_EXECUTABLE ?? join(process.cwd(), "release", "win-unpacked", "Night Shift Report.exe");
-test("the packaged Windows application starts with clean local data", async () => {
-  test.skip(process.env.TEST_PACKAGED !== "1" || !existsSync(packagedExecutable), "Run after building the portable Windows release.");
-  const dataDirectory = await mkdtemp(join(tmpdir(), "night-shift-packaged-"));
-  const electronApp = await electron.launch({
-    executablePath: packagedExecutable,
-    env: { ...process.env, NIGHT_SHIFT_REPORT_DATA_DIR: dataDirectory, NIGHT_SHIFT_REPORT_ALLOW_MULTIPLE: "1" },
-  });
-  try {
-    const page = await electronApp.firstWindow();
-    // A fresh install has no prior report to clone from, so the app opens directly into a clean,
-    // empty report for tonight rather than any kind of welcome screen.
-    await expect(page.getByText("Live canvas")).toBeVisible();
-    const preview = page.locator(".report-page").first();
-    await expect(preview.getByTestId("section-card")).toHaveCount(9);
-  } finally {
-    await electronApp.close();
-    await rm(dataDirectory, { recursive: true, force: true });
+    await app.close();
   }
 });

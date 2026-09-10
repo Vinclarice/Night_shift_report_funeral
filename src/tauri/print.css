@@ -1,0 +1,3 @@
+/* Electron's print call asked for Letter paper with no margins. WebView2's print() takes no options,
+   so the page asks for both itself. */
+@page { size: letter; margin: 0; }

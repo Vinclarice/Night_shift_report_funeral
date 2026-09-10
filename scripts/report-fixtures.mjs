@@ -1,10 +1,6 @@
 /**
- * The report fixtures the print harnesses share: builders, the cases the physical gate lists,
- * and the helper that seeds one into a running app.
- *
- * Shared because two harnesses now render the same reports for different purposes — print-gate
- * prints them through Electron, print-spike exports them as standalone HTML for a browser — and
- * a case that drifted between the two would quietly invalidate the comparison between them.
+ * The report fixtures the print gate renders: builders, the cases the physical gate lists, and the
+ * helper that seeds one into a running app.
  */
 import { randomUUID } from "node:crypto";
 // Fixtures are built here as plain data and handed to the renderer as JSON. The app ships a
