@@ -475,8 +475,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .entry-line-content { display: inline; }
 .entry-primary { font-weight: 760; }
 /* In the Cremated columns a row is normally nothing but the funeral-home name, so bolding every
-   line emphasises nothing. Rows that do carry a deceased name keep the bold to separate the two. */
-.cremated-column .report-row:not(:has(.deceased-name)) .entry-primary { font-weight: 500; }
+   line emphasises nothing. Those rows set the name at the same regular weight as the column's other
+   text — it was once 500, which still read as bold beside a plain "Reese x 3". Rows that do carry a
+   deceased name keep the bold to separate the two. */
+.cremated-column .report-row:not(:has(.deceased-name)) .entry-primary { font-weight: 400; }
 .entry-separator { color: #7c838c; font-weight: 500; }
 /* The // in a combined row separates two funeral homes, so it needs more air around it than the
    dash before a deceased name or the + between people — those join, this one divides. */
