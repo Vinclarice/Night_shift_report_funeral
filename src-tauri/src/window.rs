@@ -1,14 +1,16 @@
 //! The report window. It is built here rather than left to tauri.conf.json so that it reopens where
-//! it was left, keeps its webview storage in the app's data folder, and cannot be navigated away
-//! from the report.
+//! it was left, opens already drawn, keeps its webview storage in the app's data folder, and cannot
+//! be navigated away from the report.
 
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{App, LogicalPosition, LogicalSize, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{App, LogicalPosition, LogicalSize, Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::state::append_log;
 
@@ -23,6 +25,12 @@ struct WindowState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     y: Option<f64>,
     maximized: bool,
+}
+
+/// The first showing of the window, which the interface and a fallback timer race to make.
+pub struct PendingReveal {
+    shown: AtomicBool,
+    maximize: bool,
 }
 
 pub fn create(app: &App, data_directory: &Path) -> Result<(), Box<dyn Error>> {
@@ -46,14 +54,20 @@ pub fn create(app: &App, data_directory: &Path) -> Result<(), Box<dyn Error>> {
                 (Some(x), Some(y)) => window.set_position(LogicalPosition::new(x, y))?,
                 _ => window.center()?,
             }
-            if state.maximized {
-                window.maximize()?;
-            }
         }
         None => window.center()?,
     }
-    // The window is created hidden so that it appears already in place rather than jumping there.
-    window.show()?;
+
+    // The window is created hidden, sized and placed while nobody can see it, and shown by the
+    // interface once the report has drawn, so it opens finished rather than as an empty frame that
+    // fills in. Maximizing shows a window, so that waits for the same moment. If the interface never
+    // gets that far — a script error, say — it is shown anyway after a few seconds, not left hidden.
+    app.manage(PendingReveal { shown: AtomicBool::new(false), maximize: saved.is_some_and(|state| state.maximized) });
+    let fallback = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(4));
+        reveal(&fallback);
+    });
 
     // Bounds are captured on close rather than on every resize: a drag fires hundreds of resize events
     // and none of the in-between ones are worth a disk write. What is tracked as it goes is the last
@@ -83,6 +97,36 @@ pub fn create(app: &App, data_directory: &Path) -> Result<(), Box<dyn Error>> {
         _ => {}
     });
     Ok(())
+}
+
+/// Shows the window the first time either the interface or the fallback asks; later asks do nothing.
+fn reveal(window: &WebviewWindow) {
+    let Some(pending) = window.try_state::<PendingReveal>() else { return };
+    if pending.shown.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if pending.maximize {
+        let _ = window.maximize();
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Called by the interface once the first report is on screen.
+#[tauri::command]
+pub fn show_window(window: WebviewWindow) {
+    reveal(&window);
+}
+
+/// Whether Windows draws the Mica backdrop the window asks for (tauri.conf.json): Windows 11, which
+/// is build 22000 and later. Anywhere else the see-through looks would show holes rather than Mica, so
+/// the interface keeps its panels solid. The app manifest declares Windows 10 support, which is what
+/// makes Windows report its real build here instead of an older one.
+#[tauri::command]
+pub fn backdrop_supported() -> bool {
+    use windows::Win32::System::SystemInformation::{GetVersionExW, OSVERSIONINFOW};
+    let mut info = OSVERSIONINFOW { dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32, ..Default::default() };
+    unsafe { GetVersionExW(&mut info) }.is_ok() && info.dwMajorVersion >= 10 && info.dwBuildNumber >= 22000
 }
 
 fn current_bounds(window: &WebviewWindow) -> Option<WindowState> {

@@ -6,6 +6,7 @@ mod commands;
 mod model;
 mod printing;
 mod repository;
+mod snap;
 mod state;
 mod window;
 
@@ -53,6 +54,9 @@ fn main() {
             commands::log_error,
             printing::list_printers,
             printing::print_report,
+            snap::place_snap_overlay,
+            window::show_window,
+            window::backdrop_supported,
         ])
         .run(tauri::generate_context!())
         .expect("Night Shift Report could not start");

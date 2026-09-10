@@ -10,6 +10,7 @@ const initial: WorkspaceState = {
   inspectorOpen: false,
   zoomMode: "fit",
   zoom: 0.72,
+  backdrop: "current",
 };
 
 describe("workspaceReducer", () => {
@@ -74,5 +75,9 @@ describe("workspaceReducer", () => {
     // Repeated 0.05 steps otherwise drift into 0.7500000000000001 and print as 75.00000000000001%.
     expect(workspaceReducer(initial, { type: "SET_ZOOM", zoom: 0.1 + 0.65 }).zoom).toBe(0.75);
     expect(workspaceReducer(zoomed, { type: "FIT_ZOOM" }).zoomMode).toBe("fit");
+  });
+
+  it("changes the backdrop and nothing else", () => {
+    expect(workspaceReducer(initial, { type: "SET_BACKDROP", backdrop: "clear" })).toEqual({ ...initial, backdrop: "clear" });
   });
 });

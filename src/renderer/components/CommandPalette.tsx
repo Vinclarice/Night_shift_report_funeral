@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 import { OPTIONAL_SECTIONS } from "@/domain/report";
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
+import { IconBackdrop, IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportActions, useReportState } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import type { ReactNode } from "react";
@@ -64,6 +64,7 @@ export function useCommands(report: NightReport | null): Command[] {
       { id: "utility:directory", label: "Open funeral home directory", group: "Tools", icon: <IconBuilding />, run: () => dispatch({ type: "SET_UTILITY", utility: "directory" }) },
       { id: "utility:recovery", label: "Open recovery center", group: "Tools", icon: <IconHistory />, run: () => dispatch({ type: "SET_UTILITY", utility: "recovery" }) },
       { id: "utility:print", label: "Open print setup", group: "Tools", icon: <IconSliders />, run: () => dispatch({ type: "SET_UTILITY", utility: "print" }) },
+      { id: "utility:appearance", label: "Open appearance", group: "Tools", icon: <IconBackdrop />, run: () => dispatch({ type: "SET_UTILITY", utility: "appearance" }) },
       {
         id: "view:inspector",
         label: workspace.inspectorOpen ? "Hide inspector" : "Show inspector",

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { ReportService } from "@/application/reportService";
@@ -136,6 +137,7 @@ const api: NightShiftApi = {
       window.print();
     }),
   listPrinters: () => call<PrinterOption[]>("list_printers"),
+  backdropSupported: () => call<boolean>("backdrop_supported"),
   async windowControl(action) {
     if (action === "minimize") await appWindow.minimize();
     else if (action === "maximize") await appWindow.toggleMaximize();
@@ -155,6 +157,50 @@ const api: NightShiftApi = {
     };
   },
 };
+
+// Snap Layouts (src-tauri/src/snap.rs): a native overlay sits over the maximize button so Windows 11
+// offers its snap grid there. The page keeps the overlay on the button wherever the button moves, and
+// draws the button's hover when Rust says the pointer is on it, since the overlay takes the pointer.
+function trackSnapButton() {
+  let button: HTMLElement | null = null;
+  let queued = false;
+  const place = () => {
+    const box = button?.getBoundingClientRect();
+    const bounds = box && box.width > 0 ? { x: box.left, y: box.top, width: box.width, height: box.height } : { x: 0, y: 0, width: 0, height: 0 };
+    void call("place_snap_overlay", bounds).catch(() => undefined);
+  };
+  const resized = new ResizeObserver(place);
+  // Every change to the page lands here, so the lookup is batched to one per frame.
+  const findButton = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      const current = document.querySelector<HTMLElement>("[data-snap-layout]");
+      if (current === button) return;
+      if (button) resized.unobserve(button);
+      button = current;
+      if (button) resized.observe(button);
+      place();
+    });
+  };
+  new MutationObserver(findButton).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener("resize", place);
+  void listen<boolean>("snap-hover", ({ payload }) => { button?.classList.toggle("is-hovered", payload); });
+  findButton();
+}
+trackSnapButton();
+
+// The window starts hidden (src-tauri/src/window.rs) and is shown once the first report is on screen,
+// so it opens finished rather than as an empty frame that fills in. Two frames: one for React to
+// commit what bootstrap returned, one to paint it.
+const loadWorkspace = api.bootstrap;
+let windowShown = false;
+api.bootstrap = () => loadWorkspace().finally(() => {
+  if (windowShown) return;
+  windowShown = true;
+  requestAnimationFrame(() => requestAnimationFrame(() => { void call("show_window").catch(() => undefined); }));
+});
 
 window.nightShift = api;
 

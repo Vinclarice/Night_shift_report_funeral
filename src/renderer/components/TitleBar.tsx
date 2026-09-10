@@ -25,7 +25,10 @@ export function WindowControls() {
       <button type="button" aria-label="Minimize" title="Minimize" onClick={() => void window.nightShift.windowControl("minimize")}>
         <IconChromeMinimize />
       </button>
-      <button type="button" aria-label={maximized ? "Restore" : "Maximize"} title={maximized ? "Restore" : "Maximize"} onClick={() => void window.nightShift.windowControl("maximize")}>
+      {/* data-snap-layout: the bridge lays a native overlay over this button so Windows 11 offers its
+          snap grid on hover — see src-tauri/src/snap.rs. The overlay takes the pointer, so the hover
+          style also answers to .is-hovered. */}
+      <button type="button" data-snap-layout aria-label={maximized ? "Restore" : "Maximize"} title={maximized ? "Restore" : "Maximize"} onClick={() => void window.nightShift.windowControl("maximize")}>
         {maximized ? <IconChromeRestore /> : <IconChromeMaximize />}
       </button>
       <button type="button" className="window-close" aria-label="Close" title="Close" onClick={() => void window.nightShift.windowControl("close")}>

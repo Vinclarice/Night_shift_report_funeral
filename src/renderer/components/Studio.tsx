@@ -2,6 +2,7 @@ import { useSecondPageSplit } from "../hooks/useSecondPageSplit";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Drawer } from "../ui/Drawer";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { CommandBar } from "./CommandBar";
 import { CommandPalette } from "./CommandPalette";
 import { FuneralHomeManager } from "./FuneralHomeManager";
@@ -15,6 +16,7 @@ const UTILITY_TITLES: Record<string, string> = {
   directory: "Funeral home directory",
   recovery: "Recovery center",
   print: "Print setup",
+  appearance: "Appearance",
 };
 
 /**
@@ -68,6 +70,7 @@ export function Studio() {
       <Drawer open={workspace.utility !== null} title={utilityTitle} onClose={() => dispatch({ type: "SET_UTILITY", utility: null })}>
         {workspace.utility === "directory" && <FuneralHomeManager homes={controller.bootstrap!.funeralHomes} onUpdate={controller.updateFuneralHomes} />}
         {workspace.utility === "recovery" && <RecoveryPanel backups={controller.bootstrap!.backups} />}
+        {workspace.utility === "appearance" && <AppearanceSettings value={workspace.backdrop} onChange={(backdrop) => dispatch({ type: "SET_BACKDROP", backdrop })} />}
         {workspace.utility === "print" && <PrintSettings layout={controller.layout!} calibration={controller.calibration} onCalibration={controller.setCalibration} onChange={(next) => void controller.saveLayout(next)} onResetSection={() => void controller.resetSectionWidth(selectedSection)} onResetCardWidths={() => void controller.resetCardWidths()} onResetPrinterDefaults={() => void controller.resetPrinterDefaults()} customCardWidths={Object.keys(controller.layout!.sectionWidths).length} />}
       </Drawer>
       <CommandPalette report={report} />

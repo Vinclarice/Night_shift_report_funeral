@@ -23,7 +23,9 @@
         "visible": false,
         "decorations": false,
         "dragDropEnabled": false,
-        "backgroundColor": "#f3f5f7"
+        "transparent": true,
+        "theme": "Light",
+        "windowEffects": { "effects": ["mica"] }
       }
     ],
     "security": {

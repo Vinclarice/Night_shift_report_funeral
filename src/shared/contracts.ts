@@ -29,6 +29,8 @@ export interface NightShiftApi {
    */
   printReport(printerName?: string | null): Promise<{ success: boolean; failureReason?: string }>;
   listPrinters(): Promise<PrinterOption[]>;
+  /** Whether Windows can draw the Mica backdrop the see-through appearances rely on (Windows 11). */
+  backdropSupported(): Promise<boolean>;
   windowControl(action: WindowControl): Promise<void>;
   isWindowMaximized(): Promise<boolean>;
   onWindowMaximizeChange(listener: (maximized: boolean) => void): () => void;

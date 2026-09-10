@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { OPTIONAL_SECTIONS } from "@/domain/report";
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBuilding, IconCheck, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
+import { IconBackdrop, IconBuilding, IconCheck, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Badge } from "../ui/Badge";
@@ -60,7 +60,7 @@ export function CommandBar({ report }: { report: NightReport }) {
     return () => window.removeEventListener("pointerdown", close);
   }, []);
 
-  function openUtility(utility: "directory" | "recovery" | "print") {
+  function openUtility(utility: "directory" | "recovery" | "print" | "appearance") {
     dispatch({ type: "SET_UTILITY", utility });
     setToolsOpen(false);
   }
@@ -138,6 +138,7 @@ export function CommandBar({ report }: { report: NightReport }) {
               <button role="menuitem" onClick={() => openUtility("directory")}><IconBuilding /><span><strong>Funeral homes</strong><small>Manage saved directory names</small></span></button>
               <button role="menuitem" onClick={() => openUtility("recovery")}><IconHistory /><span><strong>Recovery</strong><small>Restore a database backup</small></span></button>
               <button role="menuitem" onClick={() => openUtility("print")}><IconSliders /><span><strong>Print setup</strong><small>Calibrate margins and scale</small></span></button>
+              <button role="menuitem" onClick={() => openUtility("appearance")}><IconBackdrop /><span><strong>Appearance</strong><small>Mica backdrop behind the desk</small></span></button>
             </div>
           )}
         </div>

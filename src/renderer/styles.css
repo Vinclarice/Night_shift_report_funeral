@@ -199,7 +199,8 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .studio-commandbar button:focus-visible { outline-color: #fff; }
 .window-controls { display: flex; align-self: stretch; margin-left: 6px; }
 .window-controls button { display: grid; place-items: center; width: 44px; height: 100%; padding: 0; border-radius: 0; color: rgb(255 255 255 / 85%); background: transparent; }
-.window-controls button:hover { color: #fff; background: rgb(255 255 255 / 16%); }
+/* .is-hovered is the maximize button's hover while the Snap Layouts overlay sits over it and takes the pointer. */
+.window-controls button:hover, .window-controls button.is-hovered { color: #fff; background: rgb(255 255 255 / 16%); }
 .window-controls button:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
 .window-controls .window-close:hover { color: #fff; background: #c42b1c; }
 
@@ -604,6 +605,42 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ── Backdrop: how much of Windows 11's Mica shows through the inspector and the desk around the sheet.
+   Chosen in Tools > Appearance and stamped on the root by WorkspaceContext, which keeps it at "current"
+   wherever Windows does not draw Mica. At "current" every opacity is 1 and these rules paint exactly the
+   colours the panels have always had. The sheet and the command bar are never see-through. */
+:root { --backdrop-panel: 1; --backdrop-desk: 1; --backdrop-toolbar: 1; }
+:root[data-backdrop="subtle"] { --backdrop-panel: .72; --backdrop-desk: .6; --backdrop-toolbar: .82; }
+:root[data-backdrop="strong"] { --backdrop-panel: .4; --backdrop-desk: .3; --backdrop-toolbar: .55; }
+:root[data-backdrop="clear"] { --backdrop-panel: 0; --backdrop-desk: 0; --backdrop-toolbar: .35; }
+@media screen {
+  :root[data-backdrop]:not([data-backdrop="current"]) body,
+  :root[data-backdrop]:not([data-backdrop="current"]) .studio-shell { background: transparent; }
+  :root[data-backdrop] .studio-inspector { background: color-mix(in srgb, var(--surface) calc(var(--backdrop-panel) * 100%), transparent); }
+  :root[data-backdrop] .studio-canvas { background: color-mix(in srgb, var(--surface-sunk) calc(var(--backdrop-desk) * 100%), transparent); }
+  :root[data-backdrop] .canvas-toolbar { background: color-mix(in srgb, var(--surface-raised) calc(var(--backdrop-toolbar) * 100%), transparent); }
+}
+
+/* Tools > Appearance. Each choice carries a miniature of the window so the four read at a glance. */
+.backdrop-options { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.backdrop-options legend { margin-bottom: 8px; padding: 0; color: var(--ink); font-size: 13px; font-weight: 650; }
+/* Undoes the form-label style (small caps-lock captions, 13px under each) these rows would otherwise
+   inherit, and the text-box style the radio would. */
+.backdrop-option { display: grid; grid-template-columns: auto 76px minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--white); color: var(--ink); font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.backdrop-option:hover { border-color: var(--rule-strong); }
+.backdrop-option:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.backdrop-option:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.backdrop-option:has(input:disabled) { cursor: not-allowed; opacity: .5; }
+.backdrop-option input, .backdrop-option input:focus { width: auto; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; accent-color: var(--band); }
+.backdrop-option strong { display: block; color: var(--ink); font-size: 13px; }
+.backdrop-option small { display: block; color: var(--ink-2); font-size: 12px; line-height: 1.35; }
+.backdrop-preview { display: grid; grid-template-rows: 8px 1fr; height: 48px; overflow: hidden; border: 1px solid var(--rule); border-radius: 3px; background: linear-gradient(135deg, #ebdce9, #dfe2ee 55%, #e9e1ea); }
+.backdrop-preview .preview-bar { background: var(--band); }
+.backdrop-preview .preview-body { display: grid; grid-template-columns: 24px 1fr; }
+.backdrop-preview .preview-panel { border-right: 1px solid var(--rule); background: color-mix(in srgb, var(--surface) calc(var(--preview-panel) * 100%), transparent); }
+.backdrop-preview .preview-desk { display: grid; place-items: center; background: color-mix(in srgb, var(--surface-sunk) calc(var(--preview-desk) * 100%), transparent); }
+.backdrop-preview .preview-sheet { width: 22px; height: 28px; background: #fffefb; box-shadow: 0 1px 2px rgb(26 31 38 / 18%); }
 
 @page { margin: 0; }
 @media print {

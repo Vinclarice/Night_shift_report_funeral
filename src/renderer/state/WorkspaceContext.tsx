@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import type { SectionKey } from "@/domain/types";
 
 export type InspectorMode = "browse" | "create" | "edit" | "paste";
-export type UtilityKey = "directory" | "recovery" | "print" | null;
+export type UtilityKey = "directory" | "recovery" | "print" | "appearance" | null;
+/**
+ * How much of Windows 11's Mica backdrop shows through the inspector and the desk around the sheet.
+ * "current" keeps both solid, as the app has always looked. The sheet and command bar are never see-through.
+ */
+export type Backdrop = "current" | "subtle" | "strong" | "clear";
+export const BACKDROPS: readonly Backdrop[] = ["current", "subtle", "strong", "clear"];
 export type WorkspaceSelection =
   | { kind: "section"; sectionKey: SectionKey }
   /**
@@ -18,6 +24,7 @@ export interface WorkspacePreferences {
   inspectorOpen: boolean;
   zoomMode: "fit" | "manual";
   zoom: number;
+  backdrop: Backdrop;
 }
 
 export interface WorkspaceState extends WorkspacePreferences {
@@ -38,7 +45,8 @@ export type WorkspaceAction =
   | { type: "SET_INSPECTOR_OPEN"; open: boolean }
   | { type: "SET_UTILITY"; utility: UtilityKey }
   | { type: "SET_ZOOM"; zoom: number }
-  | { type: "FIT_ZOOM" };
+  | { type: "FIT_ZOOM" }
+  | { type: "SET_BACKDROP"; backdrop: Backdrop };
 
 /**
  * Manual zoom range. The old ceiling of 0.95 stopped just short of actual size, which is the one
@@ -51,7 +59,7 @@ const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.
 const PREFERENCES_KEY = "night-shift-workspace-v1";
 
 function readPreferences(): WorkspacePreferences {
-  const fallback: WorkspacePreferences = { inspectorOpen: true, zoomMode: "fit", zoom: 0.72 };
+  const fallback: WorkspacePreferences = { inspectorOpen: true, zoomMode: "fit", zoom: 0.72, backdrop: "current" };
   try {
     const stored = window.localStorage.getItem(PREFERENCES_KEY);
     if (!stored) return fallback;
@@ -60,10 +68,19 @@ function readPreferences(): WorkspacePreferences {
       inspectorOpen: value.inspectorOpen ?? fallback.inspectorOpen,
       zoomMode: value.zoomMode === "manual" ? "manual" : "fit",
       zoom: typeof value.zoom === "number" ? clampZoom(value.zoom) : fallback.zoom,
+      backdrop: BACKDROPS.includes(value.backdrop as Backdrop) ? value.backdrop as Backdrop : fallback.backdrop,
     };
   } catch {
     return fallback;
   }
+}
+
+let backdropSupport: Promise<boolean> | null = null;
+
+/** Asked once per session: whether Windows draws Mica behind the window, which only Windows 11 does. */
+function isBackdropSupported() {
+  backdropSupport ??= Promise.resolve().then(() => window.nightShift.backdropSupported()).catch(() => false);
+  return backdropSupport;
 }
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -115,6 +132,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, zoomMode: "manual", zoom: clampZoom(action.zoom) };
     case "FIT_ZOOM":
       return { ...state, zoomMode: "fit" };
+    case "SET_BACKDROP":
+      return { ...state, backdrop: action.backdrop };
     default:
       return state;
   }
@@ -137,8 +156,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       inspectorOpen: state.inspectorOpen,
       zoomMode: state.zoomMode,
       zoom: state.zoom,
+      backdrop: state.backdrop,
     } satisfies WorkspacePreferences));
-  }, [state.inspectorOpen, state.zoomMode, state.zoom]);
+  }, [state.inspectorOpen, state.zoomMode, state.zoom, state.backdrop]);
+
+  // Stamped on the root, where styles.css reads it. A see-through look is only applied once Windows is
+  // known to draw Mica behind the window; anywhere else it would show holes, so the panels stay solid.
+  useEffect(() => {
+    let active = true;
+    void isBackdropSupported().then((supported) => {
+      if (active) document.documentElement.dataset.backdrop = supported ? state.backdrop : "current";
+    });
+    return () => { active = false; };
+  }, [state.backdrop]);
 
   return (
     <WorkspaceStateContext.Provider value={state}>

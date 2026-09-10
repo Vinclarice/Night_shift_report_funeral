@@ -21,6 +21,7 @@ function mockApi(initialReport: NightReport): NightShiftApi {
     restoreBackup: async () => {},
     printReport: vi.fn(async () => ({ success: true })),
     listPrinters: async () => [],
+    backdropSupported: async () => true,
     windowControl: async () => {},
     isWindowMaximized: async () => false,
     onWindowMaximizeChange: () => () => {},

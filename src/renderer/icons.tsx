@@ -33,6 +33,18 @@ export function IconUndo(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** A window with a sheen across it: the Appearance panel, where the Mica backdrop is chosen. */
+export function IconBackdrop(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 8h18" />
+      <path d="M8 20 20 11" />
+      <path d="M3 16l6-5" />
+    </Icon>
+  );
+}
+
 export function IconRedo(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
