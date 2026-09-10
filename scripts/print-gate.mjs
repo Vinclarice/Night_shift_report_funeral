@@ -256,16 +256,19 @@ ${CASES.map((c) => `### ${c.id} — ${c.title}\n${c.why}\n\n- [ ] No text clippe
 
 ## This restyle in particular
 
-The palette changed, so these are new on paper and have never been printed:
+The masthead, the tags and the rows changed, so these are new on paper and have never been printed:
 
-- [ ] **Human Remains banner** (deep ink) — solid, not blotchy; white text fully legible.
-- [ ] **Cremated Remains banner** (warm stone) — clearly *lighter* than the Human banner. On a
-      black-and-white printer the two must still read as different greys; that is the whole point
-      of the change. If they look the same, stop and report it.
-- [ ] **Card header text** on each column tint — the Cremated one is the tighter of the two at
-      4.9:1. Confirm it is comfortably readable at arm's length.
-- [ ] **Rush rows** — the red left bar and RUSH chip still jump out of the page.
-- [ ] **Location codes** (13A, SSR, TRL) — chip borders not lost at 7pt.
+- [ ] **Masthead** — the heavy rule and the hairline under it print as two distinct lines, not one
+      thick smear; the date reads as the large line with FRIDAY small above it.
+- [ ] **Location codes** (13A, SSR, TRL) — now an outline in the condensed face; the outline is not
+      lost, and a code can be read at arm's length.
+- [ ] **Special requests** (FH WILL CALL) — the grey fill prints as a light grey, with the dark text
+      fully legible on it.
+- [ ] **Counts** (x 2) and **rush** (RUSH DELIVERY) — the same height as a code beside them; rush's
+      red outline and left bar still jump out of the page.
+- [ ] **Rows without the alternate tint** — rows still separate cleanly on the hairlines alone.
+- [ ] **Cremated Remains banner** (warm stone) — still clearly *lighter* than the Human banner on a
+      black-and-white printer. Unchanged, but it is what the columns are told apart by.
 - [ ] **Pinned entry** (case ${CASES.find((c) => c.id.endsWith("pinned-bottom")).id}) — the heavier
       rule above it reads as a separator, not a smudge.
 

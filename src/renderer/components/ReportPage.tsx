@@ -594,7 +594,7 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
           <h1>NIGHT SHIFT REPORT</h1>
           <div>
             <span className="report-weekday">{weekdayName(dateOverride ?? report.reportDate)}</span>
-            <span className="report-date"><strong>DATE:</strong> {displayDate(dateOverride ?? report.reportDate)}</span>
+            <span className="report-date">{displayDate(dateOverride ?? report.reportDate)}</span>
             {pageLabel && <span className="report-page-label">{pageLabel}</span>}
           </div>
         </header>
