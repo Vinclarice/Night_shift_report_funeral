@@ -104,6 +104,11 @@ export interface LayoutSettings {
   scale: number;
   offsetXInches: number;
   offsetYInches: number;
+  /**
+   * Where Print report sends the sheet without a dialog, chosen in Print setup. Null, or absent in a
+   * layout saved before it existed, opens the print dialog instead.
+   */
+  printerName?: string | null;
 }
 
 export interface ParsedLine {

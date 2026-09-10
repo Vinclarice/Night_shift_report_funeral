@@ -130,6 +130,7 @@ const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
     ("Report", "notes", "TEXT"),
     ("Report", "roadTripsVisible", "BOOLEAN NOT NULL DEFAULT false"),
     ("Report", "hiddenSections", "TEXT"),
+    ("PrintPreference", "printerName", "TEXT"),
 ];
 
 fn migrate(connection: &Connection) -> AppResult<()> {
@@ -467,18 +468,18 @@ pub fn delete_funeral_home(connection: &Connection, id: &str) -> AppResult<Vec<F
 pub fn load_layout(connection: &Connection) -> AppResult<LayoutSettings> {
     let print = connection
         .query_row(
-            r#"SELECT "marginInches", "scale", "offsetXInches", "offsetYInches" FROM "PrintPreference" WHERE "id" = 1"#,
+            r#"SELECT "marginInches", "scale", "offsetXInches", "offsetYInches", "printerName" FROM "PrintPreference" WHERE "id" = 1"#,
             [],
-            |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?, row.get::<_, f64>(3)?)),
+            |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?, row.get::<_, f64>(3)?, row.get::<_, Option<String>>(4)?)),
         )
         .optional()?;
     // DEFAULT_LAYOUT in src/shared/contracts.ts.
-    let (margin_inches, scale, offset_x_inches, offset_y_inches) = print.unwrap_or((0.35, 1.0, 0.0, 0.0));
+    let (margin_inches, scale, offset_x_inches, offset_y_inches, printer_name) = print.unwrap_or((0.35, 1.0, 0.0, 0.0, None));
     let mut statement = connection.prepare(r#"SELECT "sectionKey", "widthInches" FROM "LayoutPreference" WHERE "widthInches" IS NOT NULL"#)?;
     let section_widths = statement
         .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))?
         .collect::<Result<BTreeMap<_, _>, _>>()?;
-    Ok(LayoutSettings { section_widths, margin_inches, scale, offset_x_inches, offset_y_inches })
+    Ok(LayoutSettings { section_widths, margin_inches, scale, offset_x_inches, offset_y_inches, printer_name })
 }
 
 pub fn save_layout(connection: &mut Connection, layout: &LayoutSettings) -> AppResult<LayoutSettings> {
@@ -494,10 +495,16 @@ pub fn save_layout(connection: &mut Connection, layout: &LayoutSettings) -> AppR
 
     let transaction = connection.transaction()?;
     transaction.execute(
-        r#"INSERT INTO "PrintPreference" ("id", "marginInches", "scale", "offsetXInches", "offsetYInches") VALUES (1, ?1, ?2, ?3, ?4)
+        r#"INSERT INTO "PrintPreference" ("id", "marginInches", "scale", "offsetXInches", "offsetYInches", "printerName") VALUES (1, ?1, ?2, ?3, ?4, ?5)
            ON CONFLICT ("id") DO UPDATE SET "marginInches" = excluded."marginInches", "scale" = excluded."scale",
-             "offsetXInches" = excluded."offsetXInches", "offsetYInches" = excluded."offsetYInches""#,
-        params![layout.margin_inches, layout.scale, layout.offset_x_inches, layout.offset_y_inches],
+             "offsetXInches" = excluded."offsetXInches", "offsetYInches" = excluded."offsetYInches", "printerName" = excluded."printerName""#,
+        params![
+            layout.margin_inches,
+            layout.scale,
+            layout.offset_x_inches,
+            layout.offset_y_inches,
+            layout.printer_name.as_deref().map(str::trim).filter(|name| !name.is_empty()),
+        ],
     )?;
     for (section_key, width) in &layout.section_widths {
         transaction.execute(
@@ -659,6 +666,7 @@ mod tests {
         let (_scratch, mut connection) = fresh();
         let defaults = load_layout(&connection).unwrap();
         assert_eq!((defaults.margin_inches, defaults.scale), (0.35, 1.0));
+        assert_eq!(defaults.printer_name, None, "a new database prints through the dialog");
 
         let mut layout = LayoutSettings {
             section_widths: BTreeMap::from([("human-deliver".to_string(), 3.25), ("cremated-mail".to_string(), 2.0)]),
@@ -666,12 +674,17 @@ mod tests {
             scale: 0.9,
             offset_x_inches: 0.1,
             offset_y_inches: -0.1,
+            printer_name: Some("  Front Office Laser ".to_string()),
         };
         save_layout(&mut connection, &layout).unwrap();
         layout.section_widths.remove("cremated-mail");
         let saved = save_layout(&mut connection, &layout).unwrap();
         assert_eq!(saved.section_widths, BTreeMap::from([("human-deliver".to_string(), 3.25)]));
         assert_eq!(saved.scale, 0.9);
+        assert_eq!(saved.printer_name.as_deref(), Some("Front Office Laser"));
+
+        layout.printer_name = Some(String::new());
+        assert_eq!(save_layout(&mut connection, &layout).unwrap().printer_name, None, "an empty choice goes back to the dialog");
 
         layout.scale = 1.2;
         assert!(save_layout(&mut connection, &layout).is_err());

@@ -12,8 +12,8 @@ A local, print-first Windows application for preparing the nightly Human Remains
 6. Use **Paste** in the inspector to add multiple entries through the required review screen.
 7. Use the canvas Fit and zoom controls to adjust the on-screen view without changing the printed report. Drag a card's small right-edge handle to set its print width.
 8. Press **Ctrl+K** to open the command palette. Type to jump to any section or run a command — undo, redo, print, open a tools panel, or toggle the inspector. Arrow keys move, Enter runs, Escape closes.
-9. Open **Tools** > **Print setup** to show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
-10. Choose **Print report** at any time and select the company printer or Microsoft Print to PDF — printing always sends whatever is currently on the page; there is no draft/final distinction or locking step.
+9. Open **Tools** > **Print setup** to choose the printer, show calibration marks, reset a card width to Auto, or tune margin, scale, and printer offsets.
+10. Choose **Print report** at any time. With a printer chosen in Print setup, the sheet goes straight to it in one click — Letter, no margins, backgrounds on, nothing to set in a dialog — and a note confirms it was sent or says why it was not. Without one, the print dialog opens as before. **Print with dialog…** in the command palette opens the dialog anyway, for a one-off to Microsoft Print to PDF or another printer. Printing always sends whatever is currently on the page; there is no draft/final distinction or locking step.
 
 Undo and redo are also bound to **Ctrl+Z** and **Ctrl+Y**, and are ignored while the cursor is in a text field.
 

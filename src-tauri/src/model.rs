@@ -153,4 +153,7 @@ pub struct LayoutSettings {
     pub scale: f64,
     pub offset_x_inches: f64,
     pub offset_y_inches: f64,
+    /// Where Print report sends the sheet without a dialog. None opens the dialog instead.
+    #[serde(default)]
+    pub printer_name: Option<String>,
 }

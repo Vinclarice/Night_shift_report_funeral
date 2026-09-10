@@ -5,7 +5,7 @@ import { ReportService } from "@/application/reportService";
 import type { ReportRepository } from "@/application/repository";
 import { createEmptyReport, DEFAULT_HIDDEN_SECTIONS } from "@/domain/report";
 import type { LayoutSettings, NightReport, ReportEntry, SectionKey } from "@/domain/types";
-import type { BackupSummary, FuneralHomeOption, NightShiftApi } from "@/shared/contracts";
+import type { BackupSummary, FuneralHomeOption, NightShiftApi, PrinterOption } from "@/shared/contracts";
 
 /**
  * The `window.nightShift` API the interface talks to. Report logic that is plain TypeScript
@@ -127,12 +127,15 @@ const api: NightShiftApi = {
   listBackups: () => call<BackupSummary[]>("list_backups"),
   // Rust relaunches the app once the backup is in place, so on success this never resolves.
   restoreBackup: (name) => call<void>("restore_backup", { name }),
-  // The page cannot tell a printed sheet from a cancelled dialog, so this always reports success.
-  printReport: () => new Promise((resolve) => {
-    // Registered before print() because WebView2 may fire afterprint before print() returns.
-    window.addEventListener("afterprint", () => resolve({ success: true }), { once: true });
-    window.print();
-  }),
+  printReport: (printerName) => printerName
+    ? call<{ success: boolean; failureReason?: string }>("print_report", { printerName })
+    // The page cannot tell a printed sheet from a cancelled dialog, so this path always reports success.
+    : new Promise((resolve) => {
+      // Registered before print() because WebView2 may fire afterprint before print() returns.
+      window.addEventListener("afterprint", () => resolve({ success: true }), { once: true });
+      window.print();
+    }),
+  listPrinters: () => call<PrinterOption[]>("list_printers"),
   async windowControl(action) {
     if (action === "minimize") await appWindow.minimize();
     else if (action === "maximize") await appWindow.toggleMaximize();

@@ -2,6 +2,7 @@ import type { LayoutSettings, NightReport, SectionKey } from "@/domain/types";
 
 export interface FuneralHomeOption { id: string; name: string }
 export interface BackupSummary { name: string; createdAt: string; size: number }
+export interface PrinterOption { name: string; isDefault: boolean }
 
 export type WindowControl = "minimize" | "maximize" | "close";
 
@@ -21,7 +22,13 @@ export interface NightShiftApi {
   deleteFuneralHome(id: string): Promise<FuneralHomeOption[]>;
   listBackups(): Promise<BackupSummary[]>;
   restoreBackup(name: string): Promise<void>;
-  printReport(): Promise<{ success: boolean; failureReason?: string }>;
+  /**
+   * With a printer name, sends the report straight there with the page settings fixed, and says
+   * whether the printer took it. Without one, opens the print dialog, which cannot tell a cancel
+   * from a print, so that path always reports success.
+   */
+  printReport(printerName?: string | null): Promise<{ success: boolean; failureReason?: string }>;
+  listPrinters(): Promise<PrinterOption[]>;
   windowControl(action: WindowControl): Promise<void>;
   isWindowMaximized(): Promise<boolean>;
   onWindowMaximizeChange(listener: (maximized: boolean) => void): () => void;

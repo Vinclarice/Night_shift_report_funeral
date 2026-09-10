@@ -4,6 +4,7 @@
 mod backups;
 mod commands;
 mod model;
+mod printing;
 mod repository;
 mod state;
 mod window;
@@ -50,6 +51,8 @@ fn main() {
             commands::purge_backups,
             commands::restore_backup,
             commands::log_error,
+            printing::list_printers,
+            printing::print_report,
         ])
         .run(tauri::generate_context!())
         .expect("Night Shift Report could not start");

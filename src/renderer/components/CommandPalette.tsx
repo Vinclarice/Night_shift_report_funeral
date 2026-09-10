@@ -95,7 +95,17 @@ export function useCommands(report: NightReport | null): Command[] {
         group: "Report",
         icon: <IconPrinter />,
         disabled: state.overflow,
-        run: () => void window.nightShift.printReport(),
+        // Through the controller rather than straight to the bridge, or the printed-at stamp is missing.
+        run: () => void actions.printReport(),
+      },
+      {
+        id: "report:print-dialog",
+        label: "Print with dialog…",
+        group: "Report",
+        icon: <IconPrinter />,
+        disabled: state.overflow,
+        // For the odd print somewhere other than the chosen printer, a PDF say, without changing it.
+        run: () => void actions.printReport({ dialog: true }),
       },
     ];
 

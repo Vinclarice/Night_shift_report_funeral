@@ -57,8 +57,11 @@ export type ReportActions = DraftActions & LayoutActions & {
   setAllowSecondPage: (allow: boolean) => void;
   /** Pass null to drop the manual date and go back to the report's own. */
   setDateOverride: (date: string | null) => void;
-  /** Stamps the print time onto the page, then prints. */
-  printReport: () => Promise<void>;
+  /**
+   * Stamps the print time onto the page, then prints — to the printer chosen in Print setup, or
+   * through the dialog when none is chosen or `dialog` asks for it.
+   */
+  printReport: (options?: { dialog?: boolean }) => Promise<void>;
 };
 
 const ReportStateContext = createContext<ReportState | null>(null);
@@ -108,11 +111,17 @@ export function ReportControllerProvider({ children }: { children: ReactNode }) 
   // Chromium prints whatever is in the DOM when it is asked, so the stamp has to be committed
   // and painted first — hence the two frames. Owning both halves here keeps the ordering in one
   // place rather than leaving each caller to remember it.
-  const printReport = useCallback(async () => {
+  //
+  // A printer chosen in Print setup takes the sheet directly, and can say whether it did; without
+  // one, or when the dialog is asked for, the dialog opens as before.
+  const printReport = useCallback(async (options?: { dialog?: boolean }) => {
+    const printer = options?.dialog ? null : layoutRef.current?.printerName ?? null;
     setPrintedAt(new Date());
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    await window.nightShift.printReport();
-  }, []);
+    const result = await window.nightShift.printReport(printer);
+    if (!result.success) toast.error(result.failureReason ?? "The report was not printed.");
+    else if (printer) toast.success(`Sent to ${printer}.`);
+  }, [toast]);
 
   const actions = useMemo<ReportActions>(
     () => ({ ...draftActions, ...layoutActions, setDateOverride, printReport, setAllowSecondPage }),
