@@ -6,6 +6,7 @@ import {
   moveEntry,
   movePerson,
   normalizeFuneralHome,
+  completeFuneralHome,
   parsePastedLines,
   removeEntry,
   reorderEntry,
@@ -683,5 +684,28 @@ describe("movePerson", () => {
 
     expect(movePerson(report, "human-deliver", "human-deliver", "merged", "jones")).toBe(false);
     expect((source.entries[0] as FuneralEntry).deceased).toHaveLength(2);
+  });
+});
+
+describe("completing a typed funeral home", () => {
+  const homes = ["Barber", "Barber & Sons", "Beltway Crem", "Brown/PA", "McGuire", "MD Crem", "Moloney"];
+
+  it("takes the first name starting with what was typed, whatever its case or spacing", () => {
+    expect(completeFuneralHome("mc", homes)).toBe("McGuire");
+    expect(completeFuneralHome("  BELT ", homes)).toBe("Beltway Crem");
+  });
+
+  it("keeps an exact name rather than a longer one it happens to begin", () => {
+    expect(completeFuneralHome("barber", homes)).toBe("Barber");
+  });
+
+  it("falls back to a later word when no name starts with it", () => {
+    expect(completeFuneralHome("pa", homes)).toBe("Brown/PA");
+    expect(completeFuneralHome("crem", homes)).toBe("Beltway Crem");
+  });
+
+  it("offers nothing for an empty or unknown name", () => {
+    expect(completeFuneralHome("", homes)).toBeNull();
+    expect(completeFuneralHome("zz", homes)).toBeNull();
   });
 });

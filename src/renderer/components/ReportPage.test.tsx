@@ -457,6 +457,55 @@ describe("drag to reorder", () => {
     expect(screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" }))
       .toHaveAttribute("list", "funeral-home-options");
   });
+  it("completes a funeral home with Tab and leaves the cursor ready for the deceased", () => {
+    const onLineCommit = vi.fn();
+    render(<>
+      <datalist id="funeral-home-options"><option value="Beltway Crem" /><option value="McGuire" /></datalist>
+      <ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onLineCommit={onLineCommit} />
+    </>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
+    fireEvent.change(input, { target: { value: "mcg" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(input).toHaveValue("McGuire – ");
+    expect(onLineCommit).not.toHaveBeenCalled();
+
+    // Once the deceased is typed the home is no longer what is being typed, so Tab commits as before.
+    fireEvent.change(input, { target: { value: "McGuire – Smith (13A)" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(onLineCommit).toHaveBeenCalledWith("human-deliver", null, "McGuire – Smith (13A)");
+  });
+  it("completes a cremated funeral home on its own, and commits it on the next Tab", () => {
+    const onLineCommit = vi.fn();
+    render(<>
+      <datalist id="funeral-home-options"><option value="Collins" /><option value="Crescent" /></datalist>
+      <ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onLineCommit={onLineCommit} />
+    </>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Type in Cremated Remains DELIVER" }));
+    const input = screen.getByRole("combobox", { name: "Edit Cremated Remains DELIVER" });
+    fireEvent.change(input, { target: { value: "col" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(input).toHaveValue("Collins");
+    expect(onLineCommit).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(onLineCommit).toHaveBeenCalledWith("cremated-deliver", null, "Collins");
+  });
+  it("leaves Tab committing a row whose text matches no funeral home", () => {
+    const onLineCommit = vi.fn();
+    render(<>
+      <datalist id="funeral-home-options"><option value="McGuire" /></datalist>
+      <ReportPage report={createEmptyReport("2026-07-26")} layout={LAYOUT} interactive onLineCommit={onLineCommit} />
+    </>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Type in Human Remains DELIVER" }));
+    const input = screen.getByRole("combobox", { name: "Edit Human Remains DELIVER" });
+    fireEvent.change(input, { target: { value: "Road trip to Richmond" } });
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(onLineCommit).toHaveBeenCalledWith("human-deliver", null, "Road trip to Richmond");
+  });
   it("does not offer the funeral home list on a row that already has an entry", () => {
     // Reopening a finished row to fix a name or add a deceased is not the moment for a list of
     // funeral homes: the home is already chosen, and the suggestions sit over the line being read.

@@ -27,6 +27,22 @@ export function normalizeFuneralHome(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
 
+/**
+ * The funeral home a partly typed name means — what Tab completes it to. An exact name wins, then a
+ * name that starts with what was typed, then one with a later word starting with it ("pa" for
+ * Brown/PA), which is roughly the order the suggestion list offers them in. Within each, the list's
+ * own alphabetical order decides.
+ */
+export function completeFuneralHome(typed: string, names: readonly string[]): string | null {
+  const wanted = normalizeFuneralHome(typed);
+  if (!wanted) return null;
+  const candidates = names.map((name) => ({ name, key: normalizeFuneralHome(name) }));
+  return candidates.find((candidate) => candidate.key === wanted)?.name
+    ?? candidates.find((candidate) => candidate.key.startsWith(wanted))?.name
+    ?? candidates.find((candidate) => candidate.key.split(/[\s/&]+/).some((word) => word.startsWith(wanted)))?.name
+    ?? null;
+}
+
 export function titleCaseName(value: string): string {
   return value
     .trim()

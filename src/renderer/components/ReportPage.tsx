@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 
 import { formatEntryLine, sectionItemCount, sharedSpecialRequest } from "@/domain/entries";
 import type { LayoutSettings, NightReport, ReportEntry, ReportSection } from "@/domain/types";
+import { completeRowFuneralHome, suggestedNames } from "../funeralHomeCompletion";
 import type { ColumnTightness } from "../hooks/useOverflowCompaction";
 import { WHOLE_CARD_OVERLEAF } from "../hooks/useSecondPageSplit";
 import { useEntryDrag, useSectionDropZone } from "../hooks/useEntryDrag";
@@ -190,6 +191,16 @@ function EditableReportRow({ section, entry, onLineCommit, onContinueEntry, auto
   }
 
   function handleKey(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Tab" && !event.shiftKey && !entry) {
+      // While the home is what is being typed, Tab takes the one the suggestion list is offering
+      // rather than committing a half-typed name.
+      const completed = completeRowFuneralHome(draft, suggestedNames(event.currentTarget), section.category);
+      if (completed !== null) {
+        event.preventDefault();
+        setDraft(completed);
+        return;
+      }
+    }
     if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
       event.preventDefault();
       continueEntryRef.current = true;

@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import type { FormEvent } from "react";
 
+import { completeFuneralHome } from "@/domain/entries";
+import { suggestedNames } from "../funeralHomeCompletion";
 import type { EntryFormState, EntryKind, TextField } from "../hooks/useEntryForm";
 import { IconCheck, IconPlus } from "../icons";
 import { Button } from "../ui/Button";
@@ -82,7 +84,19 @@ export function EntryForm({ form, activeSectionTitle, category, isDeliver, setFi
             <label>
               Funeral home
               {/* The options themselves are rendered once in Studio, so the canvas can use them too. */}
-              <input ref={primaryFieldRef} list="funeral-home-options" value={form.funeralHome} onChange={(event) => setField("funeralHome", event.target.value)} placeholder="Start typing…" />
+              <input
+                ref={primaryFieldRef}
+                list="funeral-home-options"
+                value={form.funeralHome}
+                onChange={(event) => setField("funeralHome", event.target.value)}
+                onKeyDown={(event) => {
+                  // Tab takes the name the suggestion list is offering, then moves on to the next field as usual.
+                  if (event.key !== "Tab" || event.shiftKey) return;
+                  const match = completeFuneralHome(event.currentTarget.value, suggestedNames(event.currentTarget));
+                  if (match && match !== event.currentTarget.value) setField("funeralHome", match);
+                }}
+                placeholder="Start typing…"
+              />
             </label>
           </>
         )}
