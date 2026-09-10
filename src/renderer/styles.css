@@ -440,9 +440,14 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    of slightly different widths, stacked and right-aligned, read as a ragged edge rather than as
    three cards sized to their contents — and what is gained by letting FDP be .15in narrower than
    DELIVER is nothing anyone wanted. CERTS/OTHER TO DEL stays wider because it has to: its title is
-   simply longer, and holding the other three up to it was what made them all 1.62in. */
+   simply longer, and holding the other three up to it was what made them all 1.62in.
+
+   Its floor was 1.55in, which the title alone overran — measured, it wants 1.74in — so a card
+   dragged narrow clipped DEL to DEI. 1.86in clears the title with a one-digit count beside it, and
+   is also the Cremated banner's own width, which the Human cards' ceiling below already allows for,
+   so it takes nothing from that column. */
 .cremated-column .section-card { min-width: 1in; }
-.cremated-column [data-section-key="cremated-certs"] { min-width: 1.55in; }
+.cremated-column [data-section-key="cremated-certs"] { min-width: 1.86in; }
 /* Human cards can be dragged well past their grid track, which only holds a card whose width is
    decided by its content. The ceiling is where the card would start covering the Cremated column,
    and it is worked out rather than written down, because the print margin moves both edges: the
