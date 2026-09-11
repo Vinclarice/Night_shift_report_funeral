@@ -404,7 +404,9 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .report-content { position: absolute; inset: calc(var(--report-margin) + .18in); transform: translate(var(--report-offset-x), var(--report-offset-y)) scale(var(--report-scale)); transform-origin: top left; }
 /* The masthead is one lockup: the title and the date share a baseline, and a heavy rule with a hairline
    under it closes the head of the sheet the way a printed form does. */
-.report-header { position: relative; height: .78in; display: flex; align-items: flex-end; justify-content: space-between; margin: 0 .12in; padding: .055in 0 .12in; border-bottom: 2.25px solid #1b2a41; }
+/* As tall as the lockup and no taller. It used to be a fixed .78in, which with the title and date
+   bottom-aligned left an empty band above them — space taken from the columns for nothing. */
+.report-header { position: relative; display: flex; align-items: flex-end; justify-content: space-between; margin: 0 .12in; padding: .055in 0 .12in; border-bottom: 2.25px solid #1b2a41; }
 .report-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.055in; border-bottom: .7px solid #1b2a41; }
 .report-header h1 { position: relative; margin: 0; padding-left: .12in; font-family: var(--font-display); font-stretch: 75%; font-size: 21pt; font-weight: 600; line-height: 1.1; letter-spacing: .12em; }
 .report-header h1::before { content: ""; position: absolute; left: 0; top: .03in; width: .04in; height: calc(.3in - .07in * var(--tighten, 0)); background: #1b2a41; }
@@ -564,7 +566,7 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 /* The four tags are one system, so they share one size and shrink together: a tightened sheet keeps
    them matched rather than letting one kind drift smaller than the others. */
 .report-page .location-code, .report-page .entry-count, .report-page .special-request, .report-page .rush-request { font-size: calc(8.2pt - 1.9pt * var(--tighten)); line-height: calc(.15in - .058in * var(--tighten)); }
-.report-page .report-header { height: calc(.78in - .24in * var(--tighten)); padding-bottom: calc(.12in - .06in * var(--tighten)); }
+.report-page .report-header { padding-bottom: calc(.12in - .06in * var(--tighten)); }
 .report-page .report-header h1 { font-size: calc(21pt - 5.5pt * var(--tighten)); }
 .report-page .report-weekday { font-size: calc(8.5pt - 1.5pt * var(--tighten)); }
 .report-page .report-date { font-size: calc(15pt - 4pt * var(--tighten)); }
