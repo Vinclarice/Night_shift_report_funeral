@@ -74,6 +74,11 @@ export function useSecondPageSplit(active: boolean, report: NightReport | null):
     const observer = new ResizeObserver(measure);
     observer.observe(content);
     page.querySelectorAll(".report-column").forEach((column) => observer.observe(column));
+    // The notes block is the floor the cut is made against, and choosing more or fewer lines moves it
+    // without resizing anything else — on a sheet already squeezed as far as it goes, the columns do
+    // not change either, so without this the cut would stay where the old floor put it.
+    const notesBlock = page.querySelector<HTMLElement>(".notes-block");
+    if (notesBlock) observer.observe(notesBlock);
     return () => observer.disconnect();
   }, [active, contentKey]);
 

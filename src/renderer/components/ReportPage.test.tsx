@@ -389,10 +389,31 @@ describe("drag to reorder", () => {
     expect(onNotesCommit).toHaveBeenCalledWith("A note");
   });
 
-  it("folds a longer stored note onto the two lines rather than losing it", () => {
-    // Notes saved when the block could grow past two lines still have to show all of their text.
-    const report = { ...createEmptyReport("2026-07-26"), notes: "One\nTwo\nThree" };
+  it("folds a longer stored note onto the three lines rather than losing it", () => {
+    // Notes saved when the block could grow past three lines still have to show all of their text.
+    const report = { ...createEmptyReport("2026-07-26"), notes: "One\nTwo\nThree\nFour" };
     render(<ReportPage report={report} layout={LAYOUT} />);
+
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Two")).toBeInTheDocument();
+    expect(screen.getByText("Three Four")).toBeInTheDocument();
+  });
+
+  it("draws as many notes lines as the layout asks for, and none when the notes are put away", () => {
+    const report = createEmptyReport("2026-07-26");
+    const { container, rerender } = render(<ReportPage report={report} layout={{ ...LAYOUT, notesLines: 1 }} />);
+    expect(container.querySelectorAll(".notes-line")).toHaveLength(1);
+
+    rerender(<ReportPage report={report} layout={{ ...LAYOUT, notesLines: 0 }} />);
+    expect(container.querySelectorAll(".notes-line")).toHaveLength(0);
+    expect(container.querySelector(".notes-label")).toBeNull();
+    // The block itself stays, holding the printed time, so the columns still have a floor to fit above.
+    expect(container.querySelector(".notes-block")).not.toBeNull();
+  });
+
+  it("keeps a note written on more lines than are shown, folded onto the last line", () => {
+    const report = { ...createEmptyReport("2026-07-26"), notes: "One\nTwo\nThree" };
+    render(<ReportPage report={report} layout={{ ...LAYOUT, notesLines: 2 }} />);
 
     expect(screen.getByText("One")).toBeInTheDocument();
     expect(screen.getByText("Two Three")).toBeInTheDocument();

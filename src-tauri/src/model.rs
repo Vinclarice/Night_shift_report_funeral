@@ -156,4 +156,12 @@ pub struct LayoutSettings {
     /// Where Print report sends the sheet without a dialog. None opens the dialog instead.
     #[serde(default)]
     pub printer_name: Option<String>,
+    /// How many ruled notes lines the foot of the sheet carries, 0 to 3; 0 puts the notes away.
+    #[serde(default = "default_notes_lines")]
+    pub notes_lines: u8,
+}
+
+/// The three lines the sheet carried before the count could be chosen.
+fn default_notes_lines() -> u8 {
+    3
 }

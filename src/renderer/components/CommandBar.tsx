@@ -8,6 +8,7 @@ import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceConte
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { NotesChoice } from "./NotesChoice";
 import { WindowControls } from "./TitleBar";
 
 function formatReportDate(value: string) {
@@ -127,6 +128,7 @@ export function CommandBar({ report }: { report: NightReport }) {
                   </button>
                 );
               })}
+              <NotesChoice report={report} />
             </div>
           )}
         </div>

@@ -42,4 +42,5 @@ export const DEFAULT_LAYOUT: LayoutSettings = {
   scale: 1,
   offsetXInches: 0,
   offsetYInches: 0,
+  notesLines: 3,
 };

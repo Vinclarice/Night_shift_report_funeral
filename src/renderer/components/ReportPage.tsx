@@ -311,22 +311,24 @@ const trimTrailing = (value: string): string => value.replace(/\s+$/, "");
 /** A sheet drawn at its natural size, which is what the print copy gets unless told otherwise. */
 const NO_TIGHTENING: ColumnTightness = { human: 0, cremated: 0 };
 
-const NOTES_LINES = 2;
+/** Lines the notes block carries when the layout does not say; see LayoutSettings.notesLines. */
+const DEFAULT_NOTES_LINES = 3;
 
 /**
- * The note as its two written lines. Anything beyond the second is folded onto it rather than
- * dropped, so a note saved by a build that let the block grow is not silently truncated.
+ * The note as the lines the sheet has room for. Anything beyond the last is folded onto it rather
+ * than dropped, so a note written on more lines than the sheet now shows is not silently truncated.
  */
-function notesLines(notes: string): string[] {
+function notesLines(notes: string, count: number): string[] {
+  if (count <= 0) return [];
   const written = notes.split("\n");
-  const lines = written.slice(0, NOTES_LINES - 1);
-  lines.push(written.slice(NOTES_LINES - 1).filter(Boolean).join(" "));
-  while (lines.length < NOTES_LINES) lines.push("");
+  const lines = written.slice(0, count - 1);
+  lines.push(written.slice(count - 1).filter(Boolean).join(" "));
+  while (lines.length < count) lines.push("");
   return lines;
 }
 
 /**
- * The footer notes: two ruled lines at the foot of the sheet, each written on separately. They are
+ * The footer notes: three ruled lines at the foot of the sheet, each written on separately. They are
  * two elements rather than one block of text on a striped background, because that is what they
  * are to the person using them — a click lands on the line it looks like it landed on, and neither
  * line has to work out where in a single string the caret belongs.
@@ -334,12 +336,12 @@ function notesLines(notes: string): string[] {
  * Rendered read-only when no commit handler is supplied, which is how the hidden print copy gets
  * it, and the read-only lines are the same elements so the sheet prints as it looks.
  */
-function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: Date | null; onCommit?: (value: string) => void }) {
+function NotesBlock({ notes, count, printedAt, onCommit }: { notes: string; count: number; printedAt: Date | null; onCommit?: (value: string) => void }) {
   const [editingLine, setEditingLine] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const continueRef = useRef(false);
-  const lines = notesLines(notes);
+  const lines = notesLines(notes, count);
 
   useEffect(() => {
     if (editingLine === null) return;
@@ -361,7 +363,7 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
     const joined = trimTrailing(next.join("\n"));
     if (joined !== trimTrailing(notes)) onCommit?.(joined);
     // Enter on the first line carries on to the second, the way the ruled rows above behave.
-    if (continueRef.current && index + 1 < NOTES_LINES) {
+    if (continueRef.current && index + 1 < lines.length) {
       const carryTo = index + 1;
       setDraft(next[carryTo]);
       setEditingLine(carryTo);
@@ -369,9 +371,13 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
     continueRef.current = false;
   }
 
+  // With the notes put away the block stays, holding only the printed time: two copies of one night
+  // still need telling apart, and the columns still need a floor to be fitted above.
   return (
     <div className="notes-block">
-      <p>NOTES{printedAt && <span>Printed {printedTime(printedAt)}</span>}</p>
+      {/* The label sits at the start of the first writing line rather than on a row of its own, which
+          is what lets the block carry a third line in not much more height than two used to take. */}
+      {lines.length > 0 && <p className="notes-label">NOTES</p>}
       <div className="notes-body">
         {lines.map((line, index) => {
           const label = `Report notes line ${index + 1}`;
@@ -406,6 +412,7 @@ function NotesBlock({ notes, printedAt, onCommit }: { notes: string; printedAt: 
           return <div key={index} className="notes-line">{line}</div>;
         })}
       </div>
+      <p className="notes-printed">{printedAt && `Printed ${printedTime(printedAt)}`}</p>
     </div>
   );
 }
@@ -615,7 +622,7 @@ export const ReportPage = memo(function ReportPage({ report, layout, dateOverrid
         {/* Anchored to the foot of the content box so it lands in the same place every night
             rather than riding up after a quiet one. useOverflowCompaction treats its top edge as
             the floor, so typing enough here compacts the columns rather than colliding with them. */}
-        {!continuation && <NotesBlock notes={report.notes} printedAt={printedAt} onCommit={onNotesCommit} />}
+        {!continuation && <NotesBlock notes={report.notes} count={layout.notesLines ?? DEFAULT_NOTES_LINES} printedAt={printedAt} onCommit={onNotesCommit} />}
       </div>
       {calibration && <div className="calibration-label">CALIBRATION — all four border edges should be visible</div>}
     </article>

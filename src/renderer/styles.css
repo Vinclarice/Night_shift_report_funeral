@@ -506,18 +506,25 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .pinned-row { border-top: .9px solid var(--column-rule); }
 .pinned-row + .pinned-row { border-top-width: .45px; }
 .rush-request { box-shadow: inset 0 0 0 .6px #b03327; color: #99271c; background: #fdf7f6; }
-/* Writing space for the day-shift supervisor. Rarely used, so it stays quiet: a rule, a small
-   label, and two ruled lines at the foot of the sheet. */
-.notes-block { position: absolute; left: 0; right: 0; bottom: 0; padding-top: .06in; border-top: 1px solid #8d97a3; }
-.notes-block p { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 .05in; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; letter-spacing: .16em; }
-.notes-block p span { letter-spacing: .1em; }
-/* Two ruled lines, each a real element rather than a painted stripe, because each one is written
-   on separately: a click lands on the line it looks like it landed on, and neither has to work out
+/* Writing space for the day-shift supervisor. Rarely used, so it stays quiet: a rule, three ruled
+   lines with a small NOTES label at the start of the first, and the printed time in small type under
+   the last. The label once had a row of its own, which was mostly empty paper; it now shares the first
+   writing line, and the printed time moved under the lines to make way for it. */
+.notes-block { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid #8d97a3; }
+.notes-label { position: absolute; left: 0; top: 0; margin: 0; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 7.5pt; line-height: .25in; letter-spacing: .16em; pointer-events: none; }
+.notes-body .notes-line:first-child { padding-left: .56in; }
+/* Notes put away: no rule over an empty block, just the printed time at the foot of the page. */
+.notes-block:not(:has(.notes-line)) { border-top: 0; }
+/* Always there, and empty until the sheet is printed, so the block is the same height before and
+   during printing — otherwise the floor the columns are squeezed against would move as it prints. */
+.notes-printed { height: .1in; margin: 0; color: #5f666e; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 6.5pt; line-height: .1in; letter-spacing: .1em; text-align: right; }
+/* Ruled lines, each a real element rather than a painted stripe, because each one is written
+   on separately: a click lands on the line it looks like it landed on, and none has to work out
    where in a single block of text the caret should go.
 
-   Fixed at .26in whatever the sheet is doing. Compaction leaves the notes block alone — it is a
-   fixed .58in at the foot of the page, and the ~.2in that squeezing it could win back is not worth
-   a hand-written note that no longer has room to be hand-written. */
+   Fixed at .26in whatever the sheet is doing. Compaction leaves the notes block alone — a
+   hand-written note needs its room more than the columns need the fraction of an inch that squeezing
+   it could win back. */
 .notes-body { display: block; width: 100%; padding: 0; margin: 0; border: 0; }
 .notes-line { display: block; width: 100%; height: .26in; padding: 0; margin: 0; border: 0;
   border-bottom: .5px solid #b6bfcb; border-radius: 0;
@@ -631,6 +638,17 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
   :root[data-backdrop] .studio-canvas { background: color-mix(in srgb, var(--surface-sunk) calc(var(--backdrop-desk) * 100%), transparent); }
   :root[data-backdrop] .canvas-toolbar { background: color-mix(in srgb, var(--surface-raised) calc(var(--backdrop-toolbar) * 100%), transparent); }
 }
+
+/* Sections > Notes: a row of four small choices under the optional cards. Reset against the menu's own
+   button rule, which lays out icon-and-label rows these are not. */
+.notes-choice { display: grid; gap: 8px; margin-top: 4px; padding: 10px 10px 6px; border-top: 1px solid var(--rule); }
+.notes-choice > span { display: grid; gap: 1px; }
+.notes-choice strong { color: var(--ink); font-size: 12px; font-weight: 650; }
+.notes-choice small { color: var(--ink-2); font-size: 10px; font-weight: 500; }
+.notes-choice-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.tools-popover .notes-choice-options button { display: block; width: 100%; min-height: 0; margin: 0; padding: 6px 0; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--white); color: var(--ink); font-size: 12px; font-weight: 600; text-align: center; }
+.tools-popover .notes-choice-options button:hover { border-color: var(--rule-strong); }
+.tools-popover .notes-choice-options button[aria-checked="true"] { border-color: var(--band); background: var(--band); color: #fff; }
 
 /* Tools > Appearance. Each choice carries a miniature of the window so the four read at a glance. */
 .backdrop-options { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }

@@ -101,9 +101,11 @@ export function useOverflowCompaction(report: NightReport | null, layout: Layout
         margin: deferredLayout?.marginInches,
         scale: deferredLayout?.scale,
         offsetY: deferredLayout?.offsetYInches,
+        // The notes block is the floor the columns are fitted above, and its height is the line count.
+        notesLines: deferredLayout?.notesLines,
         pages,
       }),
-    [deferredReport?.sections, deferredReport?.hiddenSections, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches, pages],
+    [deferredReport?.sections, deferredReport?.hiddenSections, deferredLayout?.marginInches, deferredLayout?.scale, deferredLayout?.offsetYInches, deferredLayout?.notesLines, pages],
   );
 
   // Memoised: a fresh object on every render would re-run the measuring effect on every render,

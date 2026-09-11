@@ -109,6 +109,13 @@ export interface LayoutSettings {
    * layout saved before it existed, opens the print dialog instead.
    */
   printerName?: string | null;
+  /**
+   * How many ruled notes lines the foot of the sheet carries; 0 puts the notes away, which on most
+   * nights they are. Carried from night to night like a card width. Absent in a layout saved before
+   * it existed, which means the three lines the sheet had then. Writing is never lost to it: hidden
+   * notes are kept, and lines beyond the count fold onto the last one shown.
+   */
+  notesLines?: 0 | 1 | 2 | 3;
 }
 
 export interface ParsedLine {

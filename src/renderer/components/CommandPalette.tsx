@@ -88,6 +88,13 @@ export function useCommands(report: NightReport | null): Command[] {
           });
         },
       })),
+      ...([0, 1, 2, 3] as const).map((lines) => ({
+        id: `report:notes:${lines}`,
+        label: lines === 0 ? "Take the notes off the sheet" : `Give the notes ${lines} ${lines === 1 ? "line" : "lines"}`,
+        group: "Report",
+        disabled: !state.layout || (state.layout.notesLines ?? 3) === lines,
+        run: () => { if (state.layout) void actions.saveLayout({ ...state.layout, notesLines: lines }); },
+      })),
       { id: "edit:undo", label: "Undo", group: "Edit", hint: "Ctrl+Z", icon: <IconUndo />, disabled: !state.undoAvailable, run: actions.undo },
       { id: "edit:redo", label: "Redo", group: "Edit", hint: "Ctrl+Y", icon: <IconRedo />, disabled: !state.redoAvailable, run: actions.redo },
       {
@@ -111,7 +118,7 @@ export function useCommands(report: NightReport | null): Command[] {
     ];
 
     return [...actionCommands, ...sectionCommands];
-  }, [report, state.undoAvailable, state.redoAvailable, state.overflow, workspace.inspectorOpen, actions, dispatch]);
+  }, [report, state.undoAvailable, state.redoAvailable, state.overflow, state.layout, workspace.inspectorOpen, actions, dispatch]);
 }
 
 export function CommandPalette({ report }: { report: NightReport | null }) {
