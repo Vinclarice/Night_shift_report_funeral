@@ -314,7 +314,9 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .canvas-hint { min-width: 0; overflow: hidden; color: var(--ink-3); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 /* Whether the report still fits one page, stated continuously. It used to surface only as a red
    banner after the report had already overflowed. */
-.canvas-fit { display: flex; align-items: center; gap: 7px; color: var(--ink-2); font-family: var(--font-data); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* In the interface face, because it is a sentence; Cascadia is for codes and counts. Tabular figures keep
+   the words after the count from shifting as the count changes. */
+.canvas-fit { display: flex; align-items: center; gap: 7px; color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .canvas-fit::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--good); }
 .canvas-fit.over { color: var(--rush); font-weight: 700; }
 .canvas-fit.over::before { background: var(--rush); }
@@ -611,7 +613,9 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .inline-row-button.drop-before { position: relative; z-index: 2; box-shadow: inset 0 2px var(--column-accent); }
 .blank-row.drop-before { background: color-mix(in srgb, var(--column-accent) 10%, white); box-shadow: inset 0 2px var(--column-accent); }
 .section-card.drop-active { border-color: var(--column-accent); background: color-mix(in srgb, var(--column-accent) 8%, white); box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-accent) 25%, transparent); }
-.section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent), 0 0 0 5px color-mix(in srgb, var(--column-accent) 22%, transparent); }
+/* One ring in the column's ink. It carried a 5px halo as well, which at canvas zoom read as a heavy dark
+   frame, heavier than the column banners it sits under. */
+.section-card.studio-selected { box-shadow: 0 0 0 2px var(--column-accent); }
 /* The sheet sits on the desk rather than floating in a void. */
 .studio-canvas .report-page { box-shadow: 0 10px 28px rgb(26 31 38 / 16%), 0 2px 6px rgb(26 31 38 / 10%), 0 0 0 1px rgb(26 31 38 / 8%); }
 /* An unclipped box around each card, existing only so the grip has something to hang off. The card

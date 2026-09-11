@@ -154,11 +154,26 @@ export function IconSidebar(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function IconWand(props: SVGProps<SVGSVGElement>) {
+/** A cog, for the Tools menu. It replaced a magic wand, which promised something automatic from a menu
+ *  that opens the funeral home directory, recovery, print setup and appearance. */
+export function IconGear(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
-      <path d="m4 20 11-11M13 4l1-2 1 2 2 1-2 1-1 2-1-2-2-1zM18 13l.8-1.6.8 1.6 1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8z" />
-      <path d="m6 14 4 4" />
+      <circle cx="12" cy="12" r="6.2" />
+      <circle cx="12" cy="12" r="2.2" />
+      <path strokeWidth={2.8} d="M12 5.8V3.4M12 18.2v2.4M5.8 12H3.4M18.2 12h2.4M7.6 7.6 5.9 5.9M16.4 16.4l1.7 1.7M7.6 16.4l-1.7 1.7M16.4 7.6l1.7-1.7" />
+    </Icon>
+  );
+}
+
+/** Two columns of cards, the way the sheet lays them out, for the Sections menu that chooses which cards
+ *  tonight's sheet carries. */
+export function IconSections(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="4" width="7" height="7" rx="1.2" />
+      <rect x="3.5" y="15" width="7" height="5" rx="1.2" />
+      <rect x="14.5" y="4" width="6" height="6" rx="1.2" />
     </Icon>
   );
 }
@@ -197,19 +212,6 @@ export function IconFlag(props: SVGProps<SVGSVGElement>) {
     <Icon {...props}>
       <path d="M5 3v18" />
       <path d="M5 4h13l-3 4.5L18 13H5" />
-    </Icon>
-  );
-}
-
-/** A road running to the horizon with a dashed centre line, for the ROAD TRIPS section. */
-export function IconRoad(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M8 3 4 21" />
-      <path d="M16 3l4 18" />
-      <path d="M12 4v3" />
-      <path d="M12 10.5v3" />
-      <path d="M12 17v3" />
     </Icon>
   );
 }

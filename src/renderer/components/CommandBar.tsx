@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { OPTIONAL_SECTIONS } from "@/domain/report";
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBackdrop, IconBuilding, IconCheck, IconHistory, IconPrinter, IconRedo, IconRoad, IconSidebar, IconSliders, IconUndo, IconWand } from "../icons";
+import { IconBackdrop, IconBuilding, IconCheck, IconGear, IconHistory, IconPrinter, IconRedo, IconSections, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportController } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import { Badge } from "../ui/Badge";
@@ -114,7 +114,7 @@ export function CommandBar({ report }: { report: NightReport }) {
             together. A tick shows what is on the sheet now; the count says what a card is holding,
             since putting one away with entries in it keeps them out of sight. */}
         <div className="tools-menu" ref={sectionsRef}>
-          <Button variant="quiet" icon={<IconRoad />} aria-expanded={sectionsOpen} onClick={() => setSectionsOpen((open) => !open)}>Sections</Button>
+          <Button variant="quiet" icon={<IconSections />} aria-expanded={sectionsOpen} onClick={() => setSectionsOpen((open) => !open)}>Sections</Button>
           {sectionsOpen && (
             <div className="tools-popover" role="menu">
               {OPTIONAL_SECTIONS.map(({ key, title }) => {
@@ -133,7 +133,7 @@ export function CommandBar({ report }: { report: NightReport }) {
         </div>
         {!workspace.inspectorOpen && <Button variant="quiet" icon={<IconSidebar />} onClick={() => dispatch({ type: "SET_INSPECTOR_OPEN", open: true })}>Inspector</Button>}
         <div className="tools-menu" ref={toolsRef}>
-          <Button variant="quiet" icon={<IconWand />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>
+          <Button variant="quiet" icon={<IconGear />} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>Tools</Button>
           {toolsOpen && (
             <div className="tools-popover" role="menu">
               <button role="menuitem" onClick={() => openUtility("directory")}><IconBuilding /><span><strong>Funeral homes</strong><small>Manage saved directory names</small></span></button>

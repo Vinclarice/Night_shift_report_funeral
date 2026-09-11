@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 import { OPTIONAL_SECTIONS } from "@/domain/report";
 import type { NightReport, SectionKey } from "@/domain/types";
-import { IconBackdrop, IconBuilding, IconHistory, IconPrinter, IconRedo, IconRoad, IconSearch, IconSidebar, IconSliders, IconUndo } from "../icons";
+import { IconBackdrop, IconBuilding, IconHistory, IconPrinter, IconRedo, IconSearch, IconSections, IconSidebar, IconSliders, IconUndo } from "../icons";
 import { useReportActions, useReportState } from "../state/ReportController";
 import { useWorkspaceDispatch, useWorkspaceState } from "../state/WorkspaceContext";
 import type { ReactNode } from "react";
@@ -77,7 +77,7 @@ export function useCommands(report: NightReport | null): Command[] {
         id: `report:section:${key}`,
         label: report?.hiddenSections.includes(key) ? `Put ${title} back on the sheet` : `Take ${title} off the sheet`,
         group: "Report",
-        icon: <IconRoad />,
+        icon: <IconSections />,
         disabled: !report,
         run: () => {
           if (!report) return;
