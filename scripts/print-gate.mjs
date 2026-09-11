@@ -254,6 +254,14 @@ spacing are all that give.
 
 ${CASES.map((c) => `### ${c.id} — ${c.title}\n${c.why}\n\n- [ ] No text clipped at any card edge\n- [ ] Borders and rules crisp, not fuzzy or doubled\n- [ ] No card has moved to the wrong column\n${(c.extra ?? []).map((item) => `- [ ] ${item}\n`).join("")}- [ ] Not worse than the Word document\n`).join("\n")}
 
+## Matched banners and the plain title
+
+- [ ] **Banners on 03 to 06** — HUMAN REMAINS and CREMATED REMAINS print the same size as each other on
+      every sheet. On 06 the Cremated banner is now smaller type than the card headings under it;
+      its dark plate should still read as the heading of that column.
+- [ ] **Title** — NIGHT SHIFT REPORT has no bar in front of it and starts where the rule under the
+      masthead starts.
+
 ## This restyle in particular
 
 The masthead, the tags and the rows changed, so these are new on paper and have never been printed:

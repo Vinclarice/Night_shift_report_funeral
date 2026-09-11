@@ -207,7 +207,6 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .command-report-meta { display: flex; align-items: center; gap: 12px; }
 .command-report-meta > div { display: grid; gap: 1px; }
 .command-report-meta p { margin: 0; color: rgb(255 255 255 / 60%); font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
-.command-glow { width: 3px; height: 24px; flex: none; border-radius: 2px; background: rgb(255 255 255 / 45%); }
 .command-date { position: relative; }
 .command-date-button { display: flex; align-items: baseline; gap: 9px; margin: -2px -6px; padding: 2px 6px; border-radius: var(--radius-sm); background: transparent; }
 .command-date-button strong { color: #fff; font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 19px; letter-spacing: .02em; text-transform: uppercase; }
@@ -408,8 +407,9 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    bottom-aligned left an empty band above them — space taken from the columns for nothing. */
 .report-header { position: relative; display: flex; align-items: flex-end; justify-content: space-between; margin: 0 .12in; padding: .055in 0 .12in; border-bottom: 2.25px solid #1b2a41; }
 .report-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.055in; border-bottom: .7px solid #1b2a41; }
-.report-header h1 { position: relative; margin: 0; padding-left: .12in; font-family: var(--font-display); font-stretch: 75%; font-size: 21pt; font-weight: 600; line-height: 1.1; letter-spacing: .12em; }
-.report-header h1::before { content: ""; position: absolute; left: 0; top: .03in; width: .04in; height: calc(.3in - .07in * var(--tighten, 0)); background: #1b2a41; }
+/* The title starts where the rule under it starts, as the date ends where it ends. It once had a short
+   bar in front of it, which at cap height beside the N read as a stray "|" rather than a mark. */
+.report-header h1 { position: relative; margin: 0; font-family: var(--font-display); font-stretch: 75%; font-size: 21pt; font-weight: 600; line-height: 1.1; letter-spacing: .12em; }
 .report-header > div { display: grid; justify-items: end; gap: .01in; white-space: nowrap; }
 /* The date is the large line, with the weekday as a small tracked label over it: together they say
    what they are, so the sheet no longer needs a DATE: label. */
@@ -548,15 +548,21 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    Type and spacing are all that give. The blank writing rows are never reclaimed — a row
    disappearing is the one compaction the crew actually sees, and it takes away somewhere they were
    about to write — and the notes block is not squeezed at all. */
-.report-page { --tighten: 0; }
+/* --page-tighten is the page's own value, the tighter of the two columns, captured here before each
+   column overrides --tighten with its own: var() resolves on the element that declares it, so the
+   columns inherit the number rather than the reference. */
+.report-page { --tighten: 0; --page-tighten: var(--tighten); }
 .report-page .report-column { gap: calc(.12in - .08in * var(--tighten)); }
+/* The two banners are a pair across the head of the sheet, so they follow the page like the masthead
+   rather than their own column. Squeezed separately, a busy Human column set its banner at 9.5pt beside
+   a 12pt Cremated one. The tighter column's banner is exactly what it was, so this cannot cost the fit. */
 .report-page .report-column > h2 {
-  min-height: calc(.32in - .11in * var(--tighten));
-  margin-bottom: calc(-.06in + .025in * var(--tighten));
-  padding: calc(.06in - .035in * var(--tighten)) calc(.09in - .02in * var(--tighten)) calc(.04in - .02in * var(--tighten));
-  font-size: calc(12pt - 2.6pt * var(--tighten));
-  line-height: calc(.21in - .06in * var(--tighten));
-  letter-spacing: calc(.13em - .04em * var(--tighten));
+  min-height: calc(.32in - .11in * var(--page-tighten));
+  margin-bottom: calc(-.06in + .025in * var(--page-tighten));
+  padding: calc(.06in - .035in * var(--page-tighten)) calc(.09in - .02in * var(--page-tighten)) calc(.04in - .02in * var(--page-tighten));
+  font-size: calc(12pt - 2.6pt * var(--page-tighten));
+  line-height: calc(.21in - .06in * var(--page-tighten));
+  letter-spacing: calc(.13em - .04em * var(--page-tighten));
 }
 .report-page .section-card { --card-header-h: calc(.29in - .135in * var(--tighten)); }
 .report-page .section-card h3 {

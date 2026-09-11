@@ -69,7 +69,6 @@ export function CommandBar({ report }: { report: NightReport }) {
   return (
     <header className="studio-commandbar no-print">
       <div className="command-report-meta">
-        <span className="command-glow" aria-hidden="true" />
         {/* The date is normally set by the clock; clicking it opens the manual override for the
             nights that lands on the wrong day. The override is session-only by design — see
             ReportState.dateOverride. */}
