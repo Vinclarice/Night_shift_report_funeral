@@ -34,7 +34,7 @@ test("launches and renders the exact nine-card page", async () => {
     await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
     await page.screenshot({ path: "test-results/version-2-launch.png" });
     // The app opens directly into tonight's report — no welcome screen or click required.
-    await expect(page.getByText("Live canvas")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Report canvas" })).toBeVisible();
     await page.screenshot({ path: "test-results/studio-empty.png" });
     const preview = page.locator(".report-page").first();
     await expect(preview.getByTestId("section-card")).toHaveCount(9);
@@ -195,7 +195,7 @@ test("shows and hides the road trips card, and remembers which", async () => {
   try {
     const { page } = app;
     await page.setViewportSize({ width: 1500, height: 1400 });
-    await expect(page.getByText("Live canvas")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Report canvas" })).toBeVisible();
     const preview = page.locator(".report-page").first();
     const openSections = async () => page.getByRole("button", { name: "Sections", exact: true }).click();
     const roadTrips = page.getByRole("menuitemcheckbox", { name: /ROAD TRIPS/ });
@@ -211,7 +211,7 @@ test("shows and hides the road trips card, and remembers which", async () => {
     // Through a reload, which is what actually exercises the column and the migration that adds
     // it: the flag has to survive the round trip to SQLite, not just live in React state.
     await page.reload();
-    await expect(page.getByText("Live canvas")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Report canvas" })).toBeVisible();
     await expect(preview.getByTestId("section-card")).toHaveCount(10);
     await openSections();
     await expect(roadTrips).toHaveAttribute("aria-checked", "true");

@@ -130,7 +130,7 @@ function EntryFormPanel({ report, section, seed }: { report: NightReport; sectio
 
   return (
     <EntryForm
-      form={form} activeSectionTitle={section.title} category={section.category} isDeliver={isDeliver}
+      form={form} category={section.category} isDeliver={isDeliver}
       setField={setField} setCount={setCount} setRush={setRush} setKeepSeparate={setKeepSeparate} setEntryKind={setEntryKind}
       reset={() => { reset(defaultKindFor(section)); dispatch({ type: "SELECT_SECTION", sectionKey: section.key, mode: "create" }); }}
       onSubmit={submitEntry}
@@ -195,7 +195,7 @@ export function Inspector({ report }: { report: NightReport }) {
 
       {workspace.inspectorMode === "paste" ? (
         <section className="inspector-block paste-workspace">
-          <div className="block-title-row"><div><p className="studio-kicker">Quick paste</p><h3>Review multiple lines</h3></div><Button variant="quiet" onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "create" })}>Back</Button></div>
+          <div className="block-title-row"><h3>Paste entries</h3><Button variant="quiet" onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "create" })}>Back</Button></div>
           <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="Paste one entry per line…" rows={8} />
           <Button variant="primary" full disabled={!pasteText.trim()} onClick={reviewPaste}>Review paste</Button>
         </section>
@@ -204,7 +204,7 @@ export function Inspector({ report }: { report: NightReport }) {
       )}
 
       <section className="inspector-block entry-browser">
-        <div className="block-title-row"><div><p className="studio-kicker">Section queue</p><h3>Current entries</h3></div><Button variant="quiet" icon={<IconPlus />} onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "paste" })}>Paste</Button></div>
+        <div className="block-title-row"><h3>Entries</h3><Button variant="quiet" icon={<IconPlus />} onClick={() => dispatch({ type: "SET_INSPECTOR_MODE", mode: "paste" })}>Paste</Button></div>
         <h3 className="sr-only">{section.entries.length}</h3>
         {!section.entries.length && <div className="studio-empty"><span>+</span><p>No entries yet — add one above.</p><small>You can also type directly on the page.</small></div>}
         {section.entries.map((entry) => (

@@ -21,10 +21,7 @@ export function PasteReviewModal({ lines, onToggle, onCancel, onConfirm }: Props
     <div className="modal-backdrop no-print">
       <section ref={surfaceRef} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-labelledby="paste-review-heading">
         <div className="modal-header">
-          <div>
-            <p className="eyebrow">Paste review</p>
-            <h2 id="paste-review-heading">Confirm parsed entries</h2>
-          </div>
+          <h2 id="paste-review-heading">Confirm parsed entries</h2>
           <button ref={closeButtonRef} onClick={onCancel} aria-label="Close paste review"><IconX /></button>
         </div>
         <div className="review-list">

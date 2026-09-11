@@ -200,20 +200,23 @@ export function PreviewCanvas({ report }: { report: NightReport }) {
   }, [controller]);
 
   return (
-    <section className="studio-canvas" ref={canvasRef}>
+    <section className="studio-canvas" ref={canvasRef} aria-label="Report canvas">
       <div className="canvas-toolbar no-print">
-        <div><p className="studio-kicker">Live canvas</p><span>Click a ruled line to type · click a row to select it, shift-click for a range · drag between cards · right-click for more</span></div>
+        {/* Whether the report still fits one page, stated continuously. Previously this only
+            surfaced as the red banner above, which appears after the report has already
+            overflowed — by which point entries have to be cut rather than placed differently.
+            Compaction is named here too: the page quietly shrinks its own type to keep fitting,
+            and without saying so the only evidence is that the sheet looks subtly different from
+            last night's, which reads as a glitch rather than as the page doing its job.
+
+            It leads the toolbar because it is the one thing here that changes. The toolbar used to
+            open on a full sentence of instructions, which wrapped to two lines in a 1180px window. */}
+        <span className={`canvas-fit${controller.overflow ? " over" : compacted ? " tight" : ""}`} role="status" aria-live="polite" title={fitTitle}>
+          {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
+          {!controller.overflow && compacted && <> <em>·</em> tightened {tightenPercent}%</>}
+        </span>
         <div className="canvas-controls">
-          {/* Whether the report still fits one page, stated continuously. Previously this only
-              surfaced as the red banner above, which appears after the report has already
-              overflowed — by which point entries have to be cut rather than placed differently.
-              Compaction is named here too: the page quietly shrinks its own type to keep fitting,
-              and without saying so the only evidence is that the sheet looks subtly different from
-              last night's, which reads as a glitch rather than as the page doing its job. */}
-          <span className={`canvas-fit${controller.overflow ? " over" : compacted ? " tight" : ""}`} role="status" aria-live="polite" title={fitTitle}>
-            {entryCount} {entryCount === 1 ? "entry" : "entries"} <em>·</em> {controller.overflow ? "Over one page" : "Fits one page"}
-            {!controller.overflow && compacted && <> <em>·</em> tightened {tightenPercent}%</>}
-          </span>
+          <span className="canvas-hint">Click a line to type · right-click for more</span>
           <div className="zoom-control" aria-label="Preview zoom">
             <IconButton icon={<IconMinus />} aria-label="Zoom out" title="Zoom out" onClick={() => dispatch({ type: "SET_ZOOM", zoom: zoom - (zoom > 1 ? 0.1 : 0.05) })} />
             <button type="button" className={workspace.zoomMode === "fit" ? "active" : ""} onClick={() => dispatch({ type: "FIT_ZOOM" })}>{workspace.zoomMode === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}</button>

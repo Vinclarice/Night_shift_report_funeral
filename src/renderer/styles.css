@@ -163,7 +163,7 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 .format-toggle button:hover { color: var(--ink); background: rgb(255 255 255 / 70%); }
 .format-toggle button[aria-pressed="true"] { color: #fff; background: var(--channel); }
 
-.eyebrow, .studio-kicker { margin: 0; color: var(--channel); font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
+.studio-kicker { margin: 0; color: var(--channel); font-family: var(--font-display); font-stretch: 75%; font-weight: 600; font-size: 9px; letter-spacing: .15em; text-transform: uppercase; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    2. Studio chrome
@@ -274,11 +274,13 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
 /* The entry list is what grows over a shift, so it takes the slack instead of leaving a hard rule
    above a block of empty panel. */
 .studio-inspector .entry-browser { flex: 1; border-bottom: 0; }
-.studio-inspector .sticky-section-heading { position: static; z-index: auto; margin: 0 0 12px; padding: 0; border: 0; background: transparent; }
-.section-heading { display: flex; align-items: flex-start; justify-content: space-between; }
-.studio-inspector .section-heading h2 { margin: 2px 0 0; color: var(--ink); font-size: 15px; font-weight: 650; }
-.block-title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 11px; }
-.block-title-row h3 { margin: 2px 0 0; color: var(--ink); font-size: 14px; font-weight: 650; }
+/* One small capitals label in the inspector: the channel, over the section's title. The blocks under it
+   are named in plain sentence case, and only where the name says something the header does not — a
+   second tracked label over each block stacked on top of the form's own field labels. */
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; }
+.studio-inspector .section-heading h2 { margin: 0; color: var(--ink); font-size: 13px; font-weight: 650; }
+.block-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+.block-title-row h3 { margin: 0; color: var(--ink); font-size: 14px; font-weight: 650; }
 .studio-inspector h3 { font-size: 13px; }
 
 .studio-empty { display: grid; justify-items: center; padding: 24px 12px; border: 1px dashed var(--rule-strong); border-radius: var(--radius-md); color: var(--ink-2); text-align: center; }
@@ -306,9 +308,10 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    the sheet. No grid overlay, no gradient; the page is the subject. */
 .studio-canvas { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-sunk); }
 .canvas-toolbar { flex: none; height: 50px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; border-bottom: 1px solid var(--rule); background: var(--surface-raised); }
-.canvas-toolbar > div:first-child { display: grid; gap: 2px; min-width: 0; }
-.canvas-toolbar span { color: var(--ink-2); font-size: 11px; }
-.canvas-controls { display: flex; align-items: center; gap: 14px; }
+.canvas-controls { display: flex; align-items: center; gap: 14px; min-width: 0; }
+/* A reminder for whoever sits down mid-shift rather than a tutorial, so it is the first thing to give way
+   when the window is narrow. */
+.canvas-hint { min-width: 0; overflow: hidden; color: var(--ink-3); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 /* Whether the report still fits one page, stated continuously. It used to surface only as a red
    banner after the report had already overflowed. */
 .canvas-fit { display: flex; align-items: center; gap: 7px; color: var(--ink-2); font-family: var(--font-data); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -616,9 +619,13 @@ input[type="range"]:focus { box-shadow: none; outline: 2px solid var(--ink); out
    card the operator has narrowed — and positioning the grip inside that clip is what forced it
    indoors in the first place. */
 .section-card-shell { position: relative; width: fit-content; }
-/* Centred and always on show, straddling the edge of the card that actually moves. Sitting half
-   outside costs nothing: the grip is screen-only and never prints. */
-.width-handle { position: absolute; right: -7px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #78818d; border-radius: var(--radius-md); background: #f2f4f7; color: #68717d; cursor: ew-resize; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
+/* Centred, straddling the edge of the card that actually moves. Sitting half outside costs nothing: the
+   grip is screen-only and never prints. It is always there, so the feature can be found, but faint until
+   its card is hovered, selected or mid-drag: at full strength on every card, a busy sheet carried a row
+   of grey pills cutting into the card edges. data-resizing lasts the whole drag, which the pointer can
+   leave the card during. */
+.width-handle { position: absolute; right: -7px; top: 50%; width: 13px; height: 34px; margin-top: -17px; padding: 0; border: 1px solid #cdd3da; border-radius: var(--radius-md); background: #f7f8fa; color: #a9b0b9; cursor: ew-resize; }
+.section-card-shell:hover .width-handle, .section-card-shell:has(.studio-selected) .width-handle, .section-card-shell[data-resizing] .width-handle, .width-handle:focus-visible { border-color: #78818d; background: #f2f4f7; color: #68717d; box-shadow: 0 2px 6px rgb(0 0 0 / 12%); }
 .width-handle::after { content: "⋮"; }
 /* The Cremated column is right-aligned, so widening one of its cards extends it leftwards and its
    right edge never moves. The grip belongs on the edge that does — and dragging that edge outwards,

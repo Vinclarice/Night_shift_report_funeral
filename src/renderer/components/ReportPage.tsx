@@ -468,6 +468,9 @@ const SectionCard = memo(function SectionCard({
     // shell rather than its child, so closest(".section-card") finds nothing from here.
     const card = cardRef.current;
     if (!card) return;
+    // Holds the grip at full strength for the whole drag, which the pointer can leave the card during.
+    const shell = card.parentElement;
+    shell?.setAttribute("data-resizing", "");
     const startX = event.clientX;
     const startWidth = card.getBoundingClientRect().width / 96;
     // Cremated cards are right-aligned and grow to the left, so their grip sits on the left edge
@@ -488,6 +491,7 @@ const SectionCard = memo(function SectionCard({
     const finish = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);
+      shell?.removeAttribute("data-resizing");
       onWidthCommit?.(section.key, Number(latest.toFixed(2)));
     };
     window.addEventListener("pointermove", move);

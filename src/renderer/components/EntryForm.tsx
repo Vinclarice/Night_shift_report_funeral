@@ -42,7 +42,6 @@ export function formatsFor(category: "human" | "cremated", current: EntryKind): 
 
 interface Props {
   form: EntryFormState;
-  activeSectionTitle: string;
   category: "human" | "cremated";
   isDeliver: boolean;
   setField: (field: TextField, value: string) => void;
@@ -54,7 +53,7 @@ interface Props {
   onSubmit: (event: FormEvent) => void;
 }
 
-export function EntryForm({ form, activeSectionTitle, category, isDeliver, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
+export function EntryForm({ form, category, isDeliver, setField, setCount, setRush, setKeepSeparate, setEntryKind, reset, onSubmit }: Props) {
   const primaryFieldRef = useRef<HTMLInputElement>(null);
   const isFuneralKind = form.entryKind === "funeral" || form.entryKind === "funeralHomeOnly";
   const formatOptions = formatsFor(category, form.entryKind).map((value) => ({ value, label: FORMAT_LABELS[value] }));
@@ -69,13 +68,14 @@ export function EntryForm({ form, activeSectionTitle, category, isDeliver, setFi
 
   return (
     <form className="entry-form panel-section" onSubmit={handleSubmit} noValidate>
-      <div className="section-heading sticky-section-heading">
-        <div>
-          <p className="eyebrow">{form.editing ? "Editing" : "Add entry"}</p>
-          <h2>{activeSectionTitle}</h2>
+      {/* The inspector header above already names the section, so adding an entry needs no heading of
+          its own. Editing does: it is a different mode, and Cancel has to live somewhere. */}
+      {form.editing && (
+        <div className="section-heading">
+          <h2>Editing entry</h2>
+          <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>
         </div>
-        {form.editing && <button type="button" className="text-button" onClick={() => reset()}>Cancel</button>}
-      </div>
+      )}
       <p className="format-label">Format</p>
       <SegmentedControl label="Format" value={form.entryKind} options={formatOptions} onChange={setEntryKind} />
       <div className="dynamic-fields" key={form.entryKind}>
